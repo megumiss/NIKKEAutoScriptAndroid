@@ -11,8 +11,8 @@ android {
         applicationId = "com.megumiss.nkas.mobile"
         minSdk = 30
         targetSdk = 35
-        versionCode = 22
-        versionName = "0.3.11"
+        versionCode = 23
+        versionName = "0.3.12"
     }
 
     buildTypes {
@@ -30,5 +30,6 @@ android {
 }
 
 dependencies {
+    implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.drawerlayout:drawerlayout:1.2.0")
 }
