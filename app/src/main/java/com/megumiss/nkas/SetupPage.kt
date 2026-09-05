@@ -714,8 +714,7 @@ class SetupPage(private val activity: Activity, private val navigate: (String) -
             setProjectBlocked()
             if (externalAppsRejected) {
                 setStep("termux_setting", false, "待设置")
-                val detail = raw.replace("\n", " ").replace("\r", " ").trim().take(360)
-                status.text = "Termux 拒绝了外部命令：${if (detail.isBlank()) "未返回详细原因" else detail}"
+                status.text = "Termux 拒绝了外部命令，请执行上方命令并完全重启 Termux。"
                 action.text = "等待 Termux 设置"
                 setActionEnabled(false)
             } else {
@@ -753,11 +752,7 @@ class SetupPage(private val activity: Activity, private val navigate: (String) -
         when {
             !wirelessReady -> { status.text = "请先开启 Android 无线调试，环境准备完成后才能安装项目。"; action.text = "打开无线调试设置"; action.setOnClickListener { openWirelessSettings() }; setActionEnabled(false) }
             !setting -> {
-                val home = raw.lineSequence().firstOrNull { it.startsWith("termux_home=") }?.substringAfter('=') ?: "未知"
-                val prefix = raw.lineSequence().firstOrNull { it.startsWith("termux_prefix=") }?.substringAfter('=') ?: "未知"
-                val path = raw.lineSequence().firstOrNull { it.startsWith("termux_properties_path=") }?.substringAfter('=') ?: "未知"
-                val value = raw.lineSequence().firstOrNull { it.startsWith("termux_setting_value=") }?.substringAfter('=') ?: "空"
-                status.text = "外部应用开关未通过。诊断：HOME=$home；PREFIX=$prefix；文件=$path；读取值=${value.ifBlank { "空" }}"
+                status.text = "未检测到 Termux 的 allow-external-apps=true，请执行上方命令并重启 Termux。"
                 action.text = "等待 Termux 设置"
                 setActionEnabled(false)
             }

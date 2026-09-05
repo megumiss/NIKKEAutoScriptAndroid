@@ -5,7 +5,7 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
-val appVersionName = "0.3.33"
+val appVersionName = "0.3.34"
 val keystorePropertiesFile = rootProject.file("keystore.properties")
 val keystoreProperties = Properties().apply {
     if (keystorePropertiesFile.exists()) load(keystorePropertiesFile.inputStream())
@@ -19,7 +19,7 @@ android {
         applicationId = "com.megumiss.nkas.mobile"
         minSdk = 30
         targetSdk = 35
-        versionCode = 44
+        versionCode = 45
         versionName = appVersionName
     }
 
