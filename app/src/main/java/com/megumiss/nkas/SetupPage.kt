@@ -5,17 +5,15 @@ import android.content.Intent
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.pm.PackageManager
-import android.graphics.Color
 import android.graphics.Typeface
 import android.net.Uri
-import android.os.Bundle
 import android.provider.Settings
 import android.os.Handler
 import android.os.Looper
-import android.os.Build
 import android.view.View
 import android.view.Gravity
 import android.widget.Button
+import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.ScrollView
@@ -26,78 +24,69 @@ import java.net.URL
 import java.util.concurrent.Executors
 import java.util.Locale
 
-class SetupActivity : Activity() {
+/**
+ * 初始化页：由 SetupActivity 迁移为单 Activity 内的页面渲染器。
+ * hide() 等价于旧实现的 finish()：停止轮询；show() 等价于重新进入页面：重置状态并重新检查。
+ */
+class SetupPage(private val activity: Activity, private val navigate: (String) -> Unit) {
     private val handler = Handler(Looper.getMainLooper())
     private val executor = Executors.newSingleThreadExecutor()
     private lateinit var content: LinearLayout
     private lateinit var status: TextView
     private lateinit var action: Button
-    private lateinit var floatingHost: android.widget.FrameLayout
+    private lateinit var floatingHost: FrameLayout
     private var checking = false
     private var destroyed = false
-    private var currentPage = "setup"
+    private var visible = false
     private var bootstrapActive = false
     private var artifactChecking = false
     private var expandedLogKey: String? = null
     private var bootstrapStageIndex = -1
     private var initialNoticeShowing = false
-    private var resumedOnce = false
     private val artifactState = mutableMapOf<String, Boolean>()
     private val steps = linkedMapOf<String, Step>()
 
-    private val bg = Color.rgb(248, 250, 252)
-    private val card = Color.rgb(255, 255, 255)
-    private val card2 = Color.rgb(243, 246, 249)
-    private val border = Color.rgb(220, 226, 232)
-    private val text = Color.rgb(25, 35, 48)
-    private val text2 = Color.rgb(92, 105, 120)
-    private val accent = Color.rgb(26, 112, 170)
-    private val green = Color.rgb(24, 145, 95)
-    private val disabled = Color.rgb(210, 216, 223)
-
-    override fun onCreate(state: Bundle?) {
-        super.onCreate(state)
-        window.statusBarColor = bg
-        window.navigationBarColor = bg
-        setContentView(buildShell())
-        if (intent.getStringExtra("page") == "about") renderAbout() else {
-            renderSetup()
-            refreshState()
-        }
-        startInstanceNotifications()
-    }
-
-    override fun onResume() {
-        super.onResume()
-        if (resumedOnce && ::content.isInitialized && currentPage == "setup") refreshState()
-        resumedOnce = true
-    }
-
-    private fun buildShell(): View {
-        val built = DrawerShell.build(this, "setup") { key ->
-            when (key) {
-                "gate" -> { startActivity(Intent(this, GateActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)); finish() }
-                "setup" -> { renderSetup(); refreshState() }
-                "ui" -> { startActivity(Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)); finish() }
-                "settings" -> { startActivity(Intent(this, SettingsActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)); finish() }
-                "about" -> renderAbout()
-            }
-        }
-        val scroll = ScrollView(this).apply { isFillViewport = true }
-        content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(24), dp(24), dp(24), dp(170)) }
+    fun show(container: FrameLayout) {
+        visible = true
+        bootstrapActive = false
+        artifactChecking = false
+        checking = false
+        bootstrapStageIndex = -1
+        initialNoticeShowing = false
+        expandedLogKey = null
+        artifactState.clear()
+        steps.clear()
+        val root = FrameLayout(activity)
+        val scroll = ScrollView(activity).apply { isFillViewport = true }
+        content = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(24), dp(24), dp(24), dp(170)) }
         scroll.addView(content)
-        built.content.addView(scroll, android.widget.FrameLayout.LayoutParams(-1, -1))
-        floatingHost = android.widget.FrameLayout(this).apply { setBackgroundColor(Color.TRANSPARENT); visibility = View.GONE }
-        built.content.addView(floatingHost, android.widget.FrameLayout.LayoutParams(-1, dp(78), Gravity.BOTTOM))
-        return built.root
+        root.addView(scroll, FrameLayout.LayoutParams(-1, -1))
+        floatingHost = FrameLayout(activity).apply { setBackgroundColor(Ui.bg) }
+        root.addView(floatingHost, FrameLayout.LayoutParams(-1, dp(78), Gravity.BOTTOM))
+        container.addView(root, FrameLayout.LayoutParams(-1, -1))
+        renderSetup()
+        refreshState()
+    }
+
+    fun hide() {
+        visible = false
+        handler.removeCallbacksAndMessages(null)
+    }
+
+    fun destroy() {
+        destroyed = true
+        hide()
+        executor.shutdownNow()
+    }
+
+    fun onResume() {
+        if (visible && ::content.isInitialized) refreshState()
     }
 
     private fun renderSetup() {
-        currentPage = "setup"
-        floatingHost.visibility = View.VISIBLE
         content.removeAllViews()
         heading("初始化", "准备 Termux、NKAS 服务和本地 Web UI\n请开启 Termux 和 NKAS 的自启动、关联启动，并允许后台运行")
-        status = TextView(this).apply { textSize = 14f; setTextColor(text2); setPadding(0, 0, 0, dp(16)); visibility = View.GONE }
+        status = TextView(activity).apply { textSize = 14f; setTextColor(Ui.text2); setPadding(0, 0, 0, dp(16)); visibility = View.GONE }
         section("环境准备")
         step("Termux", termuxDetail(), "termux")
         step("Android 外部命令权限", "系统授权：允许 NKAS 调用 Termux", "permission")
@@ -111,54 +100,45 @@ class SetupActivity : Activity() {
         step("容器", "安装包含 Python 运行环境的 NKAS 容器", "container")
         step("容器服务", "启动本地服务和 Web UI", "service")
         setProjectBlocked()
-        action = Button(this).apply { text = "开始安装"; textSize = 14f; isAllCaps = false; setOnClickListener { onAction() }; elevation = dp(6).toFloat() }
+        action = Button(activity).apply { text = "开始安装"; textSize = 14f; isAllCaps = false; setOnClickListener { onAction() }; elevation = dp(6).toFloat() }
         setActionEnabled(false)
         floatingHost.removeAllViews()
-        floatingHost.addView(action, android.widget.FrameLayout.LayoutParams(-1, dp(52)).apply { leftMargin = dp(24); rightMargin = dp(24); topMargin = dp(10) })
+        floatingHost.addView(action, FrameLayout.LayoutParams(-1, dp(52)).apply { leftMargin = dp(24); rightMargin = dp(24); topMargin = dp(10) })
     }
 
     private fun manualCommand(parent: LinearLayout) {
-        parent.addView(TextView(this).apply { text = "在 Termux 中执行以下命令，然后完全退出并重新打开 Termux。页面会根据实际配置自动更新状态。"; textSize = 12f; setTextColor(text2); setPadding(0, dp(8), 0, dp(6)) })
+        parent.addView(TextView(activity).apply { text = "在 Termux 中执行以下命令，然后完全退出并重新打开 Termux。页面会根据实际配置自动更新状态。"; textSize = 12f; setTextColor(Ui.text2); setPadding(0, dp(8), 0, dp(6)) })
         val command = "mkdir -p ~/.termux\necho 'allow-external-apps=true' > ~/.termux/termux.properties"
-        parent.addView(TextView(this).apply { text = command; textSize = 12f; setTextColor(accent); setPadding(dp(10), dp(10), dp(10), dp(10)); background = rounded(card2, 6) })
-        val actions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        val open = Button(this).apply { text = "打开 Termux"; isAllCaps = false; textSize = 12f; setOnClickListener { packageManager.getLaunchIntentForPackage("com.termux")?.let { startActivity(it) } } }
-        val copy = Button(this).apply { text = "复制命令"; isAllCaps = false; textSize = 12f; setOnClickListener { (getSystemService(CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(ClipData.newPlainText("Termux 命令", command)); text = "已复制" } }
+        parent.addView(TextView(activity).apply { text = command; textSize = 12f; setTextColor(Ui.text); typeface = Typeface.MONOSPACE; setPadding(dp(10), dp(10), dp(10), dp(10)); background = rounded(Ui.card2, 6) })
+        val actions = LinearLayout(activity).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        val open = Button(activity).apply { text = "打开 Termux"; textSize = 12f; Ui.styleSecondary(activity, this); setOnClickListener { activity.packageManager.getLaunchIntentForPackage("com.termux")?.let { activity.startActivity(it) } } }
+        val copy = Button(activity).apply { text = "复制命令"; textSize = 12f; Ui.styleSecondary(activity, this); setOnClickListener { (activity.getSystemService(Activity.CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(ClipData.newPlainText("Termux 命令", command)); text = "已复制" } }
         actions.addView(open, LinearLayout.LayoutParams(0, dp(42), 1f)); actions.addView(copy, LinearLayout.LayoutParams(0, dp(42), 1f).apply { leftMargin = dp(8) })
         parent.addView(actions, LinearLayout.LayoutParams(-1, dp(42)).apply { topMargin = dp(8) })
     }
 
     private fun heading(main: String, sub: String) {
-        content.addView(TextView(this).apply { text = main; textSize = 26f; setTextColor(this@SetupActivity.text); setTypeface(Typeface.DEFAULT, Typeface.BOLD) })
-        content.addView(TextView(this).apply { text = sub; textSize = 14f; setTextColor(text2); setPadding(0, dp(6), 0, dp(20) ) })
+        content.addView(TextView(activity).apply { text = main; textSize = 26f; setTextColor(Ui.text); setTypeface(Typeface.DEFAULT, Typeface.BOLD) })
+        content.addView(TextView(activity).apply { text = sub; textSize = 14f; setTextColor(Ui.text2); setPadding(0, dp(6), 0, dp(20) ) })
     }
 
-    private fun startInstanceNotifications() {
-        InstanceNotificationService.start(this)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-            checkSelfPermission("android.permission.POST_NOTIFICATIONS") != PackageManager.PERMISSION_GRANTED
-        ) {
-            requestPermissions(arrayOf("android.permission.POST_NOTIFICATIONS"), NOTIFICATION_REQUEST)
-        }
-    }
-
-    private fun section(label: String) { content.addView(TextView(this).apply { text = label.uppercase(); textSize = 11f; setTextColor(text2); setTypeface(Typeface.DEFAULT, Typeface.BOLD); setPadding(0, dp(8), 0, dp(8)) }) }
+    private fun section(label: String) { content.addView(TextView(activity).apply { text = label.uppercase(); textSize = 11f; setTextColor(Ui.text2); setTypeface(Typeface.DEFAULT, Typeface.BOLD); setPadding(0, dp(8), 0, dp(8)) }) }
 
     private data class Step(val dot: TextView, val state: TextView, val progress: ProgressBar, val key: String, val wrapper: LinearLayout, val detail: TextView, val log: TextView)
     private fun step(name: String, detail: String, key: String): Step {
-        val wrapper = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(14), dp(10), dp(14), dp(10)); background = rounded(card, 10) }
-        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        val dot = TextView(this).apply { text = "○"; textSize = 22f; setTextColor(text2); gravity = Gravity.CENTER }
-        val labels = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        labels.addView(TextView(this).apply { text = name; textSize = 15f; setTextColor(this@SetupActivity.text) })
-        val detailView = TextView(this).apply { text = detail; textSize = 12f; setTextColor(text2); setPadding(0, dp(3), 0, 0) }
+        val wrapper = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(14), dp(10), dp(14), dp(10)); background = rounded(Ui.card, 10) }
+        val row = LinearLayout(activity).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        val dot = TextView(activity).apply { text = "○"; textSize = 22f; setTextColor(Ui.text2); gravity = Gravity.CENTER }
+        val labels = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
+        labels.addView(TextView(activity).apply { text = name; textSize = 15f; setTextColor(Ui.text) })
+        val detailView = TextView(activity).apply { text = detail; textSize = 12f; setTextColor(Ui.text2); setPadding(0, dp(3), 0, 0) }
         labels.addView(detailView)
-        val state = TextView(this).apply { textSize = 12f; setTextColor(text2); gravity = Gravity.CENTER }
-        val progress = ProgressBar(this).apply { isIndeterminate = true; visibility = View.GONE }
-        val log = TextView(this).apply { textSize = 11f; setTextColor(text2); setPadding(dp(10), dp(8), dp(10), dp(8)); background = rounded(card2, 6); visibility = View.GONE; typeface = Typeface.MONOSPACE; maxLines = 12 }
-        val statusBox = android.widget.FrameLayout(this).apply {
-            addView(progress, android.widget.FrameLayout.LayoutParams(dp(28), dp(28), Gravity.END or Gravity.CENTER_VERTICAL))
-            addView(state, android.widget.FrameLayout.LayoutParams(-1, -2, Gravity.CENTER_VERTICAL))
+        val state = TextView(activity).apply { textSize = 12f; setTextColor(Ui.text2); gravity = Gravity.CENTER }
+        val progress = ProgressBar(activity).apply { isIndeterminate = true; visibility = View.GONE }
+        val log = TextView(activity).apply { textSize = 11f; setTextColor(Ui.text2); setPadding(dp(10), dp(8), dp(10), dp(8)); background = rounded(Ui.card2, 6); visibility = View.GONE; typeface = Typeface.MONOSPACE; maxLines = 12 }
+        val statusBox = FrameLayout(activity).apply {
+            addView(progress, FrameLayout.LayoutParams(dp(28), dp(28), Gravity.END or Gravity.CENTER_VERTICAL))
+            addView(state, FrameLayout.LayoutParams(-1, -2, Gravity.CENTER_VERTICAL))
         }
         row.addView(dot, LinearLayout.LayoutParams(dp(30), dp(30))); row.addView(labels, LinearLayout.LayoutParams(0, -2, 1f)); row.addView(statusBox, LinearLayout.LayoutParams(dp(64), dp(30)))
         wrapper.addView(row); wrapper.addView(log, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
@@ -171,11 +151,11 @@ class SetupActivity : Activity() {
     private fun setStep(key: String, done: Boolean, label: String) {
         val info = steps[key] ?: return
         info.dot.text = if (done) "✓" else "○"
-        info.dot.setTextColor(if (done) green else text2)
+        info.dot.setTextColor(if (done) Ui.green else Ui.text2)
         val running = !done && label == "执行中"
         info.progress.visibility = if (running) View.VISIBLE else View.GONE
         info.state.text = if (running) "" else label
-        info.state.setTextColor(if (done) green else text2)
+        info.state.setTextColor(if (done) Ui.green else Ui.text2)
         if (done) {
             info.log.visibility = View.GONE
             if (expandedLogKey == key) expandedLogKey = null
@@ -188,7 +168,7 @@ class SetupActivity : Activity() {
 
     private fun termuxDetail(): String {
         val version = runCatching {
-            packageManager.getPackageInfo("com.termux", 0).versionName
+            activity.packageManager.getPackageInfo("com.termux", 0).versionName
         }.getOrNull()?.takeIf { it.isNotBlank() }
         return if (version == null) "需要安装官方 Termux" else "已安装版本：Termux v$version"
     }
@@ -255,9 +235,9 @@ class SetupActivity : Activity() {
         }
         setActionEnabled(true)
         action.setOnClickListener { onAction() }
-        val bridge = TermuxBridge(this)
+        val bridge = TermuxBridge(activity)
         val installed = bridge.isInstalled()
-        val permission = checkSelfPermission(TermuxBridge.RUN_COMMAND_PERMISSION) == PackageManager.PERMISSION_GRANTED
+        val permission = activity.checkSelfPermission(TermuxBridge.RUN_COMMAND_PERMISSION) == PackageManager.PERMISSION_GRANTED
         val wireless = isWirelessDebugEnabled()
         setStepDetail("termux", termuxDetail())
         setStep("termux", installed, if (installed) "已安装" else "待安装")
@@ -267,7 +247,7 @@ class SetupActivity : Activity() {
             setProjectBlocked()
             status.text = "项目授权已完成，但还未检测到 Termux，请先下载并安装官方版本。"
             action.text = "下载 Termux"
-            action.setOnClickListener { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(TERMUX_URL))) }
+            action.setOnClickListener { activity.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(TERMUX_URL))) }
             setActionEnabled(true)
             return
         }
@@ -290,10 +270,10 @@ class SetupActivity : Activity() {
         artifactChecking = true
         status.text = "正在检查实际产物，不读取上次保存的状态……"
         setActionEnabled(false)
-        BootstrapService(this).checkArtifacts { result ->
+        BootstrapService(activity).checkArtifacts { result ->
             handler.post {
                 artifactChecking = false
-                if (bootstrapActive) return@post
+                if (bootstrapActive || !visible) return@post
                 val output = result.stdout + if (result.stderr.isNotBlank()) "\n[stderr]\n${result.stderr}" else ""
                 applyArtifactResults(output, result.exitCode)
             }
@@ -302,15 +282,15 @@ class SetupActivity : Activity() {
 
     private fun onAction() {
         if (bootstrapActive || artifactChecking || checking || initialNoticeShowing) return
-        if (!AccessGate.isAuthorized(this)) {
+        if (!AccessGate.isAuthorized(activity)) {
             status.text = "使用安装功能前需要先 Star 本项目并完成授权。"
             return
         }
-        val bridge = TermuxBridge(this)
-        if (!bridge.isInstalled()) { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(TERMUX_URL))); return }
-        if (checkSelfPermission(TermuxBridge.RUN_COMMAND_PERMISSION) != PackageManager.PERMISSION_GRANTED) { requestPermissions(arrayOf(TermuxBridge.RUN_COMMAND_PERMISSION), RUN_COMMAND_REQUEST); return }
+        val bridge = TermuxBridge(activity)
+        if (!bridge.isInstalled()) { activity.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(TERMUX_URL))); return }
+        if (activity.checkSelfPermission(TermuxBridge.RUN_COMMAND_PERMISSION) != PackageManager.PERMISSION_GRANTED) { activity.requestPermissions(arrayOf(TermuxBridge.RUN_COMMAND_PERMISSION), RUN_COMMAND_REQUEST); return }
         if (!isWirelessDebugEnabled()) { openWirelessSettings(); return }
-        val prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+        val prefs = activity.getSharedPreferences(PREFS_NAME, Activity.MODE_PRIVATE)
         if (!prefs.getBoolean(KEY_INITIAL_NOTICE_SHOWN, false)) {
             showInitialNotice()
             return
@@ -321,7 +301,7 @@ class SetupActivity : Activity() {
     private fun showInitialNotice() {
         initialNoticeShowing = true
         setActionEnabled(false)
-        AlertDialog.Builder(this)
+        AlertDialog.Builder(activity)
             .setTitle("安装前提醒")
             .setMessage("安装可能需要较长时间。执行期间请保持 NKAS Mobile 始终在前台，并确保网络连接稳定；切换到其他应用或断网可能导致下载失败。")
             .setNegativeButton("取消") { _, _ ->
@@ -329,7 +309,7 @@ class SetupActivity : Activity() {
                 setActionEnabled(true)
             }
             .setPositiveButton("继续安装") { _, _ ->
-                getSharedPreferences(PREFS_NAME, MODE_PRIVATE).edit().putBoolean(KEY_INITIAL_NOTICE_SHOWN, true).apply()
+                activity.getSharedPreferences(PREFS_NAME, Activity.MODE_PRIVATE).edit().putBoolean(KEY_INITIAL_NOTICE_SHOWN, true).apply()
                 initialNoticeShowing = false
                 beginInitializationCheck()
             }
@@ -341,29 +321,30 @@ class SetupActivity : Activity() {
     }
 
     private fun beginInitializationCheck() {
-        val bridge = TermuxBridge(this)
+        val bridge = TermuxBridge(activity)
         status.text = "正在重新检查实际产物……"
         setActionEnabled(false)
         artifactChecking = true
         bridge.checkArtifacts { check ->
             handler.post {
                 artifactChecking = false
+                if (!visible) return@post
                 val output = check.stdout + if (check.stderr.isNotBlank()) "\n[stderr]\n${check.stderr}" else ""
                 applyArtifactResults(output, check.exitCode)
-                if (artifactState["termux_setting"] == true && (artifactState["service"] != true || artifactState["config"] != true || SettingsStore.settingsChanged(this@SetupActivity))) startBootstrap()
+                if (artifactState["termux_setting"] == true && (artifactState["service"] != true || artifactState["config"] != true || SettingsStore.settingsChanged(activity))) startBootstrap()
             }
         }
     }
 
     private fun isWirelessDebugEnabled(): Boolean = try {
-        android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R && Settings.Global.getInt(contentResolver, "adb_wifi_enabled", 0) == 1
+        android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R && Settings.Global.getInt(activity.contentResolver, "adb_wifi_enabled", 0) == 1
     } catch (_: Settings.SettingNotFoundException) {
         false
     }
 
     private fun openWirelessSettings() {
         val intent = Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS)
-        runCatching { startActivity(intent) }.onFailure { startActivity(Intent(Settings.ACTION_SETTINGS)) }
+        runCatching { activity.startActivity(intent) }.onFailure { activity.startActivity(Intent(Settings.ACTION_SETTINGS)) }
     }
 
     private fun setProjectBlocked() {
@@ -374,14 +355,16 @@ class SetupActivity : Activity() {
 
     private fun setActionEnabled(enabled: Boolean) {
         action.isEnabled = enabled
-        action.setTextColor(if (enabled) Color.WHITE else text2)
-        action.background = rounded(if (enabled) accent else disabled, 12)
+        // 与 Web 的 .btn:disabled 一致：保留主按钮样式，仅用透明度表达禁用
+        Ui.stylePrimary(activity, action, 12)
+        action.alpha = if (enabled) 1f else 0.4f
     }
 
     private fun startBootstrap() {
         status.text = "正在恢复安装，日志会显示在当前步骤中……"; setActionEnabled(false); bootstrapActive = true; bootstrapStageIndex = -1; setStepLog("tools", "正在请求 Termux 恢复安装脚本……", true)
-        val result = BootstrapService(this).start { result ->
+        val result = BootstrapService(activity).start { result ->
             handler.post {
+                if (!visible) return@post
                 if (result.exitCode != 0) {
                     val output = result.stdout + "\n" + result.stderr
                     if (result.exitCode == -2) {
@@ -418,12 +401,12 @@ class SetupActivity : Activity() {
     }
 
     private fun pollBackend() {
-        if (destroyed || checking) return
+        if (destroyed || !visible || checking) return
         checking = true
         executor.execute {
             val ready = try { (URL("http://127.0.0.1:12271/api/system/status").openConnection() as HttpURLConnection).apply { connectTimeout = 1500; readTimeout = 1500; requestMethod = "GET" }.responseCode == 200 } catch (_: Exception) { false }
             handler.post {
-                if (destroyed) return@post
+                if (destroyed || !visible) return@post
                 checking = false
                 if (ready) {
                     if (bootstrapActive) {
@@ -447,15 +430,16 @@ class SetupActivity : Activity() {
     }
 
     private fun pollLogOnce() {
-        BootstrapService(this).readLog { result -> handler.post { applyBootstrapLog(result.stdout + if (result.stderr.isNotBlank()) "\n[stderr]\n${result.stderr}" else "") } }
+        BootstrapService(activity).readLog { result -> handler.post { if (visible) applyBootstrapLog(result.stdout + if (result.stderr.isNotBlank()) "\n[stderr]\n${result.stderr}" else "") } }
     }
 
     private fun pollLog() {
-        if (destroyed || !bootstrapActive) return
-        BootstrapService(this).readLog { result ->
+        if (destroyed || !visible || !bootstrapActive) return
+        BootstrapService(activity).readLog { result ->
             handler.post {
+                if (!visible) return@post
                 applyBootstrapLog(result.stdout + if (result.stderr.isNotBlank()) "\n[stderr]\n${result.stderr}" else "")
-                if (bootstrapActive && !destroyed) handler.postDelayed({ pollLog() }, 1400)
+                if (bootstrapActive && !destroyed && visible) handler.postDelayed({ pollLog() }, 1400)
             }
         }
     }
@@ -502,22 +486,18 @@ class SetupActivity : Activity() {
             !wirelessReady -> { status.text = "请先开启 Android 无线调试，环境准备完成后才能安装项目。"; action.text = "打开无线调试设置"; action.setOnClickListener { openWirelessSettings() }; setActionEnabled(false) }
             !setting -> { status.text = "未检测到 Termux 的 allow-external-apps=true，请执行上方步骤中的命令并重启 Termux。"; action.text = "等待 Termux 设置"; setActionEnabled(false) }
             !configReady -> { status.text = "需要安装并应用 Android 设备配置。"; action.text = "开始安装"; action.setOnClickListener { onAction() } }
-            serviceReady && SettingsStore.settingsChanged(this) -> { status.text = "设置已变更，需要重新应用后才能启动服务。"; action.text = "应用设置并重启"; action.setOnClickListener { onAction() } }
-            serviceReady -> { SettingsStore.markApplied(this); status.text = "已检测到 NKAS Web UI 服务，可以打开 UI。"; action.text = "打开 NKAS UI"; action.setOnClickListener { startActivity(Intent(this, MainActivity::class.java)); finish() } }
+            serviceReady && SettingsStore.settingsChanged(activity) -> { status.text = "设置已变更，需要重新应用后才能启动服务。"; action.text = "应用设置并重启"; action.setOnClickListener { onAction() } }
+            serviceReady -> { SettingsStore.markApplied(activity); status.text = "已检测到 NKAS Web UI 服务，可以打开 UI。"; action.text = "打开 NKAS UI"; action.setOnClickListener { navigate("ui") } }
             else -> { status.text = ""; action.text = "开始安装"; action.setOnClickListener { onAction() } }
         }
         setActionEnabled(wirelessReady && setting)
     }
 
-    private fun renderAbout() { currentPage = "about"; floatingHost.visibility = View.GONE; content.removeAllViews(); heading("关于 NKAS Mobile", "NIKKEAutoScript 的 Android 控制端"); content.addView(TextView(this).apply { text = "应用负责初始化 Termux 环境，并通过本地 Web UI 管理 NKAS。\n\n包名：com.megumiss.nkas.mobile\n版本：0.2.9\n\n不会自动启动 NIKKE 游戏。"; textSize = 14f; setTextColor(text2); setPadding(dp(16), dp(16), dp(16), dp(16)); background = rounded(card, 10) }) }
-    override fun onBackPressed() { if (currentPage == "about") { renderSetup(); refreshState() } else super.onBackPressed() }
-    private fun rounded(color: Int, radius: Int) = android.graphics.drawable.GradientDrawable().apply { setColor(color); cornerRadius = dp(radius).toFloat(); setStroke(dp(1), border) }
-    private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
-    override fun onDestroy() { destroyed = true; handler.removeCallbacksAndMessages(null); executor.shutdownNow(); super.onDestroy() }
+    private fun rounded(color: Int, radius: Int) = Ui.rounded(activity, color, radius)
+    private fun dp(v: Int) = Ui.dp(activity, v)
     companion object {
         private const val TERMUX_URL = "https://github.com/termux/termux-app/releases/latest"
         private const val RUN_COMMAND_REQUEST = 1001
-        private const val NOTIFICATION_REQUEST = 1002
         private const val PREFS_NAME = "nkas_state"
         private const val KEY_INITIAL_NOTICE_SHOWN = "initial_notice_shown"
     }

@@ -27,7 +27,7 @@
             android:layout_height="wrap_content"
             android:ellipsize="end"
             android:maxLines="1"
-            android:textColor="#1A2430"
+            android:textColor="#21262E"
             android:textSize="14sp"
             android:textStyle="bold" />
 
@@ -37,7 +37,7 @@
             android:layout_height="wrap_content"
             android:ellipsize="end"
             android:maxLines="1"
-            android:textColor="#5C6978"
+            android:textColor="#5F6A78"
             android:textSize="12sp" />
     </LinearLayout>
 
