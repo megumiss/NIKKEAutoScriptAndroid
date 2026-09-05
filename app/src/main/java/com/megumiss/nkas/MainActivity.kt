@@ -75,7 +75,7 @@ class MainActivity : Activity() {
         scroll.addView(content)
         val appVersion = runCatching { packageManager.getPackageInfo(packageName, 0).versionName ?: "未知" }.getOrDefault("未知")
         content.addView(TextView(this).apply { text = "关于 NKAS Mobile"; textSize = 26f; setTextColor(Ui.text); setTypeface(Typeface.DEFAULT, Typeface.BOLD) })
-        content.addView(TextView(this).apply { text = "NIKKEAutoScript 的 Android 控制端"; textSize = 14f; setTextColor(Ui.text2); setPadding(0, dp(6), 0, dp(20)) })
+        content.addView(TextView(this).apply { text = "NIKKEAutoScript 的 Android 控制端 · v$appVersion"; textSize = 14f; setTextColor(Ui.text2); setPadding(0, dp(6), 0, dp(20)) })
         val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(18), dp(18), dp(18), dp(18))
@@ -94,18 +94,17 @@ class MainActivity : Activity() {
             setPadding(dp(14), dp(12), dp(14), dp(12))
             background = Ui.rounded(this@MainActivity, Ui.card2, 8)
         }
-        disclaimer.addView(aboutHeader("⚠ 使用风险与免责声明", 0))
+        disclaimer.addView(aboutHeader("⚠ 使用风险与免责声明", 0, Ui.yellow))
         disclaimer.addView(aboutBody("NKAS 是一款基于截图与模拟输入的自动化工具。使用此类工具可能违反游戏用户协议，可能导致账号受到处罚（包括但不限于警告、限制或封禁）。使用 NKAS 即表示您已知晓并自行承担上述风险；因使用本软件造成的任何损失，作者概不负责。", 0))
         panel.addView(disclaimer, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(18) })
-        panel.addView(aboutBody("版本：$appVersion", 14))
         content.addView(panel, LinearLayout.LayoutParams(-1, -2))
         shell.content.addView(scroll, android.widget.FrameLayout.LayoutParams(-1, -1))
     }
 
-    private fun aboutHeader(label: String, topPadding: Int = 18): TextView = TextView(this).apply {
+    private fun aboutHeader(label: String, topPadding: Int = 18, color: Int = Ui.accent): TextView = TextView(this).apply {
         text = label
         textSize = 16f
-        setTextColor(Ui.accent)
+        setTextColor(color)
         setTypeface(Typeface.DEFAULT, Typeface.BOLD)
         setPadding(0, dp(topPadding), 0, dp(6))
     }
@@ -131,8 +130,7 @@ class MainActivity : Activity() {
         val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(0, dp(12), 0, 0) }
         listOf(
             R.drawable.donate_wechat to "微信支付",
-            R.drawable.donate_alipay to "支付宝",
-            R.drawable.donate_alipay_remit to "支付宝转账（国际）"
+            R.drawable.donate_alipay to "支付宝"
         ).forEach { (imageRes, caption) ->
             val item = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL; setPadding(dp(6), 0, dp(6), 0) }
             item.addView(ImageView(this).apply { setImageResource(imageRes); scaleType = ImageView.ScaleType.CENTER_INSIDE }, LinearLayout.LayoutParams(dp(132), dp(132)))

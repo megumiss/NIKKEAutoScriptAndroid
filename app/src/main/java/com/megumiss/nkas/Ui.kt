@@ -29,6 +29,7 @@ object Ui {
     val accentBorder = Color.argb(122, 0x2F, 0x8F, 0xD0)
     val green = Color.rgb(0x1C, 0xAB, 0x72)
     val greenSoft = Color.argb(26, 0x1C, 0xAB, 0x72)
+    val yellow = Color.rgb(0xBD, 0x7A, 0x18)
     val red = Color.rgb(0xD3, 0x45, 0x45)
 
     fun dp(context: Context, value: Int) = (value * context.resources.displayMetrics.density + 0.5f).toInt()
