@@ -49,8 +49,10 @@ class TermuxBridge(private val context: Context) {
 
     @Throws(IOException::class)
     fun startBootstrap(onResult: (CommandResult) -> Unit = {}) {
-        val script = context.assets.open("bootstrap.sh").use { it.readBytes() }
-        val service = context.assets.open("nkas-service.sh").use { it.readBytes() }
+        // Android assets retain the checkout's line endings. Normalize scripts before handing
+        // them to Termux, otherwise CRLF files fail in bash with syntax errors.
+        val script = readAssetScript("bootstrap.sh")
+        val service = readAssetScript("nkas-service.sh")
         val settings = "NKAS_APT_SOURCE=${SettingsStore.aptSource(context)}\n" +
             "NKAS_DOCKER_IMAGE=${SettingsStore.dockerImage(context)}\n" +
             "NKAS_REPOSITORY=${SettingsStore.repository(context)}\n" +
@@ -62,6 +64,13 @@ class TermuxBridge(private val context: Context) {
         val encodedSettings = Base64.encodeToString(settings.toByteArray(), Base64.NO_WRAP)
         val command = "mkdir -p \$HOME/.nkas; echo $encodedSettings | base64 -d > \$HOME/.nkas/settings.env; echo $encodedService | base64 -d > \$HOME/.nkas/nkas-service.sh; chmod 700 \$HOME/.nkas/nkas-service.sh; echo $encoded | base64 -d > \$HOME/.nkas/bootstrap.sh; chmod 700 \$HOME/.nkas/bootstrap.sh; \$HOME/.nkas/bootstrap.sh"
         runCommand(command, onResult)
+    }
+
+    private fun readAssetScript(name: String): ByteArray = context.assets.open(name).use {
+        it.readBytes().toString(Charsets.UTF_8)
+            .replace("\r\n", "\n")
+            .replace('\r', '\n')
+            .toByteArray(Charsets.UTF_8)
     }
 
     fun readBootstrapLog(onResult: (CommandResult) -> Unit) {
