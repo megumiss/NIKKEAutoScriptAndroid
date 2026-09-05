@@ -16,6 +16,7 @@ WEBUI_HOST="${NKAS_WEBUI_HOST:-127.0.0.1}"
 WEBUI_PORT="${NKAS_WEBUI_PORT:-12271}"
 REPOSITORY="${NKAS_REPOSITORY:-https://git.megumiss.top/megumiss/NIKKEAutoScript}"
 BRANCH="${NKAS_BRANCH:-master}"
+MANUAL_SERIAL="${NKAS_SERIAL:-}"
 
 mkdir -p "$STATE_DIR"
 
@@ -89,8 +90,10 @@ create_config() {
     sed -i -E 's/("ControlMethod"[[:space:]]*:[[:space:]]*)"[^"]*"/\1"MaaTouch"/' config/nkas.json
     sed -i -E '/"PhysicalDevice"[[:space:]]*:[[:space:]]*\{/,/^[[:space:]]*\},?[[:space:]]*$/ s/"Enable":[[:space:]]*false/"Enable": true/' config/nkas.json
     sed -i -E '/"PhysicalDevice"[[:space:]]*:[[:space:]]*\{/,/^[[:space:]]*\},?[[:space:]]*$/ s/("VirtualDisplay"[[:space:]]*:[[:space:]]*)(true|false)/\1true/' config/nkas.json
-    local serial
-    serial="$(detect_wireless_serial || true)"
+    local serial="${MANUAL_SERIAL}"
+    if [ -z "$serial" ]; then
+        serial="$(detect_wireless_serial || true)"
+    fi
     if [ -n "$serial" ]; then
         sed -i -E "s/(\"Serial\"[[:space:]]*:[[:space:]]*)\"[^\"]*\"/\1\"$serial\"/" config/nkas.json
         printf '[nkas] detected wireless serial: %s\n' "$serial"
@@ -158,7 +161,7 @@ detect_wireless_serial() {
         done
     fi
 
-    serial="$(adb devices 2>/dev/null | awk '$2 == "device" && $1 ~ /^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+:[0-9]+$/ { print $1; exit }')"
+    serial="$(adb devices 2>/dev/null | awk '$2 == "device" { print $1; exit }')"
     [ -n "$serial" ] && printf '%s\n' "$serial"
 }
 

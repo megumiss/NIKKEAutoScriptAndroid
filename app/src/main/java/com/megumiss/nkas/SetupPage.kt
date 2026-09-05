@@ -14,6 +14,7 @@ import android.net.Uri
 import android.view.View
 import android.view.Gravity
 import android.widget.Button
+import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ProgressBar
@@ -40,6 +41,7 @@ class SetupPage(private val activity: Activity, private val navigate: (String) -
     private lateinit var status: TextView
     private lateinit var action: Button
     private lateinit var floatingHost: FrameLayout
+    private var serialInput: EditText? = null
     private var checking = false
     private var destroyed = false
     private var visible = false
@@ -61,6 +63,7 @@ class SetupPage(private val activity: Activity, private val navigate: (String) -
         bootstrapStageIndex = -1
         initialNoticeShowing = false
         expandedLogKey = null
+        serialInput = null
         artifactState.clear()
         steps.clear()
         val root = FrameLayout(activity)
@@ -102,6 +105,8 @@ class SetupPage(private val activity: Activity, private val navigate: (String) -
         val termuxSettingStep = step("Termux 外部应用开关", "Termux 配置 allow-external-apps=true", "termux_setting")
         manualCommand(termuxSettingStep.wrapper)
         step("无线调试", "开启并检查 Android 无线调试", "wireless")
+        val adbStep = step("ADB 设备连接", "Termux 中必须能看到状态为 device 的设备", "adb_device")
+        serialInput = serialEditor(adbStep.wrapper)
         section("项目安装")
         step("Termux 工具", "安装 bash、git、adb、curl 等工具", "tools")
         step("NKAS 源码", "下载并更新项目文件", "source")
@@ -113,6 +118,43 @@ class SetupPage(private val activity: Activity, private val navigate: (String) -
         setActionEnabled(false)
         floatingHost.removeAllViews()
         floatingHost.addView(action, FrameLayout.LayoutParams(-1, dp(52)).apply { leftMargin = dp(24); rightMargin = dp(24); topMargin = dp(10) })
+    }
+
+    private fun serialEditor(parent: LinearLayout): EditText {
+        parent.addView(TextView(activity).apply {
+            text = "自动获取不到 Serial 时手动填写，例如 192.168.1.20:5555 或设备序列号。填写后保存并重新检查。"
+            textSize = 12f
+            setTextColor(Ui.text2)
+            setPadding(0, dp(8), 0, dp(6))
+        })
+        val input = EditText(activity).apply {
+            setText(SettingsStore.serial(activity))
+            hint = "Serial（可留空使用自动检测）"
+            textSize = 13f
+            setSingleLine(true)
+            setTextColor(Ui.text)
+            setHintTextColor(Ui.text2)
+            inputType = android.text.InputType.TYPE_CLASS_TEXT
+            setPadding(dp(12), 0, dp(12), 0)
+            background = rounded(Ui.card2, 6)
+        }
+        parent.addView(input, LinearLayout.LayoutParams(-1, dp(48)).apply { topMargin = dp(6) })
+        parent.addView(Button(activity).apply {
+            text = "保存并重新检查"
+            textSize = 12f
+            Ui.styleSecondary(activity, this)
+            setOnClickListener {
+                val value = input.text.toString().trim()
+                if (value.isNotBlank() && !value.matches(Regex("[A-Za-z0-9._:-]+"))) {
+                    status.text = "Serial 格式不正确，请填写设备序列号或 IP:端口。"
+                    return@setOnClickListener
+                }
+                SettingsStore.setSerial(activity, value)
+                status.text = "已保存 Serial，正在检查 Termux 设备连接……"
+                refreshState()
+            }
+        }, LinearLayout.LayoutParams(-1, dp(42)).apply { topMargin = dp(8) })
+        return input
     }
 
     private fun manualCommand(parent: LinearLayout) {
@@ -565,7 +607,7 @@ class SetupPage(private val activity: Activity, private val navigate: (String) -
     }
 
     private fun setProjectBlocked() {
-        listOf("tools", "source", "config", "container", "service").forEach { key ->
+        listOf("adb_device", "tools", "source", "config", "container", "service").forEach { key ->
             setStep(key, false, "等待环境")
         }
     }
@@ -665,7 +707,7 @@ class SetupPage(private val activity: Activity, private val navigate: (String) -
         val values = raw.lineSequence()
             .mapNotNull { line -> line.trim().split('=', limit = 2).takeIf { it.size == 2 } }
             .associate { it[0] to (it[1] == "yes") }
-        val expectedKeys = setOf("termux_setting", "tools", "source", "config", "container", "service")
+        val expectedKeys = setOf("termux_setting", "adb_device", "tools", "source", "config", "container", "service")
         if (exitCode != 0 || !values.keys.containsAll(expectedKeys)) {
             val externalAppsRejected = raw.contains("allow-external-apps", ignoreCase = true) && exitCode != -2
             setProjectBlocked()
@@ -685,7 +727,13 @@ class SetupPage(private val activity: Activity, private val navigate: (String) -
         }
         artifactState.clear()
         artifactState.putAll(values)
+        val detectedSerial = raw.lineSequence().firstOrNull { it.startsWith("adb_serial=") }
+            ?.substringAfter('=')?.trim().orEmpty()
+        if (detectedSerial.isNotBlank() && detectedSerial != "auto" && SettingsStore.serial(activity).isBlank()) {
+            serialInput?.setText(detectedSerial)
+        }
         val setting = values["termux_setting"] == true
+        val adbDeviceReady = values["adb_device"] == true
         val toolsReady = values["tools"] == true
         val sourceReady = values["source"] == true
         val configReady = values["config"] == true
@@ -694,6 +742,7 @@ class SetupPage(private val activity: Activity, private val navigate: (String) -
         val wirelessReady = isWirelessDebugEnabled()
         setStep("termux_setting", setting, if (setting) "已检测" else "待设置")
         setStep("wireless", wirelessReady, if (wirelessReady) "已开启" else "待开启")
+        setStep("adb_device", adbDeviceReady, if (adbDeviceReady) "已连接" else "待连接")
         setStep("tools", toolsReady, if (toolsReady) "已检测" else "待安装")
         setStep("source", sourceReady, if (sourceReady) "已检测" else "待下载")
         setStep("config", configReady, if (configReady) "已检测" else "待配置")
@@ -702,12 +751,13 @@ class SetupPage(private val activity: Activity, private val navigate: (String) -
         when {
             !wirelessReady -> { status.text = "请先开启 Android 无线调试，环境准备完成后才能安装项目。"; action.text = "打开无线调试设置"; action.setOnClickListener { openWirelessSettings() }; setActionEnabled(false) }
             !setting -> { status.text = "未检测到 Termux 的 allow-external-apps=true，请执行上方步骤中的命令并重启 Termux。"; action.text = "等待 Termux 设置"; setActionEnabled(false) }
+            !adbDeviceReady -> { status.text = "Termux 尚未连接已授权的 ADB 设备，请先完成无线调试配对；也可以在上方填写 Serial。"; action.text = "等待 ADB 设备"; setActionEnabled(false) }
             !configReady -> { status.text = "需要安装并应用 Android 设备配置。"; action.text = "开始安装"; action.setOnClickListener { onAction() } }
             serviceReady && SettingsStore.settingsChanged(activity) -> { status.text = "设置已变更，需要重新应用后才能启动服务。"; action.text = "应用设置并重启"; action.setOnClickListener { onAction() } }
             serviceReady -> { SettingsStore.markApplied(activity); status.text = "已检测到 NKAS Web UI 服务，可以打开 UI。"; action.text = "打开 NKAS UI"; action.setOnClickListener { navigate("ui") } }
             else -> { status.text = ""; action.text = "开始安装"; action.setOnClickListener { onAction() } }
         }
-        setActionEnabled(wirelessReady && setting)
+        setActionEnabled(wirelessReady && setting && adbDeviceReady)
     }
 
     private fun rounded(color: Int, radius: Int) = Ui.rounded(activity, color, radius)

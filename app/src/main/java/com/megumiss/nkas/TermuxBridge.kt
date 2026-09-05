@@ -56,6 +56,7 @@ class TermuxBridge(private val context: Context) {
         val settings = "NKAS_APT_SOURCE=${SettingsStore.aptSource(context)}\n" +
             "NKAS_DOCKER_IMAGE=${SettingsStore.dockerImage(context)}\n" +
             "NKAS_REPOSITORY=${SettingsStore.repository(context)}\n" +
+            "NKAS_SERIAL=${SettingsStore.serial(context)}\n" +
             "NKAS_WEBUI_URL=${SettingsStore.webUiUrl(context)}\n" +
             "NKAS_WEBUI_HOST=${SettingsStore.webUiHost(context)}\n" +
             "NKAS_WEBUI_PORT=${SettingsStore.webUiPort(context)}\n"
@@ -79,32 +80,64 @@ class TermuxBridge(private val context: Context) {
 
     fun checkArtifacts(onResult: (CommandResult) -> Unit) {
         val expectedImage = SettingsStore.dockerImage(context).replace("'", "")
-        val refreshSerial = "if [ -f \"${'$'}HOME/NIKKEAutoScript/config/nkas.json\" ] && grep -Eq '\\\"Serial\\\"[[:space:]]*:[[:space:]]*\\\"auto\\\"' \"${'$'}HOME/NIKKEAutoScript/config/nkas.json\"; then local_ip=\"${'$'}(ip -4 route get 1.1.1.1 2>/dev/null | sed -n 's/.* src \\([0-9.]*\\).*/\\1/p' | head -n1)\"; [ -z \"${'$'}local_ip\" ] && local_ip=\"${'$'}(ip -4 addr show scope global 2>/dev/null | sed -n 's/.* inet \\([0-9.]*\\)\\/.*/\\1/p' | head -n1)\"; for candidate in ${'$'}(adb mdns services 2>/dev/null | sed -n -E 's/.*_adb-tls-connect\\._tcp[[:space:]]+([0-9.]+:[0-9]+).*/\\1/p'); do case \"${'$'}candidate\" in \"${'$'}local_ip\":*) adb connect \"${'$'}candidate\" >/dev/null 2>&1 || true; if adb -s \"${'$'}candidate\" get-state >/dev/null 2>&1; then sed -i -E \"s/(\\\"Serial\\\"[[:space:]]*:[[:space:]]*)\\\"[^\\\"]*\\\"/\\1\\\"${'$'}candidate\\\"/\" \"${'$'}HOME/NIKKEAutoScript/config/nkas.json\"; break; fi;; esac; done; fi; "
         val serviceUrl = SettingsStore.webUiApiUrl(context, "/api/system/status")
-        val stableCommand = (refreshSerial + "printf 'termux_setting='; if [ -f \"${'$'}HOME/.termux/termux.properties\" ] && grep -Eq '^[[:space:]]*allow-external-apps[[:space:]]*=[[:space:]]*true[[:space:]]*${'$'}' \"${'$'}HOME/.termux/termux.properties\"; then printf 'yes'; else printf 'no'; fi; printf '\\n'; printf 'tools='; if command -v git >/dev/null 2>&1 && command -v proot-distro >/dev/null 2>&1 && command -v curl >/dev/null 2>&1; then printf 'yes'; else printf 'no'; fi; printf '\\n'; printf 'source='; if [ -d \"${'$'}HOME/NIKKEAutoScript/.git\" ] && git -C \"${'$'}HOME/NIKKEAutoScript\" rev-parse --is-inside-work-tree >/dev/null 2>&1; then printf 'yes'; else printf 'no'; fi; printf '\\n'; printf 'config='; if [ -f \"${'$'}HOME/NIKKEAutoScript/config/nkas.json\" ]; then printf 'yes'; else printf 'no'; fi; printf '\\n'; printf 'container='; if [ -d \"${'$'}PREFIX/var/lib/proot-distro/containers/nkas/rootfs\" ] && [ -x \"${'$'}PREFIX/var/lib/proot-distro/containers/nkas/rootfs/usr/local/bin/python\" ] && [ \"${'$'}(sed -n 's/^NKAS_DOCKER_IMAGE=//p' \"${'$'}HOME/.nkas/settings.env\" 2>/dev/null)\" = '$expectedImage' ]; then printf 'yes'; else printf 'no'; fi; printf '\\n'; printf 'service='; if curl -fsS --max-time 3 http://127.0.0.1:12271/api/system/status >/dev/null 2>&1; then printf 'yes'; else printf 'no'; fi; printf '\\n'").replace("http://127.0.0.1:12271/api/system/status", serviceUrl)
-        runCommand(stableCommand, onResult)
-        return
         val command = """
-            check_file() { [ -f "${'$'}1" ] && printf 'yes' || printf 'no'; }
-            check_dir() { [ -d "${'$'}1" ] && printf 'yes' || printf 'no'; }
-            check_cmds() { command -v git >/dev/null 2>&1 && command -v proot-distro >/dev/null 2>&1 && command -v curl >/dev/null 2>&1 && printf 'yes' || printf 'no'; }
-            check_source() { [ -d "${'$'}HOME/NIKKEAutoScript/.git" ] && git -C "${'$'}HOME/NIKKEAutoScript" rev-parse --is-inside-work-tree >/dev/null 2>&1 && printf 'yes' || printf 'no'; }
-            check_config() { [ -f "${'$'}HOME/NIKKEAutoScript/config/deploy.yaml" ] && grep -Eq '^[[:space:]]+WebuiHost:[[:space:]]*127\.0\.0\.1([[:space:]]*#.*)?$' "${'$'}HOME/NIKKEAutoScript/config/deploy.yaml" && grep -Eq '^[[:space:]]+WebuiPort:[[:space:]]*12271([[:space:]]*#.*)?$' "${'$'}HOME/NIKKEAutoScript/config/deploy.yaml" && printf 'yes' || printf 'no'; }
-            check_container() {
-                local rootfs="${'$'}PREFIX/var/lib/proot-distro/containers/nkas/rootfs"
-                [ -d "${'$'}rootfs" ] &&
-                [ -x "${'$'}rootfs/usr/local/bin/python" ] &&
-                [ "${'$'}(sed -n 's/^NKAS_DOCKER_IMAGE=//p' "${'$'}HOME/.nkas/settings.env" 2>/dev/null)" = '$expectedImage' ] &&
-                printf 'yes' || printf 'no'
-            }
-            check_service() { curl -fsS --max-time 3 "${'$'}{NKAS_WEBUI_URL:-http://127.0.0.1:12271}/api/system/status" >/dev/null 2>&1 && printf 'yes' || printf 'no'; }
-            printf 'termux_setting=yes\n'
-            printf 'tools=%s\n' "${'$'}(check_cmds)"
-            printf 'source=%s\n' "${'$'}(check_source)"
-            printf 'config=%s\n' "${'$'}(check_config)"
-            printf 'container=%s\n' "${'$'}(check_container)"
-            printf 'service=%s\n' "${'$'}(check_service)"
-        """.trimIndent().replace("\n", ";")
+            if [ -f "${'$'}HOME/.nkas/settings.env" ]; then . "${'$'}HOME/.nkas/settings.env"; fi
+            configured_serial="${'$'}(sed -n -E 's/^[[:space:]]*"Serial"[[:space:]]*:[[:space:]]*"([^"]*)".*/\1/p' "${'$'}HOME/NIKKEAutoScript/config/nkas.json" 2>/dev/null | head -n1)"
+            detected_serial=""
+            if [ -n "${'$'}{NKAS_SERIAL:-}" ]; then
+                configured_serial="${'$'}NKAS_SERIAL"
+            else
+                if [ -n "${'$'}configured_serial" ] && [ "${'$'}configured_serial" != "auto" ]; then
+                    if ! adb -s "${'$'}configured_serial" get-state 2>/dev/null | grep -qx device; then configured_serial=""; fi
+                else
+                    configured_serial=""
+                fi
+                local_ip="${'$'}(ip -4 route get 1.1.1.1 2>/dev/null | sed -n 's/.* src \([0-9.]*\).*/\1/p' | head -n1)"
+                [ -z "${'$'}local_ip" ] && local_ip="${'$'}(ip -4 addr show scope global 2>/dev/null | sed -n 's/.* inet \([0-9.]*\)\/.*/\1/p' | head -n1)"
+                if [ -z "${'$'}configured_serial" ]; then
+                    detected_serial="${'$'}(adb devices 2>/dev/null | awk 'NR > 1 && ${'$'}2 == "device" { print ${'$'}1; exit }')"
+                    configured_serial="${'$'}detected_serial"
+                fi
+                if [ -z "${'$'}configured_serial" ] && [ -n "${'$'}local_ip" ]; then
+                    for candidate in ${'$'}(adb mdns services 2>/dev/null | awk -v ip="${'$'}local_ip" '(${'$'}2 == "_adb-tls-connect._tcp" && index(${'$'}3, ip ":") == 1) { print ${'$'}3 } (${'$'}3 == "_adb-tls-connect._tcp" && index(${'$'}4, ip ":") == 1) { print ${'$'}4 }'); do
+                        adb connect "${'$'}candidate" >/dev/null 2>&1 || true
+                        if adb -s "${'$'}candidate" get-state 2>/dev/null | grep -qx device; then
+                            configured_serial="${'$'}candidate"
+                            detected_serial="${'$'}candidate"
+                            break
+                        fi
+                    done
+                fi
+            fi
+            if [ -n "${'$'}detected_serial" ] && [ -f "${'$'}HOME/NIKKEAutoScript/config/nkas.json" ]; then
+                sed -i -E "s/(\"Serial\"[[:space:]]*:[[:space:]]*)\"[^\"]*\"/\1\"${'$'}detected_serial\"/" "${'$'}HOME/NIKKEAutoScript/config/nkas.json"
+            fi
+            printf 'adb_serial=%s\n' "${'$'}configured_serial"
+            printf 'adb_device='
+            if [ -n "${'$'}configured_serial" ] && adb -s "${'$'}configured_serial" get-state 2>/dev/null | grep -qx device; then printf 'yes'
+            elif adb devices 2>/dev/null | awk 'NR > 1 && ${'$'}2 == "device" { found=1 } END { exit(found ? 0 : 1) }'; then printf 'yes'
+            else printf 'no'; fi
+            printf '\n'
+            printf 'termux_setting='
+            if [ -f "${'$'}HOME/.termux/termux.properties" ] && grep -Eq '^[[:space:]]*allow-external-apps[[:space:]]*=[[:space:]]*true[[:space:]]*${'$'}' "${'$'}HOME/.termux/termux.properties"; then printf 'yes'; else printf 'no'; fi
+            printf '\n'
+            printf 'tools='
+            if command -v git >/dev/null 2>&1 && command -v proot-distro >/dev/null 2>&1 && command -v curl >/dev/null 2>&1 && command -v adb >/dev/null 2>&1; then printf 'yes'; else printf 'no'; fi
+            printf '\n'
+            printf 'source='
+            if [ -d "${'$'}HOME/NIKKEAutoScript/.git" ] && git -C "${'$'}HOME/NIKKEAutoScript" rev-parse --is-inside-work-tree >/dev/null 2>&1; then printf 'yes'; else printf 'no'; fi
+            printf '\n'
+            printf 'config='
+            if [ -f "${'$'}HOME/NIKKEAutoScript/config/nkas.json" ]; then printf 'yes'; else printf 'no'; fi
+            printf '\n'
+            printf 'container='
+            if [ -d "${'$'}PREFIX/var/lib/proot-distro/containers/nkas/rootfs" ] && [ -x "${'$'}PREFIX/var/lib/proot-distro/containers/nkas/rootfs/usr/local/bin/python" ] && [ "${'$'}(sed -n 's/^NKAS_DOCKER_IMAGE=//p' "${'$'}HOME/.nkas/settings.env" 2>/dev/null)" = '$expectedImage' ]; then printf 'yes'; else printf 'no'; fi
+            printf '\n'
+            printf 'service='
+            if curl -fsS --max-time 3 "${'$'}{NKAS_WEBUI_URL:-$serviceUrl}/api/system/status" >/dev/null 2>&1; then printf 'yes'; else printf 'no'; fi
+            printf '\n'
+        """.trimIndent().lineSequence().joinToString(";")
         runCommand(command, onResult)
     }
 

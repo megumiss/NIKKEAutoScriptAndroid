@@ -47,6 +47,16 @@ object SettingsStore {
     fun webUiApiUrl(context: Context, path: String): String =
         "${webUiUrl(context).trimEnd('/')}/${path.trimStart('/')}"
 
+    fun serial(context: Context): String = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        .getString("serial", "")?.trim().orEmpty()
+
+    fun setSerial(context: Context, value: String) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+            .putString("serial", value.trim())
+            .putBoolean("settings_changed", true)
+            .apply()
+    }
+
     fun normalizeWebUiUrl(raw: String): String? {
         val candidate = raw.trim().trimEnd('/')
         if (candidate.isBlank() || candidate.length > 200 || candidate.any { it == '\n' || it == '\r' }) return null
