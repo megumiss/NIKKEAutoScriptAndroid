@@ -1,9 +1,15 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
 }
 
-val appVersionName = "0.3.18"
+val appVersionName = "0.3.19"
+val keystorePropertiesFile = rootProject.file("keystore.properties")
+val keystoreProperties = Properties().apply {
+    if (keystorePropertiesFile.exists()) load(keystorePropertiesFile.inputStream())
+}
 
 android {
     namespace = "com.megumiss.nkas"
@@ -13,14 +19,32 @@ android {
         applicationId = "com.megumiss.nkas.mobile"
         minSdk = 30
         targetSdk = 35
-        versionCode = 29
+        versionCode = 30
         versionName = appVersionName
+    }
+
+    signingConfigs {
+        create("release") {
+            if (keystorePropertiesFile.exists()) {
+                storeFile = rootProject.file(keystoreProperties.getProperty("storeFile"))
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+            }
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
+            if (keystorePropertiesFile.exists()) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
+    }
+
+    lint {
+        checkReleaseBuilds = false
     }
 
     splits {
@@ -40,9 +64,9 @@ android {
     packaging { resources.excludes += "/META-INF/{AL2.0,LGPL2.1}" }
 }
 
-val versionedDebugApks = tasks.register("versionedDebugApks") {
+fun registerVersionedApks(variant: String) = tasks.register("versioned${variant.replaceFirstChar { it.uppercase() }}Apks") {
     doLast {
-        val outputDir = layout.buildDirectory.dir("outputs/apk/debug").get().asFile
+        val outputDir = layout.buildDirectory.dir("outputs/apk/$variant").get().asFile
         outputDir.listFiles { file -> file.extension == "apk" && !file.name.startsWith("nkas-mobile-v") }
             ?.forEach { apk ->
                 val abi = when {
@@ -57,8 +81,12 @@ val versionedDebugApks = tasks.register("versionedDebugApks") {
     }
 }
 
+val versionedDebugApks = registerVersionedApks("debug")
+val versionedReleaseApks = registerVersionedApks("release")
+
 afterEvaluate {
     tasks.named("assembleDebug") { finalizedBy(versionedDebugApks) }
+    tasks.named("assembleRelease") { finalizedBy(versionedReleaseApks) }
 }
 
 dependencies {

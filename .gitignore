@@ -4,4 +4,5 @@ build/
 local.properties
 .idea/
 *.iml
-
+*.jks
+keystore.properties
