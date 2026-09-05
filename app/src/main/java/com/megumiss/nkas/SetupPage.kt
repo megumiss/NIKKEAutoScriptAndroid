@@ -750,7 +750,15 @@ class SetupPage(private val activity: Activity, private val navigate: (String) -
         setStep("service", serviceReady, if (serviceReady) "运行中" else "未运行")
         when {
             !wirelessReady -> { status.text = "请先开启 Android 无线调试，环境准备完成后才能安装项目。"; action.text = "打开无线调试设置"; action.setOnClickListener { openWirelessSettings() }; setActionEnabled(false) }
-            !setting -> { status.text = "未检测到 Termux 的 allow-external-apps=true，请执行上方步骤中的命令并重启 Termux。"; action.text = "等待 Termux 设置"; setActionEnabled(false) }
+            !setting -> {
+                val home = raw.lineSequence().firstOrNull { it.startsWith("termux_home=") }?.substringAfter('=') ?: "未知"
+                val prefix = raw.lineSequence().firstOrNull { it.startsWith("termux_prefix=") }?.substringAfter('=') ?: "未知"
+                val path = raw.lineSequence().firstOrNull { it.startsWith("termux_properties_path=") }?.substringAfter('=') ?: "未知"
+                val value = raw.lineSequence().firstOrNull { it.startsWith("termux_setting_value=") }?.substringAfter('=') ?: "空"
+                status.text = "外部应用开关未通过。诊断：HOME=$home；PREFIX=$prefix；文件=$path；读取值=${value.ifBlank { "空" }}"
+                action.text = "等待 Termux 设置"
+                setActionEnabled(false)
+            }
             !adbDeviceReady -> { status.text = "Termux 尚未连接已授权的 ADB 设备，请先完成无线调试配对；也可以在上方填写 Serial。"; action.text = "等待 ADB 设备"; setActionEnabled(false) }
             !configReady -> { status.text = "需要安装并应用 Android 设备配置。"; action.text = "开始安装"; action.setOnClickListener { onAction() } }
             serviceReady && SettingsStore.settingsChanged(activity) -> { status.text = "设置已变更，需要重新应用后才能启动服务。"; action.text = "应用设置并重启"; action.setOnClickListener { onAction() } }

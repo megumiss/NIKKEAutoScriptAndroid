@@ -120,7 +120,17 @@ class TermuxBridge(private val context: Context) {
             else printf 'no'; fi
             printf '\n'
             printf 'termux_setting='
-            if [ -f "${'$'}HOME/.termux/termux.properties" ] && grep -Eq '^[[:space:]]*allow-external-apps[[:space:]]*=[[:space:]]*true[[:space:]]*${'$'}' "${'$'}HOME/.termux/termux.properties"; then printf 'yes'; else printf 'no'; fi
+            termux_home="${'$'}{HOME:-/data/data/com.termux/files/home}"
+            termux_prefix="${'$'}{PREFIX:-/data/data/com.termux/files/usr}"
+            termux_properties="${'$'}termux_home/.termux/termux.properties"
+            [ -f "${'$'}termux_properties" ] || termux_properties="${'$'}termux_prefix/../home/.termux/termux.properties"
+            [ -f "${'$'}termux_properties" ] || termux_properties="${'$'}termux_prefix/etc/termux.properties"
+            setting_value="${'$'}(cat "${'$'}termux_properties" 2>/dev/null | tr -d '[:space:]\r' | tr '[:upper:]' '[:lower:]')"
+            printf 'termux_home=%s\n' "${'$'}termux_home"
+            printf 'termux_prefix=%s\n' "${'$'}termux_prefix"
+            printf 'termux_properties_path=%s\n' "${'$'}termux_properties"
+            printf 'termux_setting_value=%s\n' "${'$'}setting_value"
+            if [ "${'$'}setting_value" = "allow-external-apps=true" ]; then printf 'yes'; else printf 'no'; fi
             printf '\n'
             printf 'tools='
             if command -v git >/dev/null 2>&1 && command -v proot-distro >/dev/null 2>&1 && command -v curl >/dev/null 2>&1 && command -v adb >/dev/null 2>&1; then printf 'yes'; else printf 'no'; fi
