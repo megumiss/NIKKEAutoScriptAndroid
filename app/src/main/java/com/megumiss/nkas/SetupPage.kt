@@ -19,6 +19,7 @@ import android.widget.ProgressBar
 import android.widget.ScrollView
 import android.widget.TextView
 import android.app.AlertDialog
+import android.util.Log
 import androidx.core.content.FileProvider
 import org.json.JSONObject
 import java.io.File
@@ -92,6 +93,7 @@ class SetupPage(private val activity: Activity, private val navigate: (String) -
         content.removeAllViews()
         heading("初始化", "准备 Termux、NKAS 服务和本地 Web UI\n请开启 Termux 和 NKAS 的自启动、关联启动，并允许后台运行")
         status = TextView(activity).apply { textSize = 14f; setTextColor(Ui.text2); setPadding(0, 0, 0, dp(16)); visibility = View.GONE }
+        content.addView(status)
         section("环境准备")
         step("Termux", termuxDetail(), "termux")
         step("Android 外部命令权限", "系统授权：允许 NKAS 调用 Termux", "permission")
@@ -330,6 +332,7 @@ class SetupPage(private val activity: Activity, private val navigate: (String) -
         termuxDownloadActive = true
         action.text = "正在下载 Termux…"
         setActionEnabled(false)
+        status.visibility = View.VISIBLE
         status.text = "正在获取与你的设备架构匹配的最新 Termux…"
         executor.execute {
             try {
@@ -343,6 +346,7 @@ class SetupPage(private val activity: Activity, private val navigate: (String) -
                 handler.post {
                     if (!visible) return@post
                     termuxDownloadActive = false
+                    status.visibility = View.VISIBLE
                     launchApkInstaller(apk)
                     status.text = "Termux 安装包已下载，请在系统安装确认页完成安装。"
                     action.text = "重新检查"
@@ -350,9 +354,11 @@ class SetupPage(private val activity: Activity, private val navigate: (String) -
                     setActionEnabled(true)
                 }
             } catch (error: Exception) {
+                Log.e(TAG, "Termux download failed", error)
                 handler.post {
                     if (!visible) return@post
                     termuxDownloadActive = false
+                    status.visibility = View.VISIBLE
                     status.text = "Termux 下载失败：${error.message ?: "网络或 Release 资产不可用"}"
                     action.text = "重试下载 Termux"
                     action.setOnClickListener { downloadLatestTermux() }
@@ -372,6 +378,55 @@ class SetupPage(private val activity: Activity, private val navigate: (String) -
             abi.contains("x86") -> listOf("x86")
             else -> throw IllegalStateException("Termux 不支持当前设备架构：$abi")
         }
+        findLatestAssetFromReleasePage(archTokens.firstOrNull())?.let { return it }
+        return findLatestAssetFromApi(abi, archTokens)
+    }
+
+    private fun findLatestAssetFromReleasePage(architecture: String?): Pair<String, String>? {
+        if (architecture.isNullOrBlank()) return null
+        val connection = (URL(TERMUX_RELEASE_PAGE).openConnection() as HttpURLConnection).apply {
+            connectTimeout = 15_000
+            readTimeout = 20_000
+            instanceFollowRedirects = true
+            requestMethod = "GET"
+            setRequestProperty("User-Agent", "NKAS-Mobile")
+        }
+        try {
+            if (connection.responseCode !in 200..299) return null
+            val tag = Regex("/releases/tag/([^/?#]+)").find(connection.url.toString())?.groupValues?.get(1)
+                ?: return null
+            val candidates = listOf(
+                "termux-app_${tag}+github-debug_${architecture}.apk",
+                "termux-app_${tag}+github-debug_universal.apk",
+                "termux-app_${tag}+github-release_${architecture}.apk",
+                "termux-app_${tag}+github-release_universal.apk",
+            )
+            for (name in candidates) {
+                val url = "https://github.com/termux/termux-app/releases/download/$tag/$name"
+                if (isAssetAvailable(url)) return name to url
+            }
+            return null
+        } finally {
+            connection.disconnect()
+        }
+    }
+
+    private fun isAssetAvailable(url: String): Boolean {
+        val connection = (URL(url).openConnection() as HttpURLConnection).apply {
+            connectTimeout = 10_000
+            readTimeout = 15_000
+            instanceFollowRedirects = true
+            requestMethod = "HEAD"
+            setRequestProperty("User-Agent", "NKAS-Mobile")
+        }
+        return try {
+            connection.responseCode in 200..299
+        } finally {
+            connection.disconnect()
+        }
+    }
+
+    private fun findLatestAssetFromApi(abi: String, archTokens: List<String>): Pair<String, String> {
         val connection = (URL(TERMUX_RELEASE_API).openConnection() as HttpURLConnection).apply {
             connectTimeout = 15_000
             readTimeout = 20_000
@@ -380,7 +435,10 @@ class SetupPage(private val activity: Activity, private val navigate: (String) -
             setRequestProperty("User-Agent", "NKAS-Mobile")
         }
         try {
-            if (connection.responseCode !in 200..299) throw IllegalStateException("GitHub API 返回 HTTP ${connection.responseCode}")
+            if (connection.responseCode !in 200..299) {
+                val detail = connection.errorStream?.bufferedReader()?.use { it.readText() }?.take(160).orEmpty()
+                throw IllegalStateException("GitHub API 返回 HTTP ${connection.responseCode}${if (detail.isBlank()) "" else "：$detail"}")
+            }
             val release = JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
             val assets = release.optJSONArray("assets") ?: throw IllegalStateException("最新 Release 没有可用资产")
             var fallback: Pair<String, String>? = null
@@ -407,7 +465,10 @@ class SetupPage(private val activity: Activity, private val navigate: (String) -
             setRequestProperty("User-Agent", "NKAS-Mobile")
         }
         try {
-            if (connection.responseCode !in 200..299) throw IllegalStateException("下载返回 HTTP ${connection.responseCode}")
+            if (connection.responseCode !in 200..299) {
+                val detail = connection.errorStream?.bufferedReader()?.use { it.readText() }?.take(160).orEmpty()
+                throw IllegalStateException("下载返回 HTTP ${connection.responseCode}${if (detail.isBlank()) "" else "：$detail"}")
+            }
             val total = connection.contentLengthLong
             var received = 0L
             var lastPercent = -1
@@ -616,6 +677,8 @@ class SetupPage(private val activity: Activity, private val navigate: (String) -
     private fun rounded(color: Int, radius: Int) = Ui.rounded(activity, color, radius)
     private fun dp(v: Int) = Ui.dp(activity, v)
     companion object {
+        private const val TAG = "NkasSetupPage"
+        private const val TERMUX_RELEASE_PAGE = "https://github.com/termux/termux-app/releases/latest"
         private const val TERMUX_RELEASE_API = "https://api.github.com/repos/termux/termux-app/releases/latest"
         private const val RUN_COMMAND_REQUEST = 1001
         private const val PREFS_NAME = "nkas_state"
