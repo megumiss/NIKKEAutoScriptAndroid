@@ -11,8 +11,8 @@ android {
         applicationId = "com.megumiss.nkas.mobile"
         minSdk = 30
         targetSdk = 35
-        versionCode = 26
-        versionName = "0.3.15"
+        versionCode = 27
+        versionName = "0.3.16"
     }
 
     buildTypes {

@@ -585,7 +585,7 @@ class SetupPage(private val activity: Activity, private val navigate: (String) -
         if (destroyed || !visible || checking) return
         checking = true
         executor.execute {
-            val ready = try { (URL("http://127.0.0.1:12271/api/system/status").openConnection() as HttpURLConnection).apply { connectTimeout = 1500; readTimeout = 1500; requestMethod = "GET" }.responseCode == 200 } catch (_: Exception) { false }
+            val ready = try { (URL(SettingsStore.webUiApiUrl(activity, "/api/system/status")).openConnection() as HttpURLConnection).apply { connectTimeout = 1500; readTimeout = 1500; requestMethod = "GET" }.responseCode == 200 } catch (_: Exception) { false }
             handler.post {
                 if (destroyed || !visible) return@post
                 checking = false

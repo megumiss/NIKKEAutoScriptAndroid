@@ -11,6 +11,9 @@ if [ -f "$STATE_DIR/settings.env" ]; then
 fi
 APT_SOURCE="${NKAS_APT_SOURCE:-https://mirrors.tuna.tsinghua.edu.cn/termux/apt/termux-main}"
 DOCKER_IMAGE="${NKAS_DOCKER_IMAGE:-docker.1ms.run/megumiss/nkas:latest}"
+WEBUI_URL="${NKAS_WEBUI_URL:-http://127.0.0.1:12271}"
+WEBUI_HOST="${NKAS_WEBUI_HOST:-127.0.0.1}"
+WEBUI_PORT="${NKAS_WEBUI_PORT:-12271}"
 REPOSITORY="${NKAS_REPOSITORY:-https://git.megumiss.top/megumiss/NIKKEAutoScript}"
 BRANCH="${NKAS_BRANCH:-master}"
 
@@ -96,8 +99,8 @@ create_config() {
     if [ ! -f config/deploy.yaml ]; then
         cp config/deploy.template-docker-cn.yaml config/deploy.yaml || return 1
     fi
-    sed -i -E 's/^([[:space:]]+WebuiHost:).*/\1 127.0.0.1/' config/deploy.yaml
-    sed -i -E 's/^([[:space:]]+WebuiPort:).*/\1 12271/' config/deploy.yaml
+    sed -i -E "s/^([[:space:]]+WebuiHost:).*/\1 ${WEBUI_HOST}/" config/deploy.yaml
+    sed -i -E "s/^([[:space:]]+WebuiPort:).*/\1 ${WEBUI_PORT}/" config/deploy.yaml
     sed -i -E '/^Client:/,/^Emulator:/ s/^(    value:) win$/\1 adb/' config/deploy.yaml
     sed -i -E '/^Emulator:/,/^PhysicalDevice:/ s/^(    value:) DroidCast$/\1 ADB/' config/deploy.yaml
     sed -i -E '/^Emulator:/,/^PhysicalDevice:/ s/^(    value:) minitouch$/\1 MaaTouch/' config/deploy.yaml
@@ -168,7 +171,7 @@ container_ready() {
 }
 
 service_ready() {
-    curl -fsS --max-time 3 http://127.0.0.1:12271/api/system/status >/dev/null 2>&1
+    curl -fsS --max-time 3 "${WEBUI_URL}/api/system/status" >/dev/null 2>&1
 }
 
 install_container() {

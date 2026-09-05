@@ -15,6 +15,12 @@ class UiPage(private val activity: Activity) {
     fun show(container: FrameLayout) {
         val view = webView ?: createWebView().also { webView = it }
         container.addView(view, FrameLayout.LayoutParams(-1, -1))
+        val target = SettingsStore.webUiApiUrl(activity, "/app/")
+        val current = view.url?.let { Uri.parse(it) }
+        val configured = Uri.parse(SettingsStore.webUiUrl(activity))
+        if (current == null || current.scheme != configured.scheme || current.host != configured.host || current.port != configured.port) {
+            view.loadUrl(target)
+        }
     }
 
     fun goBack(): Boolean {
@@ -35,11 +41,11 @@ class UiPage(private val activity: Activity) {
         webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                 val uri = request.url
-                if (uri.host == "127.0.0.1" || uri.host == "localhost") return false
+                val configuredHost = SettingsStore.webUiHost(activity)
+                if (uri.host.equals(configuredHost, ignoreCase = true) || uri.host == "127.0.0.1" || uri.host == "localhost") return false
                 activity.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(uri.toString())))
                 return true
             }
         }
-        loadUrl("http://127.0.0.1:12271/app/")
     }
 }

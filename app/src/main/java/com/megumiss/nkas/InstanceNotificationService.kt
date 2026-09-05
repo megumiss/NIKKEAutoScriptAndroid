@@ -182,7 +182,7 @@ class InstanceNotificationService : Service() {
     )
 
     private fun fetchInstances(): List<InstanceSnapshot>? = runCatching {
-        val connection = (URL(INSTANCES_URL).openConnection() as HttpURLConnection).apply {
+        val connection = (URL(SettingsStore.webUiApiUrl(this, "/api/instances")).openConnection() as HttpURLConnection).apply {
             connectTimeout = 2500
             readTimeout = 2500
             requestMethod = "GET"
@@ -203,7 +203,7 @@ class InstanceNotificationService : Service() {
     private fun postControl(name: String, operation: String): ControlResult {
         val connection = runCatching {
             val encodedName = Uri.encode(name)
-            (URL("$BASE_URL/api/$encodedName/$operation").openConnection() as HttpURLConnection).apply {
+            (URL("${SettingsStore.webUiUrl(this)}/api/$encodedName/$operation").openConnection() as HttpURLConnection).apply {
                 connectTimeout = 2500
                 readTimeout = 2500
                 requestMethod = "POST"
@@ -283,8 +283,6 @@ class InstanceNotificationService : Service() {
         private const val SUMMARY_ID = 100
         private const val OPEN_APP_REQUEST = 101
         private const val REFRESH_INTERVAL_MS = 5000L
-        private const val BASE_URL = "http://127.0.0.1:12271"
-        private const val INSTANCES_URL = "$BASE_URL/api/instances"
         private const val ACTION_CONTROL = "com.megumiss.nkas.mobile.INSTANCE_CONTROL"
         private const val EXTRA_NAME = "instance_name"
         private const val EXTRA_OPERATION = "instance_operation"

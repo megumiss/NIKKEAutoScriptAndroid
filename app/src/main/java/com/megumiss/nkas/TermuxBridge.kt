@@ -51,7 +51,11 @@ class TermuxBridge(private val context: Context) {
     fun startBootstrap(onResult: (CommandResult) -> Unit = {}) {
         val script = context.assets.open("bootstrap.sh").use { it.readBytes() }
         val service = context.assets.open("nkas-service.sh").use { it.readBytes() }
-        val settings = "NKAS_APT_SOURCE=${SettingsStore.aptSource(context)}\nNKAS_DOCKER_IMAGE=${SettingsStore.dockerImage(context)}\n"
+        val settings = "NKAS_APT_SOURCE=${SettingsStore.aptSource(context)}\n" +
+            "NKAS_DOCKER_IMAGE=${SettingsStore.dockerImage(context)}\n" +
+            "NKAS_WEBUI_URL=${SettingsStore.webUiUrl(context)}\n" +
+            "NKAS_WEBUI_HOST=${SettingsStore.webUiHost(context)}\n" +
+            "NKAS_WEBUI_PORT=${SettingsStore.webUiPort(context)}\n"
         val encoded = Base64.encodeToString(script, Base64.NO_WRAP)
         val encodedService = Base64.encodeToString(service, Base64.NO_WRAP)
         val encodedSettings = Base64.encodeToString(settings.toByteArray(), Base64.NO_WRAP)
@@ -66,7 +70,8 @@ class TermuxBridge(private val context: Context) {
     fun checkArtifacts(onResult: (CommandResult) -> Unit) {
         val expectedImage = SettingsStore.dockerImage(context).replace("'", "")
         val refreshSerial = "if [ -f \"${'$'}HOME/NIKKEAutoScript/config/nkas.json\" ] && grep -Eq '\\\"Serial\\\"[[:space:]]*:[[:space:]]*\\\"auto\\\"' \"${'$'}HOME/NIKKEAutoScript/config/nkas.json\"; then local_ip=\"${'$'}(ip -4 route get 1.1.1.1 2>/dev/null | sed -n 's/.* src \\([0-9.]*\\).*/\\1/p' | head -n1)\"; [ -z \"${'$'}local_ip\" ] && local_ip=\"${'$'}(ip -4 addr show scope global 2>/dev/null | sed -n 's/.* inet \\([0-9.]*\\)\\/.*/\\1/p' | head -n1)\"; for candidate in ${'$'}(adb mdns services 2>/dev/null | sed -n -E 's/.*_adb-tls-connect\\._tcp[[:space:]]+([0-9.]+:[0-9]+).*/\\1/p'); do case \"${'$'}candidate\" in \"${'$'}local_ip\":*) adb connect \"${'$'}candidate\" >/dev/null 2>&1 || true; if adb -s \"${'$'}candidate\" get-state >/dev/null 2>&1; then sed -i -E \"s/(\\\"Serial\\\"[[:space:]]*:[[:space:]]*)\\\"[^\\\"]*\\\"/\\1\\\"${'$'}candidate\\\"/\" \"${'$'}HOME/NIKKEAutoScript/config/nkas.json\"; break; fi;; esac; done; fi; "
-        val stableCommand = refreshSerial + "printf 'termux_setting='; if [ -f \"${'$'}HOME/.termux/termux.properties\" ] && grep -Eq '^[[:space:]]*allow-external-apps[[:space:]]*=[[:space:]]*true[[:space:]]*${'$'}' \"${'$'}HOME/.termux/termux.properties\"; then printf 'yes'; else printf 'no'; fi; printf '\\n'; printf 'tools='; if command -v git >/dev/null 2>&1 && command -v proot-distro >/dev/null 2>&1 && command -v curl >/dev/null 2>&1; then printf 'yes'; else printf 'no'; fi; printf '\\n'; printf 'source='; if [ -d \"${'$'}HOME/NIKKEAutoScript/.git\" ] && git -C \"${'$'}HOME/NIKKEAutoScript\" rev-parse --is-inside-work-tree >/dev/null 2>&1; then printf 'yes'; else printf 'no'; fi; printf '\\n'; printf 'config='; if [ -f \"${'$'}HOME/NIKKEAutoScript/config/nkas.json\" ]; then printf 'yes'; else printf 'no'; fi; printf '\\n'; printf 'container='; if [ -d \"${'$'}PREFIX/var/lib/proot-distro/containers/nkas/rootfs\" ] && [ -x \"${'$'}PREFIX/var/lib/proot-distro/containers/nkas/rootfs/usr/local/bin/python\" ] && [ \"${'$'}(sed -n 's/^NKAS_DOCKER_IMAGE=//p' \"${'$'}HOME/.nkas/settings.env\" 2>/dev/null)\" = '$expectedImage' ]; then printf 'yes'; else printf 'no'; fi; printf '\\n'; printf 'service='; if curl -fsS --max-time 3 http://127.0.0.1:12271/api/system/status >/dev/null 2>&1; then printf 'yes'; else printf 'no'; fi; printf '\\n'"
+        val serviceUrl = SettingsStore.webUiApiUrl(context, "/api/system/status")
+        val stableCommand = (refreshSerial + "printf 'termux_setting='; if [ -f \"${'$'}HOME/.termux/termux.properties\" ] && grep -Eq '^[[:space:]]*allow-external-apps[[:space:]]*=[[:space:]]*true[[:space:]]*${'$'}' \"${'$'}HOME/.termux/termux.properties\"; then printf 'yes'; else printf 'no'; fi; printf '\\n'; printf 'tools='; if command -v git >/dev/null 2>&1 && command -v proot-distro >/dev/null 2>&1 && command -v curl >/dev/null 2>&1; then printf 'yes'; else printf 'no'; fi; printf '\\n'; printf 'source='; if [ -d \"${'$'}HOME/NIKKEAutoScript/.git\" ] && git -C \"${'$'}HOME/NIKKEAutoScript\" rev-parse --is-inside-work-tree >/dev/null 2>&1; then printf 'yes'; else printf 'no'; fi; printf '\\n'; printf 'config='; if [ -f \"${'$'}HOME/NIKKEAutoScript/config/nkas.json\" ]; then printf 'yes'; else printf 'no'; fi; printf '\\n'; printf 'container='; if [ -d \"${'$'}PREFIX/var/lib/proot-distro/containers/nkas/rootfs\" ] && [ -x \"${'$'}PREFIX/var/lib/proot-distro/containers/nkas/rootfs/usr/local/bin/python\" ] && [ \"${'$'}(sed -n 's/^NKAS_DOCKER_IMAGE=//p' \"${'$'}HOME/.nkas/settings.env\" 2>/dev/null)\" = '$expectedImage' ]; then printf 'yes'; else printf 'no'; fi; printf '\\n'; printf 'service='; if curl -fsS --max-time 3 http://127.0.0.1:12271/api/system/status >/dev/null 2>&1; then printf 'yes'; else printf 'no'; fi; printf '\\n'").replace("http://127.0.0.1:12271/api/system/status", serviceUrl)
         runCommand(stableCommand, onResult)
         return
         val command = """
@@ -82,7 +87,7 @@ class TermuxBridge(private val context: Context) {
                 [ "${'$'}(sed -n 's/^NKAS_DOCKER_IMAGE=//p' "${'$'}HOME/.nkas/settings.env" 2>/dev/null)" = '$expectedImage' ] &&
                 printf 'yes' || printf 'no'
             }
-            check_service() { curl -fsS --max-time 3 http://127.0.0.1:12271/api/system/status >/dev/null 2>&1 && printf 'yes' || printf 'no'; }
+            check_service() { curl -fsS --max-time 3 "${'$'}{NKAS_WEBUI_URL:-http://127.0.0.1:12271}/api/system/status" >/dev/null 2>&1 && printf 'yes' || printf 'no'; }
             printf 'termux_setting=yes\n'
             printf 'tools=%s\n' "${'$'}(check_cmds)"
             printf 'source=%s\n' "${'$'}(check_source)"

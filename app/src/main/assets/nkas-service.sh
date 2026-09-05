@@ -6,6 +6,12 @@ STATE_DIR="${HOME}/.nkas"
 PID_FILE="${STATE_DIR}/nkas.pid"
 LOG_FILE="${STATE_DIR}/nkas-service.log"
 mkdir -p "$STATE_DIR"
+if [ -f "$STATE_DIR/settings.env" ]; then
+    . "$STATE_DIR/settings.env"
+fi
+WEBUI_URL="${NKAS_WEBUI_URL:-http://127.0.0.1:12271}"
+WEBUI_HOST="${NKAS_WEBUI_HOST:-127.0.0.1}"
+WEBUI_PORT="${NKAS_WEBUI_PORT:-12271}"
 
 is_running() {
     [ -f "$PID_FILE" ] || return 1
@@ -16,7 +22,7 @@ is_running() {
 
 is_healthy() {
     command -v curl >/dev/null 2>&1 || return 1
-    curl -fsS --max-time 3 http://127.0.0.1:12271/api/system/status >/dev/null 2>&1
+    curl -fsS --max-time 3 "${WEBUI_URL}/api/system/status" >/dev/null 2>&1
 }
 
 start_service() {
@@ -32,7 +38,7 @@ start_service() {
     nohup proot-distro run \
         -b "$REPO_DIR:/app/NIKKEAutoScript" \
         -w /app/NIKKEAutoScript \
-        nkas -- /usr/local/bin/python gui.py --host 127.0.0.1 --port 12271 \
+        nkas -- /usr/local/bin/python gui.py --host "$WEBUI_HOST" --port "$WEBUI_PORT" \
         >>"$LOG_FILE" 2>&1 &
     echo $! > "$PID_FILE"
     echo "started"
