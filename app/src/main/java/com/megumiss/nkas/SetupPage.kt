@@ -713,7 +713,8 @@ class SetupPage(private val activity: Activity, private val navigate: (String) -
             setProjectBlocked()
             if (externalAppsRejected) {
                 setStep("termux_setting", false, "待设置")
-                status.text = "Termux 拒绝了外部命令，请执行上方命令并完全重启 Termux。"
+                val detail = raw.replace("\n", " ").replace("\r", " ").trim().take(360)
+                status.text = "Termux 拒绝了外部命令：${if (detail.isBlank()) "未返回详细原因" else detail}"
                 action.text = "等待 Termux 设置"
                 setActionEnabled(false)
             } else {
