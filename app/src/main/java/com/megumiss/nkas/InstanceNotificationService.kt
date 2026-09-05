@@ -24,6 +24,8 @@ class InstanceNotificationService : Service() {
     private val executor = Executors.newSingleThreadExecutor()
     private lateinit var notifications: NotificationManager
     private val notifiedIds = mutableMapOf<String, Int>()
+    private val notificationPrefs by lazy { getSharedPreferences(NOTIFICATION_PREFS, MODE_PRIVATE) }
+    private var nextNotificationId = 0
 
     private val refreshTask = object : Runnable {
         override fun run() {
@@ -49,9 +51,12 @@ class InstanceNotificationService : Service() {
             val operation = intent.getStringExtra(EXTRA_OPERATION).orEmpty()
             if (name.isNotBlank() && operation in CONTROL_OPERATIONS) {
                 executor.execute {
-                    postControl(name, operation)
+                    val result = postControl(name, operation)
                     val snapshot = fetchInstances()
-                    handler.post { publish(snapshot) }
+                    handler.post {
+                        publish(snapshot)
+                        if (!result.success) notifyControlFailure(name, operation, result.message)
+                    }
                 }
             }
         }
@@ -167,7 +172,7 @@ class InstanceNotificationService : Service() {
 
     private fun controlIntent(name: String, operation: String): PendingIntent = PendingIntent.getService(
         this,
-        "$name:$operation".hashCode(),
+        controlRequestCode(name, operation),
         Intent(this, InstanceNotificationService::class.java).apply {
             action = ACTION_CONTROL
             putExtra(EXTRA_NAME, name)
@@ -193,20 +198,72 @@ class InstanceNotificationService : Service() {
         }.also { connection.disconnect() }
     }.getOrNull()
 
-    private fun postControl(name: String, operation: String) {
-        runCatching {
+    private data class ControlResult(val success: Boolean, val message: String = "")
+
+    private fun postControl(name: String, operation: String): ControlResult {
+        val connection = runCatching {
             val encodedName = Uri.encode(name)
-            val connection = (URL("$BASE_URL/api/$encodedName/$operation").openConnection() as HttpURLConnection).apply {
+            (URL("$BASE_URL/api/$encodedName/$operation").openConnection() as HttpURLConnection).apply {
                 connectTimeout = 2500
                 readTimeout = 2500
                 requestMethod = "POST"
                 doOutput = true
-                outputStream.use { }
             }
-            connection.inputStream.close()
+        }.getOrElse { return ControlResult(false, it.message ?: "网络连接失败") }
+        return try {
+            connection.outputStream.use { }
+            val code = connection.responseCode
+            if (code !in 200..299) {
+                val detail = connection.errorStream?.bufferedReader()?.use { it.readText() }?.trim().orEmpty()
+                ControlResult(false, "HTTP $code${if (detail.isBlank()) "" else "：${detail.take(120)}"}")
+            } else {
+                ControlResult(true)
+            }
+        } catch (error: Exception) {
+            ControlResult(false, error.message ?: "请求失败")
+        } finally {
             connection.disconnect()
         }
     }
+
+    private fun notifyControlFailure(name: String, operation: String, message: String) {
+        val action = if (operation == "stop") "停止" else "启动"
+        notifications.notify(
+            notificationId(name),
+            Notification.Builder(this, CHANNEL_ID)
+                .setSmallIcon(R.drawable.ic_launcher_foreground)
+                .setContentTitle("${action}失败：$name")
+                .setContentText(message)
+                .setContentIntent(openAppIntent())
+                .setAutoCancel(true)
+                .setOnlyAlertOnce(true)
+                .setShowWhen(false)
+                .build(),
+        )
+    }
+
+    private fun notificationId(name: String): Int {
+        notifiedIds[name]?.let { return it }
+        val stored = notificationPrefs.getInt("id:$name", 0)
+        if (stored >= FIRST_INSTANCE_ID) {
+            notifiedIds[name] = stored
+            return stored
+        }
+        if (nextNotificationId < FIRST_INSTANCE_ID) {
+            nextNotificationId = notificationPrefs.getInt("next_id", FIRST_INSTANCE_ID)
+                .coerceAtLeast(FIRST_INSTANCE_ID)
+        }
+        val assigned = nextNotificationId++
+        notifiedIds[name] = assigned
+        notificationPrefs.edit()
+            .putInt("id:$name", assigned)
+            .putInt("next_id", nextNotificationId)
+            .apply()
+        return assigned
+    }
+
+    private fun controlRequestCode(name: String, operation: String): Int =
+        notificationId(name) * 2 + if (operation == "stop") 1 else 0
 
     private data class InstanceSnapshot(val name: String, val state: Int, val currentTask: String) {
         fun statusText(): String = when {
@@ -220,6 +277,8 @@ class InstanceNotificationService : Service() {
 
     companion object {
         private const val CHANNEL_ID = "nkas_instances"
+        private const val NOTIFICATION_PREFS = "nkas_notification_ids"
+        private const val FIRST_INSTANCE_ID = 1000
         private const val GROUP_KEY = "nkas_instance_group"
         private const val SUMMARY_ID = 100
         private const val OPEN_APP_REQUEST = 101
@@ -239,6 +298,5 @@ class InstanceNotificationService : Service() {
             }
         }
 
-        private fun notificationId(name: String): Int = 1000 + (name.hashCode() and 0x3fffffff)
     }
 }
