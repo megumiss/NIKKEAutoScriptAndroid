@@ -175,7 +175,9 @@ class TermuxBridge(private val context: Context) {
             addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES)
         }
         try {
-            context.startForegroundService(intent)
+            // RunCommandService is a short-lived command service; foreground startup can
+            // prevent Termux from returning the command result on some Android builds.
+            context.startService(intent)
             Log.i(TAG, "started token=$token")
         } catch (error: Exception) {
             callbacks.remove(token)
