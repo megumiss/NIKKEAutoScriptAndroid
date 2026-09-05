@@ -10,6 +10,7 @@ import android.provider.Settings
 import android.os.Handler
 import android.os.Looper
 import android.os.Build
+import android.net.Uri
 import android.view.View
 import android.view.Gravity
 import android.widget.Button
@@ -96,7 +97,8 @@ class SetupPage(private val activity: Activity, private val navigate: (String) -
         content.addView(status)
         section("环境准备")
         step("Termux", termuxDetail(), "termux")
-        step("Android 外部命令权限", "系统授权：允许 NKAS 调用 Termux", "permission")
+        val permissionStep = step("Android 外部命令权限", "系统权限：Run commands in Termux environment", "permission")
+        permissionHint(permissionStep.wrapper)
         val termuxSettingStep = step("Termux 外部应用开关", "Termux 配置 allow-external-apps=true", "termux_setting")
         manualCommand(termuxSettingStep.wrapper)
         step("无线调试", "开启并检查 Android 无线调试", "wireless")
@@ -122,6 +124,29 @@ class SetupPage(private val activity: Activity, private val navigate: (String) -
         val copy = Button(activity).apply { text = "复制命令"; textSize = 12f; Ui.styleSecondary(activity, this); setOnClickListener { (activity.getSystemService(Activity.CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(ClipData.newPlainText("Termux 命令", command)); text = "已复制" } }
         actions.addView(open, LinearLayout.LayoutParams(0, dp(42), 1f)); actions.addView(copy, LinearLayout.LayoutParams(0, dp(42), 1f).apply { leftMargin = dp(8) })
         parent.addView(actions, LinearLayout.LayoutParams(-1, dp(42)).apply { topMargin = dp(8) })
+    }
+
+    private fun permissionHint(parent: LinearLayout) {
+        parent.addView(TextView(activity).apply {
+            text = "部分系统不会弹出授权框，需要在系统设置中手动允许 NKAS 使用 Run commands in Termux environment。"
+            textSize = 12f
+            setTextColor(Ui.text2)
+            setPadding(0, dp(8), 0, dp(6))
+        })
+        parent.addView(Button(activity).apply {
+            text = "打开应用权限设置"
+            textSize = 12f
+            Ui.styleSecondary(activity, this)
+            setOnClickListener { openRunCommandSettings() }
+        }, LinearLayout.LayoutParams(-1, dp(42)))
+    }
+
+    private fun openRunCommandSettings() {
+        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+            data = Uri.parse("package:${activity.packageName}")
+        }
+        runCatching { activity.startActivity(intent) }
+            .onFailure { activity.startActivity(Intent(Settings.ACTION_SETTINGS)) }
     }
 
     private fun heading(main: String, sub: String) {
@@ -242,6 +267,14 @@ class SetupPage(private val activity: Activity, private val navigate: (String) -
         }
         setActionEnabled(true)
         action.setOnClickListener { onAction() }
+        if (!AccessGate.isAuthorized(activity)) {
+            setProjectBlocked()
+            status.text = "尚未完成项目授权，初始化安装功能已锁定。"
+            action.text = "前往项目授权"
+            action.setOnClickListener { navigate("gate") }
+            setActionEnabled(true)
+            return
+        }
         val bridge = TermuxBridge(activity)
         val installed = bridge.isInstalled()
         val permission = activity.checkSelfPermission(TermuxBridge.RUN_COMMAND_PERMISSION) == PackageManager.PERMISSION_GRANTED
@@ -333,21 +366,23 @@ class SetupPage(private val activity: Activity, private val navigate: (String) -
         action.text = "正在下载 Termux…"
         setActionEnabled(false)
         status.visibility = View.VISIBLE
-        status.text = "正在获取与你的设备架构匹配的最新 Termux…"
+        setStepLog("termux", "正在获取与你的设备架构匹配的最新 Termux…", true)
         executor.execute {
             try {
                 val asset = findTermuxAsset()
                 val apk = File(activity.cacheDir, "termux-latest.apk")
                 downloadFile(asset.second, apk) { percent ->
                     handler.post {
-                        if (visible && termuxDownloadActive) status.text = "正在下载 Termux ${percent}%…"
+                        if (visible && termuxDownloadActive) {
+                            setStepLog("termux", "正在下载 Termux\n进度：${percent}%", true)
+                        }
                     }
                 }
                 handler.post {
                     if (!visible) return@post
                     termuxDownloadActive = false
-                    status.visibility = View.VISIBLE
                     launchApkInstaller(apk)
+                    setStepLog("termux", "Termux 安装包下载完成，请在系统安装确认页完成安装。", true)
                     status.text = "Termux 安装包已下载，请在系统安装确认页完成安装。"
                     action.text = "重新检查"
                     action.setOnClickListener { refreshState() }
@@ -358,8 +393,9 @@ class SetupPage(private val activity: Activity, private val navigate: (String) -
                 handler.post {
                     if (!visible) return@post
                     termuxDownloadActive = false
-                    status.visibility = View.VISIBLE
-                    status.text = "Termux 下载失败：${error.message ?: "网络或 Release 资产不可用"}"
+                    val message = error.message ?: "网络或 Release 资产不可用"
+                    setStepLog("termux", "Termux 下载失败：$message", true)
+                    status.text = "Termux 下载失败：$message"
                     action.text = "重试下载 Termux"
                     action.setOnClickListener { downloadLatestTermux() }
                     setActionEnabled(true)
