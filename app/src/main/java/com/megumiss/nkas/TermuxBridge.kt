@@ -53,6 +53,7 @@ class TermuxBridge(private val context: Context) {
         val service = context.assets.open("nkas-service.sh").use { it.readBytes() }
         val settings = "NKAS_APT_SOURCE=${SettingsStore.aptSource(context)}\n" +
             "NKAS_DOCKER_IMAGE=${SettingsStore.dockerImage(context)}\n" +
+            "NKAS_REPOSITORY=${SettingsStore.repository(context)}\n" +
             "NKAS_WEBUI_URL=${SettingsStore.webUiUrl(context)}\n" +
             "NKAS_WEBUI_HOST=${SettingsStore.webUiHost(context)}\n" +
             "NKAS_WEBUI_PORT=${SettingsStore.webUiPort(context)}\n"

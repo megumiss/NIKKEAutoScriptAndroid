@@ -9,6 +9,7 @@ object SettingsStore {
     const val PREFS_NAME = "nkas_settings"
     const val DEFAULT_APT_SOURCE = "https://mirrors.tuna.tsinghua.edu.cn/termux/apt/termux-main"
     const val DEFAULT_DOCKER_IMAGE = "docker.1ms.run/megumiss/nkas:latest"
+    const val DEFAULT_REPOSITORY = "https://git.megumiss.top/megumiss/NIKKEAutoScript"
     const val DEFAULT_WEBUI_URL = "http://127.0.0.1:12271"
     const val DEFAULT_WEBUI_PORT = 12271
 
@@ -18,11 +19,19 @@ object SettingsStore {
         SourceChoice("官方 Termux 源", "https://packages.termux.dev/apt/termux-main")
     )
 
+    val repositorySources = listOf(
+        SourceChoice("项目镜像（国内）", DEFAULT_REPOSITORY),
+        SourceChoice("GitHub 官方仓库", "https://github.com/megumiss/NIKKEAutoScript")
+    )
+
     fun aptSource(context: Context): String = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         .getString("apt_source", DEFAULT_APT_SOURCE) ?: DEFAULT_APT_SOURCE
 
     fun dockerImage(context: Context): String = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         .getString("docker_image", DEFAULT_DOCKER_IMAGE) ?: DEFAULT_DOCKER_IMAGE
+
+    fun repository(context: Context): String = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        .getString("repository", DEFAULT_REPOSITORY) ?: DEFAULT_REPOSITORY
 
     fun webUiUrl(context: Context): String {
         val saved = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)

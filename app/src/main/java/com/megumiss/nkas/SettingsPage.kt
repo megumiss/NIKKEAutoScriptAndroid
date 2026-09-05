@@ -17,6 +17,7 @@ import android.widget.TextView
 class SettingsPage(private val activity: Activity) {
     private lateinit var content: LinearLayout
     private lateinit var aptSpinner: Spinner
+    private lateinit var repositorySpinner: Spinner
     private lateinit var dockerInput: EditText
     private lateinit var webUiInput: EditText
     private lateinit var status: TextView
@@ -31,7 +32,7 @@ class SettingsPage(private val activity: Activity) {
 
     private fun render() {
         content.removeAllViews()
-        heading("设置", "选择初始化时使用的下载源")
+        heading("设置", "选择初始化时使用的下载源和项目仓库")
         sourceLabel("WebUI 地址", "应用、初始化检查和 Termux 服务统一使用此地址")
         webUiInput = EditText(activity).apply {
             setText(SettingsStore.webUiUrl(activity))
@@ -44,6 +45,13 @@ class SettingsPage(private val activity: Activity) {
             background = rounded(Ui.card, 8)
         }
         content.addView(webUiInput, LinearLayout.LayoutParams(-1, dp(50)).apply { bottomMargin = dp(18) })
+        sourceLabel("项目仓库", "用于下载和更新 NIKKEAutoScript，默认使用国内项目镜像")
+        repositorySpinner = spinner(SettingsStore.repositorySources)
+        repositorySpinner.setSelection(SettingsStore.repositorySources.indexOfFirst { it.value == SettingsStore.repository(activity) }.coerceAtLeast(0))
+        val repositoryBox = FrameLayout(activity).apply { background = rounded(Ui.card, 8) }
+        repositoryBox.addView(repositorySpinner, FrameLayout.LayoutParams(-1, dp(50)))
+        repositoryBox.addView(ImageView(activity).apply { setImageResource(R.drawable.ic_arrow_drop_down); setColorFilter(Ui.text2) }, FrameLayout.LayoutParams(dp(24), dp(24), Gravity.END or Gravity.CENTER_VERTICAL).apply { rightMargin = dp(12) })
+        content.addView(repositoryBox, LinearLayout.LayoutParams(-1, dp(50)).apply { bottomMargin = dp(18) })
         sourceLabel("Termux apt 源", "用于安装 Termux 工具，默认使用国内清华源")
         aptSpinner = spinner(SettingsStore.aptSources)
         aptSpinner.setSelection(SettingsStore.aptSources.indexOfFirst { it.value == SettingsStore.aptSource(activity) }.coerceAtLeast(0))
@@ -103,6 +111,7 @@ class SettingsPage(private val activity: Activity) {
 
     private fun saveSettings() {
         val apt = SettingsStore.aptSources[aptSpinner.selectedItemPosition].value
+        val repository = SettingsStore.repositorySources[repositorySpinner.selectedItemPosition].value
         val docker = dockerInput.text.toString().trim()
         val webUi = SettingsStore.normalizeWebUiUrl(webUiInput.text.toString())
         if (webUi == null) {
@@ -116,11 +125,12 @@ class SettingsPage(private val activity: Activity) {
         }
         activity.getSharedPreferences(SettingsStore.PREFS_NAME, Activity.MODE_PRIVATE).edit()
             .putString("apt_source", apt)
+            .putString("repository", repository)
             .putString("docker_image", docker)
             .putString("webui_url", webUi)
             .putBoolean("settings_changed", true)
             .apply()
-        status.text = "已保存。下次安装或重试时将应用新的地址和源。"
+        status.text = "已保存。下次安装或重试时将应用新的地址、仓库和源。"
     }
 
     private fun heading(main: String, sub: String) {
