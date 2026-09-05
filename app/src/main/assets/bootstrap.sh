@@ -68,6 +68,7 @@ prepare_tools() {
 
 sync_repository() {
     if [ -d "$REPO_DIR/.git" ]; then
+        git -C "$REPO_DIR" remote set-url origin "$REPOSITORY" || return 1
         git -C "$REPO_DIR" fetch --depth=1 origin "$BRANCH"
         git -C "$REPO_DIR" reset --hard "origin/$BRANCH"
     else
@@ -113,7 +114,8 @@ tools_ready() {
 }
 
 source_ready() {
-    [ -d "$REPO_DIR/.git" ] && git -C "$REPO_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1
+    [ -d "$REPO_DIR/.git" ] && git -C "$REPO_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1 && \
+        [ "$(git -C "$REPO_DIR" remote get-url origin 2>/dev/null || true)" = "$REPOSITORY" ]
 }
 
 detect_wireless_serial() {
