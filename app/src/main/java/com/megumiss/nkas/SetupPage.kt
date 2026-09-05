@@ -303,6 +303,7 @@ class SetupPage(private val activity: Activity, private val navigate: (String) -
 
     private fun refreshState() {
         if (!::status.isInitialized) return
+        status.visibility = View.VISIBLE
         if (bootstrapActive || artifactChecking) {
             setActionEnabled(false)
             return
