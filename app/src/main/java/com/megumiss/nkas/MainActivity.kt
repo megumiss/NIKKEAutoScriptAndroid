@@ -66,9 +66,24 @@ class MainActivity : Activity() {
         val scroll = ScrollView(this).apply { isFillViewport = true }
         val content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(24), dp(24), dp(24), dp(28)) }
         scroll.addView(content)
+        val appVersion = runCatching { packageManager.getPackageInfo(packageName, 0).versionName ?: "未知" }.getOrDefault("未知")
         content.addView(TextView(this).apply { text = "关于 NKAS Mobile"; textSize = 26f; setTextColor(Ui.text); setTypeface(Typeface.DEFAULT, Typeface.BOLD) })
         content.addView(TextView(this).apply { text = "NIKKEAutoScript 的 Android 控制端"; textSize = 14f; setTextColor(Ui.text2); setPadding(0, dp(6), 0, dp(20)) })
-        content.addView(TextView(this).apply { text = "应用负责初始化 Termux 环境，并通过本地 Web UI 管理 NKAS。\n\n包名：com.megumiss.nkas.mobile\n版本：0.2.9\n\n不会自动启动 NIKKE 游戏。"; textSize = 14f; setTextColor(Ui.text2); setPadding(dp(16), dp(16), dp(16), dp(16)); background = Ui.rounded(this@MainActivity, Ui.card, 10) })
+        val aboutText = "NKAS 是一款免费开源软件，如果你在任何渠道付费购买了 NKAS，请退款。\n\n" +
+            "项目\n" +
+            "项目地址：https://github.com/megumiss/NIKKEAutoScript\n" +
+            "详细指南：https://github.com/megumiss/NIKKEAutoScript/wiki\n\n" +
+            "寻求帮助\n" +
+            "如果在使用过程中遇到问题，您可以通过以下方式获取帮助：\n" +
+            "提交问题：https://github.com/megumiss/NIKKEAutoScript/issues\n" +
+            "划水 QQ 群：823265807\n\n" +
+            "支持项目\n" +
+            "如果喜欢本项目，可以送作者一杯蜜雪冰城。\n" +
+            "您的支持就是作者开发和维护项目的动力。\n\n" +
+            "使用风险与免责声明\n" +
+            "NKAS 是一款基于截图与模拟输入的自动化工具。使用此类工具可能违反游戏用户协议，可能导致账号受到处罚（包括但不限于警告、限制或封禁）。使用 NKAS 即表示您已知晓并自行承担上述风险；因使用本软件造成的任何损失，作者概不负责。\n\n" +
+            "版本：${appVersion}"
+        content.addView(TextView(this).apply { text = aboutText; textSize = 14f; setTextColor(Ui.text2); setPadding(dp(16), dp(16), dp(16), dp(16)); background = Ui.rounded(this@MainActivity, Ui.card, 10) })
         shell.content.addView(scroll, android.widget.FrameLayout.LayoutParams(-1, -1))
     }
 
