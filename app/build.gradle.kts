@@ -3,6 +3,8 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
+val appVersionName = "0.3.18"
+
 android {
     namespace = "com.megumiss.nkas"
     compileSdk = 35
@@ -12,12 +14,21 @@ android {
         minSdk = 30
         targetSdk = 35
         versionCode = 29
-        versionName = "0.3.18"
+        versionName = appVersionName
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
+        }
+    }
+
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
+            isUniversalApk = true
         }
     }
 
@@ -27,6 +38,27 @@ android {
     }
     kotlinOptions { jvmTarget = "17" }
     packaging { resources.excludes += "/META-INF/{AL2.0,LGPL2.1}" }
+}
+
+val versionedDebugApks = tasks.register("versionedDebugApks") {
+    doLast {
+        val outputDir = layout.buildDirectory.dir("outputs/apk/debug").get().asFile
+        outputDir.listFiles { file -> file.extension == "apk" && !file.name.startsWith("nkas-mobile-v") }
+            ?.forEach { apk ->
+                val abi = when {
+                    apk.name.contains("x86_64", ignoreCase = true) -> "x86_64"
+                    apk.name.contains("x86", ignoreCase = true) -> "x86"
+                    apk.name.contains("arm64-v8a", ignoreCase = true) -> "arm64-v8a"
+                    apk.name.contains("armeabi-v7a", ignoreCase = true) -> "armeabi-v7a"
+                    else -> "universal"
+                }
+                apk.copyTo(File(outputDir, "nkas-mobile-v$appVersionName-$abi.apk"), overwrite = true)
+            }
+    }
+}
+
+afterEvaluate {
+    tasks.named("assembleDebug") { finalizedBy(versionedDebugApks) }
 }
 
 dependencies {
