@@ -44,7 +44,7 @@ object DrawerShell {
         panel.addView(header)
 
         val items = mutableMapOf<String, TextView>()
-        listOf("项目授权" to "gate", "初始化" to "setup", "NKAS UI" to "ui", "设置" to "settings", "关于" to "about").forEach { (label, key) ->
+        listOf("Star 验证" to "gate", "初始化" to "setup", "NKAS UI" to "ui", "设置" to "settings", "日志" to "log", "关于" to "about").forEach { (label, key) ->
             val item = TextView(activity).apply {
                 text = label
                 textSize = 15f

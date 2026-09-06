@@ -95,6 +95,10 @@ class TermuxBridge(private val context: Context) {
         runCommand("sed -i -E 's/(\"Serial\"[[:space:]]*:[[:space:]]*)\"[^\"]*\"/\\1\"$safe\"/' \$HOME/NIKKEAutoScript/config/nkas.json; sed -i -E 's|^NKAS_SERIAL=.*|NKAS_SERIAL=$safe|' \$HOME/.nkas/settings.env 2>/dev/null; exit 0", onResult)
     }
 
+    fun readFullLogs(onResult: (CommandResult) -> Unit) {
+        runCommand("printf '%s\\n' '── bootstrap.log ──'; tail -n 300 \$HOME/.nkas/bootstrap.log 2>/dev/null || true; printf '%s\\n' '── nkas-service.log ──'; tail -n 200 \$HOME/.nkas/nkas-service.log 2>/dev/null || true", onResult)
+    }
+
     fun checkArtifacts(onResult: (CommandResult) -> Unit) {
         val expectedImage = SettingsStore.dockerImage(context).replace("'", "")
         val serviceUrl = SettingsStore.webUiApiUrl(context, "/api/system/status")

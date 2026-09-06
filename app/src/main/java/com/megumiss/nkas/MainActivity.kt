@@ -18,7 +18,7 @@ import android.widget.ScrollView
 import android.widget.TextView
 
 /**
- * 应用唯一 Activity：5 个页面（授权/初始化/UI/设置/关于）均为 content 切换，
+ * 应用唯一 Activity：6 个页面（验证/初始化/日志/UI/设置/关于）均为 content 切换，
  * 避免多 Activity 互跳造成的返回栈不一致与页面重建开销。
  */
 class MainActivity : Activity() {
@@ -26,6 +26,7 @@ class MainActivity : Activity() {
     private lateinit var gatePage: GatePage
     private lateinit var setupPage: SetupPage
     private lateinit var settingsPage: SettingsPage
+    private lateinit var logPage: LogPage
     private lateinit var uiPage: UiPage
     private var currentPage = ""
     private var notificationsStarted = false
@@ -38,7 +39,9 @@ class MainActivity : Activity() {
         setContentView(shell.root)
         gatePage = GatePage(this, ::navigate)
         setupPage = SetupPage(this, ::navigate)
+        LogStore.init(this)
         settingsPage = SettingsPage(this)
+        logPage = LogPage(this)
         uiPage = UiPage(this)
         navigate("gate")
         gatePage.handleIntent(intent)
@@ -64,6 +67,7 @@ class MainActivity : Activity() {
             "gate" -> gatePage.show(shell.content)
             "setup" -> setupPage.show(shell.content)
             "ui" -> uiPage.show(shell.content)
+            "log" -> logPage.show(shell.content)
             "settings" -> settingsPage.show(shell.content)
             "about" -> renderAbout()
         }

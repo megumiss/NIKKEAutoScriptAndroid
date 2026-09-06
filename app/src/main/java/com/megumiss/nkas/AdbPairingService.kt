@@ -74,6 +74,7 @@ class AdbPairingService : Service() {
         notifyProgress("正在配对 127.0.0.1:$port ……")
         TermuxBridge(this).pairDevice("127.0.0.1:$port", code, SettingsStore.serial(this)) { result ->
             paired = true
+            LogStore.log("pair", "配对结果 exitCode=${result.exitCode}")
             val output = (result.stdout + if (result.stderr.isNotBlank()) "\n${result.stderr}" else "").trim()
             if (result.exitCode == 0) {
                 notifyResult(true, "配对成功，设备已连接。")

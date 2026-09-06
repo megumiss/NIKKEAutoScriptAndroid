@@ -202,6 +202,7 @@ class SetupPage(private val activity: Activity, private val navigate: (String) -
             activity.requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), NOTIFICATION_REQUEST)
         }
         activity.startService(AdbPairingService.startIntent(activity, code.ifBlank { null }))
+        LogStore.log("pair", "启动配对服务（配对码预填=${code.isNotBlank()}）")
         setStepLog("adb_device", "配对服务已启动：请在无线调试页面打开“使用配对码配对”并保持弹窗显示。" +
             if (code.isBlank()) "发现配对服务后会弹出通知，在通知里输入配对码。" else "发现配对服务后将自动使用填写的配对码完成配对。", true)
     }
@@ -217,6 +218,7 @@ class SetupPage(private val activity: Activity, private val navigate: (String) -
                 SettingsStore.setSerial(activity, serial)
                 serialInput?.setText(port.toString())
                 setStepLog("adb_device", "已通过 mDNS 自动发现无线调试端口：$port", true)
+                LogStore.log("adb", "mDNS 自动发现连接端口：$port")
                 refreshState()
             }
         }.apply { start() }
@@ -367,6 +369,7 @@ class SetupPage(private val activity: Activity, private val navigate: (String) -
             setActionEnabled(false)
         }
         if (state == "failed") {
+            LogStore.log("bootstrap", "安装失败")
             bootstrapActive = false
             val failed = active ?: mapping.firstOrNull { (stage, _) -> log.contains("stage $stage") }?.second ?: "tools"
             setStep(failed, false, "失败")
@@ -375,6 +378,7 @@ class SetupPage(private val activity: Activity, private val navigate: (String) -
             action.text = "重试当前安装"
         }
         if (state == "ready") {
+            LogStore.log("bootstrap", "安装脚本执行完成")
             bootstrapActive = false
             refreshState()
         }
@@ -390,7 +394,7 @@ class SetupPage(private val activity: Activity, private val navigate: (String) -
         action.setOnClickListener { onAction() }
         if (!AccessGate.isAuthorized(activity)) {
             setProjectBlocked()
-            action.text = "前往项目授权"
+            action.text = "前往 Star 验证"
             action.setOnClickListener { navigate("gate") }
             setActionEnabled(true)
             return
@@ -689,6 +693,7 @@ class SetupPage(private val activity: Activity, private val navigate: (String) -
                     navigate("ui")
                     return@post
                 }
+                LogStore.log("ui", "Serial 不一致：nkas.json=$configSerial，当前=$current")
                 AlertDialog.Builder(activity)
                     .setTitle("Serial 不一致")
                     .setMessage("nkas.json 中的 Serial：$configSerial\n当前设备：$current\n\n是否将配置覆盖为当前设备？")
@@ -717,6 +722,7 @@ class SetupPage(private val activity: Activity, private val navigate: (String) -
     }
 
     private fun startBootstrap() {
+        LogStore.log("bootstrap", "开始执行安装脚本")
         setActionEnabled(false); bootstrapActive = true; bootstrapStageIndex = -1; setStepLog("tools", "正在请求 Termux 恢复安装脚本……", true)
         val result = BootstrapService(activity).start { result ->
             handler.post {
@@ -815,6 +821,7 @@ class SetupPage(private val activity: Activity, private val navigate: (String) -
         }
         artifactState.clear()
         artifactState.putAll(values)
+        LogStore.log("check", values.entries.joinToString(" ") { "${it.key}=${it.value}" })
         val detectedSerial = raw.lineSequence().firstOrNull { it.startsWith("adb_serial=") }
             ?.substringAfter('=')?.trim().orEmpty()
         val connectResult = raw.lineSequence().firstOrNull { it.startsWith("adb_connect=") }
