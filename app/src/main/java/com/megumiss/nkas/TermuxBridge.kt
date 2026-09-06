@@ -78,6 +78,13 @@ class TermuxBridge(private val context: Context) {
         runCommand("printf '%s\\n' '---STATE---'; cat \$HOME/.nkas/state 2>/dev/null || true; printf '%s\\n' '---LOG---'; tail -n 80 \$HOME/.nkas/bootstrap.log 2>/dev/null || true; printf '%s\\n' '---SERVICE---'; tail -n 40 \$HOME/.nkas/nkas-service.log 2>/dev/null || true", onResult)
     }
 
+    fun pairDevice(address: String, code: String, onResult: (CommandResult) -> Unit) {
+        val safeAddress = address.trim()
+        val safeCode = code.trim()
+        val command = "adb pair '${safeAddress.replace("'", "")}' '${safeCode.replace("'", "")}'; pair_exit=\$?; printf '\\n[nkas] pair_exit=%s\\n' \"\$pair_exit\"; exit \"\$pair_exit\""
+        runCommand(command, onResult)
+    }
+
     fun checkArtifacts(onResult: (CommandResult) -> Unit) {
         val expectedImage = SettingsStore.dockerImage(context).replace("'", "")
         val serviceUrl = SettingsStore.webUiApiUrl(context, "/api/system/status")
@@ -85,14 +92,24 @@ class TermuxBridge(private val context: Context) {
             termux_home="${'$'}{HOME:-/data/data/com.termux/files/home}"
             termux_prefix="${'$'}{PREFIX:-/data/data/com.termux/files/usr}"
             if [ -f "${'$'}termux_home/.nkas/settings.env" ]; then . "${'$'}termux_home/.nkas/settings.env"; fi
-            configured_serial="${'$'}{NKAS_SERIAL:-}"
-            if [ -z "${'$'}configured_serial" ]; then configured_serial="${'$'}(sed -n -E 's/^[[:space:]]*"Serial"[[:space:]]*:[[:space:]]*"([^"]*)".*/\1/p' "${'$'}termux_home/NIKKEAutoScript/config/nkas.json" 2>/dev/null | head -n1)"; fi
             detected_serial=""
-            if [ "${'$'}configured_serial" = auto ]; then configured_serial=""; fi
-            if [ -n "${'$'}configured_serial" ] && ! adb -s "${'$'}configured_serial" get-state 2>/dev/null | grep -qx device; then configured_serial=""; fi
+            configured_serial="${'$'}(adb devices 2>/dev/null | awk 'NR > 1 && ${'$'}2 == "device" { print ${'$'}1; exit }')"
+            if [ -n "${'$'}configured_serial" ]; then detected_serial="${'$'}configured_serial"; fi
             if [ -z "${'$'}configured_serial" ]; then
-                detected_serial="${'$'}(adb devices 2>/dev/null | awk 'NR > 1 && ${'$'}2 == "device" { print ${'$'}1; exit }')"
-                configured_serial="${'$'}detected_serial"
+                local_ip="${'$'}(ip -4 route get 1.1.1.1 2>/dev/null | sed -n 's/.* src \([0-9.]*\).*/\1/p' | head -n1)"
+                [ -z "${'$'}local_ip" ] && local_ip="${'$'}(getprop dhcp.wlan0.ipaddress 2>/dev/null | tr -d '\\r' | head -n1)"
+                if [ -n "${'$'}local_ip" ]; then
+                    for candidate in ${'$'}(adb mdns services 2>/dev/null | awk -v ip="${'$'}local_ip" '($2 == "_adb-tls-connect._tcp" && index($3, ip ":") == 1) { print $3 } ($3 == "_adb-tls-connect._tcp" && index($4, ip ":") == 1) { print $4 }'); do
+                        adb connect "${'$'}candidate" >/dev/null 2>&1 || true
+                    done
+                    configured_serial="${'$'}(adb devices 2>/dev/null | awk 'NR > 1 && ${'$'}2 == "device" { print ${'$'}1; exit }')"
+                    if [ -n "${'$'}configured_serial" ]; then detected_serial="${'$'}configured_serial"; fi
+                fi
+            fi
+            if [ -z "${'$'}configured_serial" ] && [ -n "${'$'}{NKAS_SERIAL:-}" ] && [ "${'$'}NKAS_SERIAL" != auto ]; then
+                if adb -s "${'$'}NKAS_SERIAL" get-state 2>/dev/null | grep -qx device; then
+                    configured_serial="${'$'}NKAS_SERIAL"
+                fi
             fi
             if [ -n "${'$'}detected_serial" ] && [ -f "${'$'}termux_home/NIKKEAutoScript/config/nkas.json" ]; then
                 sed -i -E "s/(\"Serial\"[[:space:]]*:[[:space:]]*)\"[^\"]*\"/\1\"${'$'}detected_serial\"/" "${'$'}termux_home/NIKKEAutoScript/config/nkas.json"

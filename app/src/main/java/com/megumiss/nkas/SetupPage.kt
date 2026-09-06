@@ -42,6 +42,8 @@ class SetupPage(private val activity: Activity, private val navigate: (String) -
     private lateinit var action: Button
     private lateinit var floatingHost: FrameLayout
     private var serialInput: EditText? = null
+    private var pairAddressInput: EditText? = null
+    private var pairCodeInput: EditText? = null
     private var checking = false
     private var destroyed = false
     private var visible = false
@@ -64,6 +66,8 @@ class SetupPage(private val activity: Activity, private val navigate: (String) -
         initialNoticeShowing = false
         expandedLogKey = null
         serialInput = null
+        pairAddressInput = null
+        pairCodeInput = null
         artifactState.clear()
         steps.clear()
         val root = FrameLayout(activity)
@@ -107,6 +111,7 @@ class SetupPage(private val activity: Activity, private val navigate: (String) -
         step("无线调试", "开启并检查 Android 无线调试", "wireless")
         val adbStep = step("ADB 设备连接", "Termux 中必须能看到状态为 device 的设备", "adb_device")
         serialInput = serialEditor(adbStep.wrapper)
+        pairEditor(adbStep.wrapper)
         section("项目安装")
         step("Termux 工具", "安装 bash、git、adb、curl 等工具", "tools")
         step("NKAS 源码", "下载并更新项目文件", "source")
@@ -122,7 +127,7 @@ class SetupPage(private val activity: Activity, private val navigate: (String) -
 
     private fun serialEditor(parent: LinearLayout): EditText {
         parent.addView(TextView(activity).apply {
-            text = "自动获取不到 Serial 时手动填写，例如 192.168.1.20:5555 或设备序列号。填写后保存并重新检查。"
+            text = "优先自动发现已授权设备；只有自动发现不到时，才使用这里填写的 Serial。"
             textSize = 12f
             setTextColor(Ui.text2)
             setPadding(0, dp(8), 0, dp(6))
@@ -155,6 +160,73 @@ class SetupPage(private val activity: Activity, private val navigate: (String) -
             }
         }, LinearLayout.LayoutParams(-1, dp(42)).apply { topMargin = dp(8) })
         return input
+    }
+
+    private fun pairEditor(parent: LinearLayout) {
+        parent.addView(TextView(activity).apply {
+            text = "需要配对时，在 Android 的无线调试页面查看配对地址和配对码；配对命令由 Termux 执行。"
+            textSize = 12f
+            setTextColor(Ui.text2)
+            setPadding(0, dp(12), 0, dp(6))
+        })
+        val address = EditText(activity).apply {
+            hint = "配对地址，例如 192.168.1.20:37099"
+            textSize = 13f
+            setSingleLine(true)
+            setTextColor(Ui.text)
+            setHintTextColor(Ui.text2)
+            inputType = android.text.InputType.TYPE_CLASS_TEXT
+            setPadding(dp(12), 0, dp(12), 0)
+            background = rounded(Ui.card2, 6)
+        }
+        val code = EditText(activity).apply {
+            hint = "配对码"
+            textSize = 13f
+            setSingleLine(true)
+            setTextColor(Ui.text)
+            setHintTextColor(Ui.text2)
+            inputType = android.text.InputType.TYPE_CLASS_NUMBER
+            setPadding(dp(12), 0, dp(12), 0)
+            background = rounded(Ui.card2, 6)
+        }
+        pairAddressInput = address
+        pairCodeInput = code
+        parent.addView(address, LinearLayout.LayoutParams(-1, dp(48)).apply { topMargin = dp(6) })
+        parent.addView(code, LinearLayout.LayoutParams(-1, dp(48)).apply { topMargin = dp(8) })
+        parent.addView(Button(activity).apply {
+            text = "执行配对"
+            textSize = 12f
+            Ui.styleSecondary(activity, this)
+            setOnClickListener { pairDevice() }
+        }, LinearLayout.LayoutParams(-1, dp(42)).apply { topMargin = dp(8) })
+    }
+
+    private fun pairDevice() {
+        if (bootstrapActive || artifactChecking) return
+        val address = pairAddressInput?.text?.toString()?.trim().orEmpty()
+        val code = pairCodeInput?.text?.toString()?.trim().orEmpty()
+        if (!address.matches(Regex("[A-Za-z0-9._:-]+:[0-9]{1,5}"))) {
+            status.visibility = View.VISIBLE
+            status.text = "配对地址格式不正确，请填写无线调试显示的 IP:端口。"
+            return
+        }
+        if (!code.matches(Regex("[0-9]{4,8}"))) {
+            status.visibility = View.VISIBLE
+            status.text = "配对码格式不正确，请填写无线调试显示的数字配对码。"
+            return
+        }
+        status.visibility = View.VISIBLE
+        status.text = "正在通过 Termux 执行 ADB 配对……"
+        setActionEnabled(false)
+        TermuxBridge(activity).pairDevice(address, code) { result ->
+            handler.post {
+                if (!visible) return@post
+                val output = (result.stdout + if (result.stderr.isNotBlank()) "\n${result.stderr}" else "").trim()
+                setStepLog("adb_device", output.ifBlank { "adb pair 返回码：${result.exitCode}" }, true)
+                status.text = if (result.exitCode == 0) "ADB 配对完成，正在检查设备连接……" else "ADB 配对失败，请展开 ADB 设备日志查看返回结果。"
+                refreshState()
+            }
+        }
     }
 
     private fun manualCommand(parent: LinearLayout) {
@@ -755,6 +827,12 @@ class SetupPage(private val activity: Activity, private val navigate: (String) -
                 status.text = "未检测到 Termux 的 allow-external-apps=true，请执行上方命令并重启 Termux。"
                 action.text = "等待 Termux 设置"
                 setActionEnabled(false)
+            }
+            !toolsReady -> {
+                status.text = "Termux 工具尚未安装，先安装 ADB、Git、curl 等环境工具。"
+                action.text = "开始安装"
+                action.setOnClickListener { onAction() }
+                setActionEnabled(true)
             }
             !adbDeviceReady -> { status.text = "Termux 尚未连接已授权的 ADB 设备，请先完成无线调试配对；也可以在上方填写 Serial。"; action.text = "等待 ADB 设备"; setActionEnabled(false) }
             !configReady -> { status.text = "需要安装并应用 Android 设备配置。"; action.text = "开始安装"; action.setOnClickListener { onAction() } }
