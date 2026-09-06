@@ -38,11 +38,10 @@ class SetupPage(private val activity: Activity, private val navigate: (String) -
     private val handler = Handler(Looper.getMainLooper())
     private val executor = Executors.newSingleThreadExecutor()
     private lateinit var content: LinearLayout
-    private lateinit var status: TextView
     private lateinit var action: Button
     private lateinit var floatingHost: FrameLayout
     private var serialInput: EditText? = null
-    private var pairAddressInput: EditText? = null
+    private var connectMdns: AdbMdns? = null
     private var pairCodeInput: EditText? = null
     private var checking = false
     private var destroyed = false
@@ -66,7 +65,8 @@ class SetupPage(private val activity: Activity, private val navigate: (String) -
         initialNoticeShowing = false
         expandedLogKey = null
         serialInput = null
-        pairAddressInput = null
+        connectMdns?.stop()
+        connectMdns = null
         pairCodeInput = null
         artifactState.clear()
         steps.clear()
@@ -80,6 +80,7 @@ class SetupPage(private val activity: Activity, private val navigate: (String) -
         container.addView(root, FrameLayout.LayoutParams(-1, -1))
         renderSetup()
         refreshState()
+        startConnectDiscovery()
     }
 
     fun hide() {
@@ -100,24 +101,23 @@ class SetupPage(private val activity: Activity, private val navigate: (String) -
     private fun renderSetup() {
         content.removeAllViews()
         heading("初始化", "准备 Termux、NKAS 服务和本地 Web UI\n请开启 Termux 和 NKAS 的自启动、关联启动，并允许后台运行")
-        status = TextView(activity).apply { textSize = 14f; setTextColor(Ui.text2); setPadding(0, 0, 0, dp(16)); visibility = View.GONE }
-        content.addView(status)
         section("环境准备")
         step("Termux", termuxDetail(), "termux")
         val permissionStep = step("Android 外部命令权限", "系统权限：Run commands in Termux environment", "permission")
         permissionHint(permissionStep.wrapper)
         val termuxSettingStep = step("Termux 外部应用开关", "Termux 配置 allow-external-apps=true", "termux_setting")
         manualCommand(termuxSettingStep.wrapper)
-        step("无线调试", "开启并检查 Android 无线调试", "wireless")
-        val adbStep = step("ADB 设备连接", "Termux 中必须能看到状态为 device 的设备", "adb_device")
-        serialInput = serialEditor(adbStep.wrapper)
-        pairEditor(adbStep.wrapper)
         section("项目安装")
         step("Termux 工具", "安装 bash、git、adb、curl 等工具", "tools")
         step("NKAS 源码", "下载并更新项目文件", "source")
         step("项目配置", "写入本地设备和 Web UI 配置", "config")
         step("容器", "安装包含 Python 运行环境的 NKAS 容器", "container")
         step("容器服务", "启动本地服务和 Web UI", "service")
+        section("设备连接")
+        step("无线调试", "开启并检查 Android 无线调试", "wireless")
+        val adbStep = step("ADB 设备连接", "Termux 中必须能看到状态为 device 的设备", "adb_device")
+        serialInput = serialEditor(adbStep.wrapper)
+        pairEditor(adbStep.wrapper)
         setProjectBlocked()
         action = Button(activity).apply { text = "开始安装"; textSize = 14f; isAllCaps = false; setOnClickListener { onAction() }; elevation = dp(6).toFloat() }
         setActionEnabled(false)
@@ -127,60 +127,14 @@ class SetupPage(private val activity: Activity, private val navigate: (String) -
 
     private fun serialEditor(parent: LinearLayout): EditText {
         parent.addView(TextView(activity).apply {
-            text = "优先自动发现已授权设备；只有自动发现不到时，才使用这里填写的 Serial。"
+            text = "本机无线调试端口号，通常自动发现填入。"
             textSize = 12f
             setTextColor(Ui.text2)
             setPadding(0, dp(8), 0, dp(6))
         })
         val input = EditText(activity).apply {
-            setText(SettingsStore.serial(activity))
-            hint = "Serial（可留空使用自动检测）"
-            textSize = 13f
-            setSingleLine(true)
-            setTextColor(Ui.text)
-            setHintTextColor(Ui.text2)
-            inputType = android.text.InputType.TYPE_CLASS_TEXT
-            setPadding(dp(12), 0, dp(12), 0)
-            background = rounded(Ui.card2, 6)
-        }
-        parent.addView(input, LinearLayout.LayoutParams(-1, dp(48)).apply { topMargin = dp(6) })
-        parent.addView(Button(activity).apply {
-            text = "保存并重新检查"
-            textSize = 12f
-            Ui.styleSecondary(activity, this)
-            setOnClickListener {
-                val value = input.text.toString().trim()
-                if (value.isNotBlank() && !value.matches(Regex("[A-Za-z0-9._:-]+"))) {
-                    status.text = "Serial 格式不正确，请填写设备序列号或 IP:端口。"
-                    return@setOnClickListener
-                }
-                SettingsStore.setSerial(activity, value)
-                status.text = "已保存 Serial，正在检查 Termux 设备连接……"
-                refreshState()
-            }
-        }, LinearLayout.LayoutParams(-1, dp(42)).apply { topMargin = dp(8) })
-        return input
-    }
-
-    private fun pairEditor(parent: LinearLayout) {
-        parent.addView(TextView(activity).apply {
-            text = "需要配对时，在 Android 的无线调试页面查看配对地址和配对码；配对命令由 Termux 执行。"
-            textSize = 12f
-            setTextColor(Ui.text2)
-            setPadding(0, dp(12), 0, dp(6))
-        })
-        val address = EditText(activity).apply {
-            hint = "配对地址，例如 192.168.1.20:37099"
-            textSize = 13f
-            setSingleLine(true)
-            setTextColor(Ui.text)
-            setHintTextColor(Ui.text2)
-            inputType = android.text.InputType.TYPE_CLASS_TEXT
-            setPadding(dp(12), 0, dp(12), 0)
-            background = rounded(Ui.card2, 6)
-        }
-        val code = EditText(activity).apply {
-            hint = "配对码"
+            setText(SettingsStore.serial(activity).substringAfterLast(':'))
+            hint = "端口号"
             textSize = 13f
             setSingleLine(true)
             setTextColor(Ui.text)
@@ -189,44 +143,83 @@ class SetupPage(private val activity: Activity, private val navigate: (String) -
             setPadding(dp(12), 0, dp(12), 0)
             background = rounded(Ui.card2, 6)
         }
-        pairAddressInput = address
+        fun saveSerial() {
+            val value = input.text.toString().trim()
+            if (value.isBlank()) return
+            if (!value.matches(Regex("[0-9]{1,5}"))) {
+                setStepLog("adb_device", "端口格式不正确，请填写无线调试页面显示的端口号。", true)
+                return
+            }
+            SettingsStore.setSerial(activity, "127.0.0.1:$value")
+            refreshState()
+        }
+        input.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_DONE) { saveSerial(); true } else false
+        }
+        input.setOnFocusChangeListener { _, hasFocus -> if (!hasFocus) saveSerial() }
+        parent.addView(input, LinearLayout.LayoutParams(-1, dp(48)).apply { topMargin = dp(6) })
+        return input
+    }
+
+    private fun pairEditor(parent: LinearLayout) {
+        parent.addView(TextView(activity).apply {
+            text = "初始化需要配对一次：\n1. 点下方“配对”按钮\n2. 在无线调试里打开“使用配对码配对”\n3. 在弹出的通知中输入配对码"
+            textSize = 12f
+            setTextColor(Ui.text2)
+            setPadding(0, dp(12), 0, dp(6))
+        })
+        val code = EditText(activity).apply {
+            hint = "配对码（可留空，在通知中输入）"
+            textSize = 13f
+            setSingleLine(true)
+            setTextColor(Ui.text)
+            setHintTextColor(Ui.text2)
+            inputType = android.text.InputType.TYPE_CLASS_NUMBER
+            setPadding(dp(12), 0, dp(12), 0)
+            background = rounded(Ui.card2, 6)
+        }
         pairCodeInput = code
-        parent.addView(address, LinearLayout.LayoutParams(-1, dp(48)).apply { topMargin = dp(6) })
-        parent.addView(code, LinearLayout.LayoutParams(-1, dp(48)).apply { topMargin = dp(8) })
+        parent.addView(code, LinearLayout.LayoutParams(-1, dp(48)).apply { topMargin = dp(6) })
         parent.addView(Button(activity).apply {
-            text = "执行配对"
+            text = "配对"
             textSize = 12f
             Ui.styleSecondary(activity, this)
-            setOnClickListener { pairDevice() }
+            setOnClickListener { startPairing() }
         }, LinearLayout.LayoutParams(-1, dp(42)).apply { topMargin = dp(8) })
     }
 
-    private fun pairDevice() {
-        if (bootstrapActive || artifactChecking) return
-        val address = pairAddressInput?.text?.toString()?.trim().orEmpty()
+    private fun startPairing() {
+        if (bootstrapActive || artifactChecking) { setStepLog("adb_device", "正在检查环境，请稍候……", true); return }
         val code = pairCodeInput?.text?.toString()?.trim().orEmpty()
-        if (!address.matches(Regex("[A-Za-z0-9._:-]+:[0-9]{1,5}"))) {
-            status.visibility = View.VISIBLE
-            status.text = "配对地址格式不正确，请填写无线调试显示的 IP:端口。"
+        if (code.isNotBlank() && !code.matches(Regex("[0-9]{4,8}"))) {
+            setStepLog("adb_device", "配对码格式不正确，请填写配对弹窗显示的数字配对码。", true)
             return
         }
-        if (!code.matches(Regex("[0-9]{4,8}"))) {
-            status.visibility = View.VISIBLE
-            status.text = "配对码格式不正确，请填写无线调试显示的数字配对码。"
-            return
+        val serialPort = serialInput?.text?.toString()?.trim().orEmpty()
+        if (serialPort.matches(Regex("[0-9]{1,5}"))) SettingsStore.setSerial(activity, "127.0.0.1:$serialPort")
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            activity.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            activity.requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), NOTIFICATION_REQUEST)
         }
-        status.visibility = View.VISIBLE
-        status.text = "正在通过 Termux 执行 ADB 配对……"
-        setActionEnabled(false)
-        TermuxBridge(activity).pairDevice(address, code) { result ->
+        activity.startService(AdbPairingService.startIntent(activity, code.ifBlank { null }))
+        setStepLog("adb_device", "配对服务已启动：请在无线调试页面打开“使用配对码配对”并保持弹窗显示。" +
+            if (code.isBlank()) "发现配对服务后会弹出通知，在通知里输入配对码。" else "发现配对服务后将自动使用填写的配对码完成配对。", true)
+    }
+
+    private fun startConnectDiscovery() {
+        connectMdns?.stop()
+        connectMdns = AdbMdns(activity, AdbMdns.TLS_CONNECT) { port ->
             handler.post {
-                if (!visible) return@post
-                val output = (result.stdout + if (result.stderr.isNotBlank()) "\n${result.stderr}" else "").trim()
-                setStepLog("adb_device", output.ifBlank { "adb pair 返回码：${result.exitCode}" }, true)
-                status.text = if (result.exitCode == 0) "ADB 配对完成，正在检查设备连接……" else "ADB 配对失败，请展开 ADB 设备日志查看返回结果。"
+                if (destroyed || !visible || port <= 0) return@post
+                val serial = "127.0.0.1:$port"
+                if (SettingsStore.serial(activity) == serial) return@post
+                if (serialInput?.hasFocus() == true) return@post
+                SettingsStore.setSerial(activity, serial)
+                serialInput?.setText(port.toString())
+                setStepLog("adb_device", "已通过 mDNS 自动发现无线调试端口：$port", true)
                 refreshState()
             }
-        }
+        }.apply { start() }
     }
 
     private fun manualCommand(parent: LinearLayout) {
@@ -270,7 +263,7 @@ class SetupPage(private val activity: Activity, private val navigate: (String) -
 
     private fun section(label: String) { content.addView(TextView(activity).apply { text = label.uppercase(); textSize = 11f; setTextColor(Ui.text2); setTypeface(Typeface.DEFAULT, Typeface.BOLD); setPadding(0, dp(8), 0, dp(8)) }) }
 
-    private data class Step(val dot: TextView, val state: TextView, val progress: ProgressBar, val key: String, val wrapper: LinearLayout, val detail: TextView, val log: TextView)
+    private data class Step(val dot: TextView, val state: TextView, val progress: ProgressBar, val key: String, val wrapper: LinearLayout, val detail: TextView, val log: TextView, var done: Boolean = false, var collapsed: Boolean = false)
     private fun step(name: String, detail: String, key: String): Step {
         val wrapper = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(14), dp(10), dp(14), dp(10)); background = rounded(Ui.card, 10) }
         val row = LinearLayout(activity).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
@@ -289,6 +282,16 @@ class SetupPage(private val activity: Activity, private val navigate: (String) -
         row.addView(dot, LinearLayout.LayoutParams(dp(30), dp(30))); row.addView(labels, LinearLayout.LayoutParams(0, -2, 1f)); row.addView(statusBox, LinearLayout.LayoutParams(dp(64), dp(30)))
         wrapper.addView(row); wrapper.addView(log, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
         val item = Step(dot, state, progress, key, wrapper, detailView, log)
+        // 点击标题行折叠/展开该步骤的额外内容；折叠只是收起，不是移除
+        val ripple = android.util.TypedValue()
+        activity.theme.resolveAttribute(android.R.attr.selectableItemBackground, ripple, true)
+        row.foreground = activity.getDrawable(ripple.resourceId)
+        row.setOnClickListener {
+            val target = steps[key] ?: return@setOnClickListener
+            target.collapsed = !target.collapsed
+            if (!target.collapsed && target.log.text.isNotBlank()) expandedLogKey = key
+            steps.values.forEach { applyStepVisibility(it) }
+        }
         steps[key] = item
         content.addView(wrapper, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(8) })
         return item
@@ -302,10 +305,20 @@ class SetupPage(private val activity: Activity, private val navigate: (String) -
         info.progress.visibility = if (running) View.VISIBLE else View.GONE
         info.state.text = if (running) "" else label
         info.state.setTextColor(if (done) Ui.green else Ui.text2)
-        if (done) {
-            info.log.visibility = View.GONE
-            if (expandedLogKey == key) expandedLogKey = null
+        // 仅在完成状态变化时自动折叠/展开，保留用户手动点击标题行的选择
+        if (done != info.done) {
+            info.done = done
+            info.collapsed = done
         }
+        applyStepVisibility(info)
+    }
+
+    // 折叠只是收起：额外输入、命令和日志随 collapsed 状态显隐，点击标题行可再次展开
+    private fun applyStepVisibility(info: Step) {
+        for (index in 2 until info.wrapper.childCount) {
+            info.wrapper.getChildAt(index).visibility = if (info.collapsed) View.GONE else View.VISIBLE
+        }
+        info.log.visibility = if (!info.collapsed && expandedLogKey == info.key && info.log.text.isNotBlank()) View.VISIBLE else View.GONE
     }
 
     private fun setStepDetail(key: String, value: String) {
@@ -323,15 +336,12 @@ class SetupPage(private val activity: Activity, private val navigate: (String) -
         val info = steps[key] ?: return
         info.log.text = value.takeLast(5000)
         if (expanded && value.isNotBlank()) {
-            steps.values.forEach { other ->
-                if (other.key != key) other.log.visibility = View.GONE
-            }
             expandedLogKey = key
-            info.log.visibility = View.VISIBLE
-        } else {
-            info.log.visibility = View.GONE
-            if (expandedLogKey == key) expandedLogKey = null
+            info.collapsed = false
+        } else if (expandedLogKey == key) {
+            expandedLogKey = null
         }
+        steps.values.forEach { applyStepVisibility(it) }
     }
 
     private fun applyBootstrapLog(raw: String) {
@@ -353,7 +363,6 @@ class SetupPage(private val activity: Activity, private val navigate: (String) -
         active?.let { setStepLog(it, log.ifBlank { "正在执行……" }, true) }
         if (service.isNotBlank()) setStepLog("service", service, active == "service")
         if (bootstrapActive && active != null && state != "failed" && state != "ready") {
-            status.text = "安装正在执行，当前步骤日志会持续更新……"
             action.text = "安装中"
             setActionEnabled(false)
         }
@@ -362,20 +371,17 @@ class SetupPage(private val activity: Activity, private val navigate: (String) -
             val failed = active ?: mapping.firstOrNull { (stage, _) -> log.contains("stage $stage") }?.second ?: "tools"
             setStep(failed, false, "失败")
             setStepLog(failed, log.ifBlank { raw }, true)
-            status.text = "安装失败，当前步骤日志已展开。"
             setActionEnabled(true)
             action.text = "重试当前安装"
         }
         if (state == "ready") {
             bootstrapActive = false
-            status.text = "安装脚本已结束，正在重新检查实际产物……"
             refreshState()
         }
     }
 
     private fun refreshState() {
-        if (!::status.isInitialized) return
-        status.visibility = View.VISIBLE
+        if (!::content.isInitialized) return
         if (bootstrapActive || artifactChecking) {
             setActionEnabled(false)
             return
@@ -384,7 +390,6 @@ class SetupPage(private val activity: Activity, private val navigate: (String) -
         action.setOnClickListener { onAction() }
         if (!AccessGate.isAuthorized(activity)) {
             setProjectBlocked()
-            status.text = "尚未完成项目授权，初始化安装功能已锁定。"
             action.text = "前往项目授权"
             action.setOnClickListener { navigate("gate") }
             setActionEnabled(true)
@@ -400,7 +405,6 @@ class SetupPage(private val activity: Activity, private val navigate: (String) -
         setStep("wireless", wireless, if (wireless) "已开启" else "待开启")
         if (!installed) {
             setProjectBlocked()
-            status.text = "项目授权已完成，但还未检测到 Termux，请先下载并安装官方版本。"
             action.text = if (termuxDownloadActive) "正在下载 Termux…" else "下载并安装 Termux"
             action.setOnClickListener { downloadLatestTermux() }
             setActionEnabled(!termuxDownloadActive)
@@ -408,7 +412,6 @@ class SetupPage(private val activity: Activity, private val navigate: (String) -
         }
         if (!permission) {
             setProjectBlocked()
-            status.text = "项目授权已完成，还需要授予 NKAS 调用 Termux 的外部命令权限。"
             action.text = "授权 Termux 外部命令"
             action.setOnClickListener { onAction() }
             setActionEnabled(true)
@@ -416,14 +419,12 @@ class SetupPage(private val activity: Activity, private val navigate: (String) -
         }
         if (!wireless) {
             setProjectBlocked()
-            status.text = "项目授权已完成，请先开启 Android 无线调试，完成后再继续项目安装。"
             action.text = "打开无线调试设置"
             action.setOnClickListener { openWirelessSettings() }
             setActionEnabled(true)
             return
         }
         artifactChecking = true
-        status.text = "正在检查实际产物，不读取上次保存的状态……"
         setActionEnabled(false)
         BootstrapService(activity).checkArtifacts { result ->
             handler.post {
@@ -438,7 +439,6 @@ class SetupPage(private val activity: Activity, private val navigate: (String) -
     private fun onAction() {
         if (bootstrapActive || artifactChecking || checking || initialNoticeShowing) return
         if (!AccessGate.isAuthorized(activity)) {
-            status.text = "使用安装功能前需要先 Star 本项目并完成授权。"
             return
         }
         val bridge = TermuxBridge(activity)
@@ -480,7 +480,6 @@ class SetupPage(private val activity: Activity, private val navigate: (String) -
         termuxDownloadActive = true
         action.text = "正在下载 Termux…"
         setActionEnabled(false)
-        status.visibility = View.VISIBLE
         setStepLog("termux", "正在获取与你的设备架构匹配的最新 Termux…", true)
         executor.execute {
             try {
@@ -498,7 +497,6 @@ class SetupPage(private val activity: Activity, private val navigate: (String) -
                     termuxDownloadActive = false
                     launchApkInstaller(apk)
                     setStepLog("termux", "Termux 安装包下载完成，请在系统安装确认页完成安装。", true)
-                    status.text = "Termux 安装包已下载，请在系统安装确认页完成安装。"
                     action.text = "重新检查"
                     action.setOnClickListener { refreshState() }
                     setActionEnabled(true)
@@ -510,7 +508,6 @@ class SetupPage(private val activity: Activity, private val navigate: (String) -
                     termuxDownloadActive = false
                     val message = error.message ?: "网络或 Release 资产不可用"
                     setStepLog("termux", "Termux 下载失败：$message", true)
-                    status.text = "Termux 下载失败：$message"
                     action.text = "重试下载 Termux"
                     action.setOnClickListener { downloadLatestTermux() }
                     setActionEnabled(true)
@@ -654,7 +651,6 @@ class SetupPage(private val activity: Activity, private val navigate: (String) -
 
     private fun beginInitializationCheck() {
         val bridge = TermuxBridge(activity)
-        status.text = "正在重新检查实际产物……"
         setActionEnabled(false)
         artifactChecking = true
         bridge.checkArtifacts { check ->
@@ -663,7 +659,7 @@ class SetupPage(private val activity: Activity, private val navigate: (String) -
                 if (!visible) return@post
                 val output = check.stdout + if (check.stderr.isNotBlank()) "\n[stderr]\n${check.stderr}" else ""
                 applyArtifactResults(output, check.exitCode)
-                if (artifactState["termux_setting"] == true && (artifactState["service"] != true || artifactState["config"] != true || SettingsStore.settingsChanged(activity))) startBootstrap()
+                if (artifactState["termux_setting"] == true && (artifactState["service"] != true || artifactState["config"] != true)) startBootstrap()
             }
         }
     }
@@ -677,6 +673,34 @@ class SetupPage(private val activity: Activity, private val navigate: (String) -
     private fun openWirelessSettings() {
         val intent = Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS)
         runCatching { activity.startActivity(intent) }.onFailure { activity.startActivity(Intent(Settings.ACTION_SETTINGS)) }
+    }
+
+    // 打开 Web UI 前核对 nkas.json 的 Serial 与当前设备（端口重启后会变），不一致时询问是否覆盖
+    private fun openWebUi() {
+        val current = SettingsStore.serial(activity)
+        if (current.isBlank()) { navigate("ui"); return }
+        setActionEnabled(false)
+        TermuxBridge(activity).readNkasSerial { result ->
+            handler.post {
+                if (!visible) return@post
+                setActionEnabled(true)
+                val configSerial = result.stdout.trim()
+                if (result.exitCode != 0 || configSerial.isBlank() || configSerial == current) {
+                    navigate("ui")
+                    return@post
+                }
+                AlertDialog.Builder(activity)
+                    .setTitle("Serial 不一致")
+                    .setMessage("nkas.json 中的 Serial：$configSerial\n当前设备：$current\n\n是否将配置覆盖为当前设备？")
+                    .setNegativeButton("不覆盖") { _, _ -> navigate("ui") }
+                    .setPositiveButton("覆盖并打开") { _, _ ->
+                        TermuxBridge(activity).writeNkasSerial(current) {
+                            handler.post { if (visible) navigate("ui") }
+                        }
+                    }
+                    .show()
+            }
+        }
     }
 
     private fun setProjectBlocked() {
@@ -693,28 +717,25 @@ class SetupPage(private val activity: Activity, private val navigate: (String) -
     }
 
     private fun startBootstrap() {
-        status.text = "正在恢复安装，日志会显示在当前步骤中……"; setActionEnabled(false); bootstrapActive = true; bootstrapStageIndex = -1; setStepLog("tools", "正在请求 Termux 恢复安装脚本……", true)
+        setActionEnabled(false); bootstrapActive = true; bootstrapStageIndex = -1; setStepLog("tools", "正在请求 Termux 恢复安装脚本……", true)
         val result = BootstrapService(activity).start { result ->
             handler.post {
                 if (!visible) return@post
                 if (result.exitCode != 0) {
                     val output = result.stdout + "\n" + result.stderr
                     if (result.exitCode == -2) {
-                        status.text = "安装仍在执行，当前步骤日志会持续更新……"
                         action.text = "安装中"
                         setActionEnabled(false)
                         pollLog()
                         return@post
                     }
                     if (output.contains("bootstrap already running")) {
-                        status.text = "已有安装任务正在执行，继续等待其完成……"
                         action.text = "安装中"
                         setActionEnabled(false)
                         pollLog()
                         return@post
                     }
                     bootstrapActive = false
-                    status.text = "Termux 命令返回失败，详见日志。"
                     setActionEnabled(true)
                     action.text = "重试安装"
                     pollLogOnce()
@@ -722,7 +743,6 @@ class SetupPage(private val activity: Activity, private val navigate: (String) -
             }
         }
         if (result.isFailure) {
-            status.text = "Termux 拒绝了外部命令。请确认已设置 allow-external-apps=true，并重启 Termux。"
             setActionEnabled(true)
             setStep("termux_setting", false, "待设置")
             setStep("tools", false, "未执行")
@@ -742,17 +762,14 @@ class SetupPage(private val activity: Activity, private val navigate: (String) -
                 checking = false
                 if (ready) {
                     if (bootstrapActive) {
-                        status.text = "Web UI 已响应，等待安装脚本完成最后检查……"
                         handler.postDelayed({ pollBackend() }, 3500)
                     } else {
                         bootstrapActive = false
                         refreshState()
                     }
                 } else if (bootstrapActive) {
-                    status.text = "安装仍在执行，当前步骤日志会持续更新……"
                     handler.postDelayed({ pollBackend() }, 3500)
                 } else {
-                    status.text = "服务尚未就绪，请展开失败步骤查看日志后重试。"
                     action.text = "重试安装"
                     setActionEnabled(true)
                     handler.postDelayed({ pollBackend() }, 3500)
@@ -786,12 +803,10 @@ class SetupPage(private val activity: Activity, private val navigate: (String) -
             setProjectBlocked()
             if (externalAppsRejected) {
                 setStep("termux_setting", false, "待设置")
-                status.text = "Termux 拒绝了外部命令，请执行上方命令并完全重启 Termux。"
                 action.text = "等待 Termux 设置"
                 setActionEnabled(false)
             } else {
                 setStep("termux_setting", false, "检查失败")
-                status.text = "Termux 外部命令服务暂时未返回，配置并未被判定为失效，请稍后重新检查。"
                 action.text = "重新检查"
                 action.setOnClickListener { refreshState() }
                 setActionEnabled(true)
@@ -801,6 +816,8 @@ class SetupPage(private val activity: Activity, private val navigate: (String) -
         artifactState.clear()
         artifactState.putAll(values)
         val detectedSerial = raw.lineSequence().firstOrNull { it.startsWith("adb_serial=") }
+            ?.substringAfter('=')?.trim().orEmpty()
+        val connectResult = raw.lineSequence().firstOrNull { it.startsWith("adb_connect=") }
             ?.substringAfter('=')?.trim().orEmpty()
         if (detectedSerial.isNotBlank() && detectedSerial != "auto" && SettingsStore.serial(activity).isBlank()) {
             serialInput?.setText(detectedSerial)
@@ -822,25 +839,30 @@ class SetupPage(private val activity: Activity, private val navigate: (String) -
         setStep("container", containerReady, if (containerReady) "已检测" else "待安装")
         setStep("service", serviceReady, if (serviceReady) "运行中" else "未运行")
         when {
-            !wirelessReady -> { status.text = "请先开启 Android 无线调试，环境准备完成后才能安装项目。"; action.text = "打开无线调试设置"; action.setOnClickListener { openWirelessSettings() }; setActionEnabled(false) }
+            !wirelessReady -> { action.text = "打开无线调试设置"; action.setOnClickListener { openWirelessSettings() }; setActionEnabled(false) }
             !setting -> {
-                status.text = "未检测到 Termux 的 allow-external-apps=true，请执行上方命令并重启 Termux。"
                 action.text = "等待 Termux 设置"
                 setActionEnabled(false)
             }
-            !toolsReady -> {
-                status.text = "Termux 工具尚未安装，先安装 ADB、Git、curl 等环境工具。"
+            !toolsReady || !sourceReady || !configReady || !containerReady || !serviceReady -> {
                 action.text = "开始安装"
                 action.setOnClickListener { onAction() }
                 setActionEnabled(true)
             }
-            !adbDeviceReady -> { status.text = "Termux 尚未连接已授权的 ADB 设备，请先完成无线调试配对；也可以在上方填写 Serial。"; action.text = "等待 ADB 设备"; setActionEnabled(false) }
-            !configReady -> { status.text = "需要安装并应用 Android 设备配置。"; action.text = "开始安装"; action.setOnClickListener { onAction() } }
-            serviceReady && SettingsStore.settingsChanged(activity) -> { status.text = "设置已变更，需要重新应用后才能启动服务。"; action.text = "应用设置并重启"; action.setOnClickListener { onAction() } }
-            serviceReady -> { SettingsStore.markApplied(activity); status.text = "已检测到 NKAS Web UI 服务，可以打开 UI。"; action.text = "打开 NKAS UI"; action.setOnClickListener { navigate("ui") } }
-            else -> { status.text = ""; action.text = "开始安装"; action.setOnClickListener { onAction() } }
+            !adbDeviceReady -> {
+                action.text = "等待 ADB 设备"
+                setActionEnabled(false)
+                if (connectResult.isNotBlank()) {
+                    val extra = when {
+                        connectResult.contains("not found", ignoreCase = true) -> "\nTermux 中还没有 adb 工具，请先完成上方“项目安装”中的 Termux 工具步骤。"
+                        connectResult.contains("authenticate", ignoreCase = true) || connectResult.contains("unauthorized", ignoreCase = true) -> "\n设备尚未授权过 Termux，请使用下方配对地址和配对码执行一次配对，之后即可直接连接。"
+                        else -> ""
+                    }
+                    setStepLog("adb_device", "adb connect：$connectResult$extra", true)
+                }
+            }
+            else -> { action.text = "打开 NKAS UI"; action.setOnClickListener { openWebUi() }; setActionEnabled(true) }
         }
-        setActionEnabled(wirelessReady && setting && (adbDeviceReady || !toolsReady))
     }
 
     private fun rounded(color: Int, radius: Int) = Ui.rounded(activity, color, radius)
@@ -850,6 +872,7 @@ class SetupPage(private val activity: Activity, private val navigate: (String) -
         private const val TERMUX_RELEASE_PAGE = "https://github.com/termux/termux-app/releases/latest"
         private const val TERMUX_RELEASE_API = "https://api.github.com/repos/termux/termux-app/releases/latest"
         private const val RUN_COMMAND_REQUEST = 1001
+        private const val NOTIFICATION_REQUEST = 1002
         private const val PREFS_NAME = "nkas_state"
         private const val KEY_INITIAL_NOTICE_SHOWN = "initial_notice_shown"
     }

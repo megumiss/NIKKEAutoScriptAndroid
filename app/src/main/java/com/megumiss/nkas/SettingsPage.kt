@@ -128,7 +128,6 @@ class SettingsPage(private val activity: Activity) {
             .putString("repository", repository)
             .putString("docker_image", docker)
             .putString("webui_url", webUi)
-            .putBoolean("settings_changed", true)
             .apply()
         status.text = "已保存。下次安装或重试时将应用新的地址、仓库和源。"
     }

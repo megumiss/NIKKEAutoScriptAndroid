@@ -91,14 +91,11 @@ create_config() {
     sed -i -E '/"PhysicalDevice"[[:space:]]*:[[:space:]]*\{/,/^[[:space:]]*\},?[[:space:]]*$/ s/"Enable":[[:space:]]*false/"Enable": true/' config/nkas.json
     sed -i -E '/"PhysicalDevice"[[:space:]]*:[[:space:]]*\{/,/^[[:space:]]*\},?[[:space:]]*$/ s/("VirtualDisplay"[[:space:]]*:[[:space:]]*)(true|false)/\1true/' config/nkas.json
     local serial="${MANUAL_SERIAL}"
-    if [ -z "$serial" ]; then
-        serial="$(detect_wireless_serial || true)"
-    fi
     if [ -n "$serial" ]; then
         sed -i -E "s/(\"Serial\"[[:space:]]*:[[:space:]]*)\"[^\"]*\"/\1\"$serial\"/" config/nkas.json
-        printf '[nkas] detected wireless serial: %s\n' "$serial"
+        printf '[nkas] using manually configured serial: %s\n' "$serial"
     else
-        printf '[nkas] wireless serial was not detected; keeping existing value\n'
+        printf '[nkas] serial is empty; configure it in NKAS Mobile before installation\n'
     fi
     if [ ! -f config/deploy.yaml ]; then
         cp config/deploy.template-docker-cn.yaml config/deploy.yaml || return 1

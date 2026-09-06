@@ -78,11 +78,21 @@ class TermuxBridge(private val context: Context) {
         runCommand("printf '%s\\n' '---STATE---'; cat \$HOME/.nkas/state 2>/dev/null || true; printf '%s\\n' '---LOG---'; tail -n 80 \$HOME/.nkas/bootstrap.log 2>/dev/null || true; printf '%s\\n' '---SERVICE---'; tail -n 40 \$HOME/.nkas/nkas-service.log 2>/dev/null || true", onResult)
     }
 
-    fun pairDevice(address: String, code: String, onResult: (CommandResult) -> Unit) {
+    fun pairDevice(address: String, code: String, connectSerial: String, onResult: (CommandResult) -> Unit) {
         val safeAddress = address.trim()
         val safeCode = code.trim()
-        val command = "adb pair '${safeAddress.replace("'", "")}' '${safeCode.replace("'", "")}'; pair_exit=\$?; printf '\\n[nkas] pair_exit=%s\\n' \"\$pair_exit\"; exit \"\$pair_exit\""
+        val safeConnectSerial = connectSerial.trim().replace("'", "")
+        val command = "adb pair '${safeAddress.replace("'", "")}' '${safeCode.replace("'", "")}'; pair_exit=\$?; printf '\\n[nkas] pair_exit=%s\\n' \"\$pair_exit\"; if [ \"\$pair_exit\" -eq 0 ] && [ -n '$safeConnectSerial' ]; then adb connect '$safeConnectSerial'; fi; exit \"\$pair_exit\""
         runCommand(command, onResult)
+    }
+
+    fun readNkasSerial(onResult: (CommandResult) -> Unit) {
+        runCommand("sed -n 's/.*\"Serial\"[[:space:]]*:[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p' \$HOME/NIKKEAutoScript/config/nkas.json 2>/dev/null | head -n1", onResult)
+    }
+
+    fun writeNkasSerial(serial: String, onResult: (CommandResult) -> Unit) {
+        val safe = serial.trim().replace("'", "")
+        runCommand("sed -i -E 's/(\"Serial\"[[:space:]]*:[[:space:]]*)\"[^\"]*\"/\\1\"$safe\"/' \$HOME/NIKKEAutoScript/config/nkas.json; sed -i -E 's|^NKAS_SERIAL=.*|NKAS_SERIAL=$safe|' \$HOME/.nkas/settings.env 2>/dev/null; exit 0", onResult)
     }
 
     fun checkArtifacts(onResult: (CommandResult) -> Unit) {
@@ -92,29 +102,11 @@ class TermuxBridge(private val context: Context) {
             termux_home="${'$'}{HOME:-/data/data/com.termux/files/home}"
             termux_prefix="${'$'}{PREFIX:-/data/data/com.termux/files/usr}"
             if [ -f "${'$'}termux_home/.nkas/settings.env" ]; then . "${'$'}termux_home/.nkas/settings.env"; fi
-            detected_serial=""
-            configured_serial="${'$'}(adb devices 2>/dev/null | awk 'NR > 1 && ${'$'}2 == "device" { print ${'$'}1; exit }')"
-            if [ -n "${'$'}configured_serial" ]; then detected_serial="${'$'}configured_serial"; fi
-            if [ -z "${'$'}configured_serial" ]; then
-                local_ip="${'$'}(ip -4 route get 1.1.1.1 2>/dev/null | sed -n 's/.* src \([0-9.]*\).*/\1/p' | head -n1)"
-                [ -z "${'$'}local_ip" ] && local_ip="${'$'}(getprop dhcp.wlan0.ipaddress 2>/dev/null | tr -d '\\r' | head -n1)"
-                if [ -n "${'$'}local_ip" ]; then
-                    for candidate in ${'$'}(adb mdns services 2>/dev/null | awk -v ip="${'$'}local_ip" '($2 == "_adb-tls-connect._tcp" && index($3, ip ":") == 1) { print $3 } ($3 == "_adb-tls-connect._tcp" && index($4, ip ":") == 1) { print $4 }'); do
-                        adb connect "${'$'}candidate" >/dev/null 2>&1 || true
-                    done
-                    configured_serial="${'$'}(adb devices 2>/dev/null | awk 'NR > 1 && ${'$'}2 == "device" { print ${'$'}1; exit }')"
-                    if [ -n "${'$'}configured_serial" ]; then detected_serial="${'$'}configured_serial"; fi
-                fi
-            fi
-            if [ -z "${'$'}configured_serial" ] && [ -n "${'$'}{NKAS_SERIAL:-}" ] && [ "${'$'}NKAS_SERIAL" != auto ]; then
-                if adb -s "${'$'}NKAS_SERIAL" get-state 2>/dev/null | grep -qx device; then
-                    configured_serial="${'$'}NKAS_SERIAL"
-                fi
-            fi
-            if [ -n "${'$'}detected_serial" ] && [ -f "${'$'}termux_home/NIKKEAutoScript/config/nkas.json" ]; then
-                sed -i -E "s/(\"Serial\"[[:space:]]*:[[:space:]]*)\"[^\"]*\"/\1\"${'$'}detected_serial\"/" "${'$'}termux_home/NIKKEAutoScript/config/nkas.json"
-            fi
+            configured_serial="${'$'}{NKAS_SERIAL:-}"
+            connect_result=""
+            if [ -n "${'$'}configured_serial" ]; then connect_result="${'$'}(adb connect "${'$'}configured_serial" 2>&1 | head -n1)"; fi
             printf 'adb_serial=%s\n' "${'$'}configured_serial"
+            printf 'adb_connect=%s\n' "${'$'}connect_result"
             printf 'adb_device='
             if [ -n "${'$'}configured_serial" ] && adb -s "${'$'}configured_serial" get-state 2>/dev/null | grep -qx device; then printf 'yes'; else printf 'no'; fi
             printf '\n'
@@ -137,6 +129,7 @@ class TermuxBridge(private val context: Context) {
     private fun runCommand(
         command: String,
         onResult: (CommandResult) -> Unit,
+        timeoutMs: Long = COMMAND_TIMEOUT_MS,
     ) {
         val token = UUID.randomUUID().toString()
         Log.i(TAG, "send token=$token command=${command.take(240)}")
@@ -145,7 +138,7 @@ class TermuxBridge(private val context: Context) {
             val callback = callbacks.remove(token) ?: return@postDelayed
             Log.w(TAG, "timeout token=$token")
             callback(CommandResult("", "Termux 外部命令等待超时，请确认 Termux 已完全重启且 allow-external-apps=true。", -2))
-        }, COMMAND_TIMEOUT_MS)
+        }, timeoutMs)
         val callbackIntent = Intent(context, TermuxResultReceiver::class.java).putExtra(TOKEN, token)
         val pendingIntent = PendingIntent.getBroadcast(context, token.hashCode(), callbackIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_ONE_SHOT or PendingIntent.FLAG_MUTABLE)
         val intent = Intent(RUN_COMMAND).apply {

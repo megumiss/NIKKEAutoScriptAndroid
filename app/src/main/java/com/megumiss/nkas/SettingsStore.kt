@@ -53,7 +53,6 @@ object SettingsStore {
     fun setSerial(context: Context, value: String) {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
             .putString("serial", value.trim())
-            .putBoolean("settings_changed", true)
             .apply()
     }
 
@@ -72,9 +71,4 @@ object SettingsStore {
         return "$scheme://$formattedHost:${if (port == -1) DEFAULT_WEBUI_PORT else port}"
     }
 
-    fun settingsChanged(context: Context): Boolean = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        .getBoolean("settings_changed", false)
-
-    fun markApplied(context: Context) = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
-        .putBoolean("settings_changed", false).apply()
 }

@@ -49,6 +49,14 @@
             </intent-filter>
         </receiver>
         <service
+            android:name=".AdbPairingService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Pair with wireless debugging via local adb" />
+        </service>
+        <service
             android:name=".InstanceNotificationService"
             android:exported="false"
             android:foregroundServiceType="specialUse">
