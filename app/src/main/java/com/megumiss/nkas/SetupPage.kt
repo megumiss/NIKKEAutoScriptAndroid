@@ -840,7 +840,7 @@ class SetupPage(private val activity: Activity, private val navigate: (String) -
             serviceReady -> { SettingsStore.markApplied(activity); status.text = "已检测到 NKAS Web UI 服务，可以打开 UI。"; action.text = "打开 NKAS UI"; action.setOnClickListener { navigate("ui") } }
             else -> { status.text = ""; action.text = "开始安装"; action.setOnClickListener { onAction() } }
         }
-        setActionEnabled(wirelessReady && setting && adbDeviceReady)
+        setActionEnabled(wirelessReady && setting && (adbDeviceReady || !toolsReady))
     }
 
     private fun rounded(color: Int, radius: Int) = Ui.rounded(activity, color, radius)
