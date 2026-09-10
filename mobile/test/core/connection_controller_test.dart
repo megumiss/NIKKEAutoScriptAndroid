@@ -6,6 +6,7 @@ import 'package:http/testing.dart';
 import 'package:nkas_mobile_preview/core/api/api_client.dart';
 import 'package:nkas_mobile_preview/core/connection/connection_controller.dart';
 import 'package:nkas_mobile_preview/core/settings/backend_settings.dart';
+import 'package:nkas_mobile_preview/core/connection/instance_state_socket.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class _MemoryBackendSettings implements BackendSettings {
@@ -151,5 +152,24 @@ void main() {
     await settings.writeBaseUrl('http://nkas.example:12271');
 
     expect(await settings.readBaseUrl(), 'http://nkas.example:12271');
+  });
+
+  test('parses instance state websocket events', () {
+    final event = InstanceStateEvent.fromJson({
+      'type': 'state',
+      'name': 'nkas',
+      'state': 1,
+    });
+
+    expect(event.name, 'nkas');
+    expect(event.state, 1);
+    expect(
+      () => InstanceStateEvent.fromJson({
+        'type': 'queue',
+        'name': 'nkas',
+        'state': 1,
+      }),
+      throwsFormatException,
+    );
   });
 }

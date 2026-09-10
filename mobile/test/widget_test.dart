@@ -72,7 +72,9 @@ Future<ConnectionController> _pumpTestApp(
 }) async {
   final controller = _connectedController(settings: settings);
   addTearDown(controller.dispose);
-  await tester.pumpWidget(NkasPreviewApp(connectionController: controller));
+  await tester.pumpWidget(
+    NkasPreviewApp(connectionController: controller, enableRealtime: false),
+  );
   await tester.pumpAndSettle();
   return controller;
 }

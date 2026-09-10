@@ -7,6 +7,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 
 import 'package:nkas_mobile_preview/core/api/instance_info.dart';
 import 'package:nkas_mobile_preview/core/connection/connection_controller.dart';
+import 'package:nkas_mobile_preview/core/connection/instance_state_socket.dart';
 import 'package:nkas_mobile_preview/core/widgets/status.dart';
 import 'package:nkas_mobile_preview/features/instances/instances_page.dart';
 import 'package:nkas_mobile_preview/features/logs/logs_page.dart';
@@ -20,12 +21,14 @@ class NkasShell extends StatefulWidget {
   const NkasShell({
     required this.themeMode,
     required this.connectionController,
+    required this.enableRealtime,
     required this.onThemeModeChanged,
     super.key,
   });
 
   final ThemeMode themeMode;
   final ConnectionController connectionController;
+  final bool enableRealtime;
   final ValueChanged<ThemeMode> onThemeModeChanged;
 
   @override
@@ -52,6 +55,9 @@ class _NkasShellState extends State<NkasShell> {
   bool loadingInstances = false;
   String? instancesError;
   String? loadedInstancesBaseUrl;
+  InstanceStateSocket? stateSocket;
+  String? stateSocketBaseUrl;
+  Timer? stateSocketReconnectTimer;
 
   @override
   void initState() {
@@ -72,6 +78,7 @@ class _NkasShellState extends State<NkasShell> {
   @override
   void dispose() {
     widget.connectionController.removeListener(_connectionChanged);
+    unawaited(_closeStateSocket());
     super.dispose();
   }
 
@@ -83,6 +90,7 @@ class _NkasShellState extends State<NkasShell> {
         instances = const [];
         instancesError = null;
         loadedInstancesBaseUrl = null;
+        stateSocketBaseUrl = null;
       }
     });
     if (connection.phase == ConnectionPhase.connected &&
@@ -90,6 +98,75 @@ class _NkasShellState extends State<NkasShell> {
         !loadingInstances) {
       unawaited(_loadInstances());
     }
+    if (widget.enableRealtime &&
+        connection.phase == ConnectionPhase.connected &&
+        stateSocketBaseUrl != connection.baseUrl) {
+      unawaited(_openStateSocket(connection.baseUrl));
+    } else if (!widget.enableRealtime ||
+        connection.phase != ConnectionPhase.connected) {
+      unawaited(_closeStateSocket());
+    }
+  }
+
+  Future<void> _openStateSocket(String baseUrl) async {
+    stateSocketReconnectTimer?.cancel();
+    await _closeStateSocket();
+    final connection = widget.connectionController.state;
+    if (!mounted ||
+        connection.phase != ConnectionPhase.connected ||
+        connection.baseUrl != baseUrl) {
+      return;
+    }
+    final socket = InstanceStateSocket(
+      uri: widget.connectionController.websocketUri('/ws/state'),
+    );
+    stateSocket = socket;
+    stateSocketBaseUrl = baseUrl;
+    await socket.connect(
+      onState: _applyStateEvent,
+      onError: (_) => _scheduleStateSocketReconnect(socket, baseUrl),
+      onClosed: () => _scheduleStateSocketReconnect(socket, baseUrl),
+    );
+  }
+
+  void _scheduleStateSocketReconnect(
+    InstanceStateSocket socket,
+    String baseUrl,
+  ) {
+    if (!mounted ||
+        stateSocket != socket ||
+        widget.connectionController.state.phase != ConnectionPhase.connected ||
+        widget.connectionController.state.baseUrl != baseUrl) {
+      return;
+    }
+    stateSocketReconnectTimer?.cancel();
+    stateSocketReconnectTimer = Timer(
+      const Duration(seconds: 3),
+      () => unawaited(_openStateSocket(baseUrl)),
+    );
+  }
+
+  void _applyStateEvent(InstanceStateEvent event) {
+    if (!mounted) return;
+    final index = instances.indexWhere((item) => item.name == event.name);
+    if (index < 0) return;
+    setState(() {
+      instances = [
+        ...instances.sublist(0, index),
+        instances[index].copyWith(state: event.state),
+        ...instances.sublist(index + 1),
+      ];
+      instanceStates[event.name] = event.state == 1;
+    });
+  }
+
+  Future<void> _closeStateSocket() async {
+    stateSocketReconnectTimer?.cancel();
+    stateSocketReconnectTimer = null;
+    final socket = stateSocket;
+    stateSocket = null;
+    stateSocketBaseUrl = null;
+    await socket?.close();
   }
 
   Future<void> _loadInstances() async {

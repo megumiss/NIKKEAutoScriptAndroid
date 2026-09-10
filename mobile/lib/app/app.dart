@@ -8,9 +8,14 @@ import 'package:nkas_mobile_preview/core/settings/backend_settings.dart';
 import 'package:nkas_mobile_preview/theme.dart';
 
 class NkasPreviewApp extends StatefulWidget {
-  const NkasPreviewApp({this.connectionController, super.key});
+  const NkasPreviewApp({
+    this.connectionController,
+    this.enableRealtime = true,
+    super.key,
+  });
 
   final ConnectionController? connectionController;
+  final bool enableRealtime;
 
   @override
   State<NkasPreviewApp> createState() => _NkasPreviewAppState();
@@ -52,6 +57,7 @@ class _NkasPreviewAppState extends State<NkasPreviewApp> {
       home: NkasShell(
         themeMode: themeMode,
         connectionController: connectionController,
+        enableRealtime: widget.enableRealtime,
         onThemeModeChanged: (value) => setState(() => themeMode = value),
       ),
     );

@@ -127,6 +127,8 @@ class ConnectionController extends ChangeNotifier {
     '/avatars/${Uri.encodeComponent(filename)}',
   );
 
+  Uri websocketUri(String path) => _api.websocketUri(_state.baseUrl, path);
+
   void _disconnect(String baseUrl, String message) {
     _setState(
       BackendConnectionState(

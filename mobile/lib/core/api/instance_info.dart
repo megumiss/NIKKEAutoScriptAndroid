@@ -49,4 +49,14 @@ class InstanceInfo {
   bool get isRunning => state == 1;
 
   InstanceStatus get status => InstanceStatus.fromCode(state);
+
+  InstanceInfo copyWith({int? state}) => InstanceInfo(
+    name: name,
+    state: state ?? this.state,
+    mod: mod,
+    currentTask: currentTask,
+    nextTask: nextTask,
+    remark: remark,
+    avatar: avatar,
+  );
 }
