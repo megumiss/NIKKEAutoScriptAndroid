@@ -123,6 +123,9 @@ ConnectionController _connectedController({_MemoryBackendSettings? settings}) {
         headers: {'content-type': 'application/json; charset=utf-8'},
       );
     }
+    if (request.url.path.endsWith('/screenshot')) {
+      return http.Response('{}', 404);
+    }
     return http.Response(
       jsonEncode({
         'api_version': 2,

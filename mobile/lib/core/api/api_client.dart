@@ -8,6 +8,7 @@ import 'package:nkas_mobile_preview/core/api/queue_info.dart';
 import 'package:nkas_mobile_preview/core/api/calendar_info.dart';
 import 'package:nkas_mobile_preview/core/api/log_info.dart';
 import 'package:nkas_mobile_preview/core/api/update_info.dart';
+import 'package:nkas_mobile_preview/core/api/screenshot_frame.dart';
 
 class ApiClient {
   ApiClient({http.Client? client, this.timeout = const Duration(seconds: 5)})
@@ -239,6 +240,20 @@ class ApiClient {
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw ApiException('后端返回 HTTP ${response.statusCode}');
     }
+  }
+
+  Future<ScreenshotFrame?> fetchScreenshot(String baseUrl, String name) async {
+    final response = await _client
+        .get(endpoint(baseUrl, '/api/${Uri.encodeComponent(name)}/screenshot'))
+        .timeout(timeout);
+    if (response.statusCode == 404) return null;
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw ApiException('后端返回 HTTP ${response.statusCode}');
+    }
+    return ScreenshotFrame(
+      bytes: response.bodyBytes,
+      capturedAt: double.tryParse(response.headers['x-captured-at'] ?? ''),
+    );
   }
 
   void close() => _client.close();

@@ -8,6 +8,7 @@ import 'package:nkas_mobile_preview/core/api/queue_info.dart';
 import 'package:nkas_mobile_preview/core/api/calendar_info.dart';
 import 'package:nkas_mobile_preview/core/api/log_info.dart';
 import 'package:nkas_mobile_preview/core/api/update_info.dart';
+import 'package:nkas_mobile_preview/core/api/screenshot_frame.dart';
 import 'package:nkas_mobile_preview/core/api/system_status.dart';
 import 'package:nkas_mobile_preview/core/settings/backend_settings.dart';
 
@@ -192,6 +193,13 @@ class ConnectionController extends ChangeNotifier {
       return Future.error(const ApiException('后端未连接'));
     }
     return _api.applyUpdate(_state.baseUrl);
+  }
+
+  Future<ScreenshotFrame?> fetchScreenshot(String name) {
+    if (_state.phase != ConnectionPhase.connected) {
+      return Future.error(const ApiException('后端未连接'));
+    }
+    return _api.fetchScreenshot(_state.baseUrl, name);
   }
 
   Uri avatarUri(String filename) => _api.endpoint(

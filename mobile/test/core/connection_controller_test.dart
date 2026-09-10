@@ -373,4 +373,37 @@ void main() {
       'POST /api/update',
     ]);
   });
+
+  test('loads screenshot bytes and capture time', () async {
+    final api = ApiClient(
+      client: MockClient(
+        (_) async => http.Response.bytes(
+          [0xff, 0xd8, 0xff, 0xd9],
+          200,
+          headers: {
+            'content-type': 'image/jpeg',
+            'x-captured-at': '1770000000.25',
+          },
+        ),
+      ),
+    );
+    addTearDown(api.close);
+
+    final frame = await api.fetchScreenshot('http://nkas.example:12271', '主账号');
+
+    expect(frame?.bytes, [0xff, 0xd8, 0xff, 0xd9]);
+    expect(frame?.capturedAt, 1770000000.25);
+  });
+
+  test('treats a missing screenshot as an empty preview', () async {
+    final api = ApiClient(
+      client: MockClient((_) async => http.Response('{}', 404)),
+    );
+    addTearDown(api.close);
+
+    expect(
+      await api.fetchScreenshot('http://nkas.example:12271', 'nkas'),
+      isNull,
+    );
+  });
 }

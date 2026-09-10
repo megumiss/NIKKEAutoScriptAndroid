@@ -418,6 +418,8 @@ class _NkasShellState extends State<NkasShell> {
       tab: instanceTab,
       onTabChanged: (value) => setState(() => instanceTab = value),
       onToggle: () => unawaited(_toggleSelectedInstance()),
+      loadScreenshot: () =>
+          widget.connectionController.fetchScreenshot(instance),
       onSelectInstance: (value) {
         setState(() {
           instance = value;

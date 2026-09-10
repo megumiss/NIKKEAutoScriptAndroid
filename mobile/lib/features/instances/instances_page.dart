@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import 'package:nkas_mobile_preview/core/api/instance_info.dart';
 import 'package:nkas_mobile_preview/core/api/queue_info.dart';
+import 'package:nkas_mobile_preview/core/api/screenshot_frame.dart';
 import 'package:nkas_mobile_preview/core/widgets/avatar.dart';
 import 'package:nkas_mobile_preview/core/widgets/buttons.dart';
 import 'package:nkas_mobile_preview/core/widgets/icon_box.dart';
@@ -34,6 +37,7 @@ class InstancesPage extends StatelessWidget {
     required this.tab,
     required this.onTabChanged,
     required this.onToggle,
+    required this.loadScreenshot,
     required this.onSelectInstance,
     super.key,
   });
@@ -51,6 +55,7 @@ class InstancesPage extends StatelessWidget {
   final InstanceTab tab;
   final ValueChanged<InstanceTab> onTabChanged;
   final VoidCallback onToggle;
+  final Future<ScreenshotFrame?> Function() loadScreenshot;
   final ValueChanged<String> onSelectInstance;
 
   @override
@@ -141,6 +146,8 @@ class InstancesPage extends StatelessWidget {
             queue: queue,
             loading: queueLoading,
             error: queueError,
+            selected: selected,
+            loadScreenshot: loadScreenshot,
           ),
         ),
       ],
@@ -274,11 +281,15 @@ class _InstanceBody extends StatelessWidget {
     required this.queue,
     required this.loading,
     required this.error,
+    required this.selected,
+    required this.loadScreenshot,
   });
   final InstanceTab tab;
   final QueueInfo? queue;
   final bool loading;
   final String? error;
+  final String selected;
+  final Future<ScreenshotFrame?> Function() loadScreenshot;
 
   @override
   Widget build(BuildContext context) {
@@ -343,7 +354,9 @@ class _InstanceBody extends StatelessWidget {
         ],
         InstanceTab.schedule => const [_SchedulePanel()],
         InstanceTab.liveLogs => const [_LiveLogPanel()],
-        InstanceTab.screen => const [_ScreenPanel()],
+        InstanceTab.screen => [
+          _ScreenPanel(key: ValueKey(selected), loadScreenshot: loadScreenshot),
+        ],
       },
     );
   }
@@ -689,20 +702,104 @@ class _LiveLogPanel extends StatelessWidget {
   }
 }
 
-class _ScreenPanel extends StatelessWidget {
-  const _ScreenPanel();
+class _ScreenPanel extends StatefulWidget {
+  const _ScreenPanel({required this.loadScreenshot, super.key});
+
+  final Future<ScreenshotFrame?> Function() loadScreenshot;
+
+  @override
+  State<_ScreenPanel> createState() => _ScreenPanelState();
+}
+
+class _ScreenPanelState extends State<_ScreenPanel> {
+  ScreenshotFrame? frame;
+  bool loading = false;
+  String? error;
+  Timer? timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+    timer = Timer.periodic(const Duration(seconds: 2), (_) => _load());
+  }
+
+  @override
+  void dispose() {
+    timer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    if (loading) return;
+    setState(() => loading = true);
+    try {
+      final value = await widget.loadScreenshot();
+      if (!mounted) return;
+      setState(() {
+        frame = value;
+        error = null;
+      });
+    } catch (exception) {
+      if (mounted) setState(() => error = exception.toString());
+    } finally {
+      if (mounted) setState(() => loading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final theme = ShadTheme.of(context);
     return Surface(
       padding: EdgeInsets.zero,
       color: NkasColors.screenBg,
-      child: const AspectRatio(
-        aspectRatio: 9 / 16,
-        child: Center(
-          child: Text('暂无画面', style: TextStyle(color: NkasColors.screenText)),
-        ),
+      child: Column(
+        children: [
+          AspectRatio(
+            aspectRatio: 9 / 16,
+            child: frame == null
+                ? Center(
+                    child: Text(
+                      error == null ? (loading ? '正在获取画面…' : '暂无画面') : '画面加载失败',
+                      style: const TextStyle(color: NkasColors.screenText),
+                    ),
+                  )
+                : Image.memory(
+                    frame!.bytes,
+                    fit: BoxFit.contain,
+                    gaplessPlayback: true,
+                  ),
+          ),
+          Container(
+            height: 44,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            color: theme.colorScheme.card,
+            child: Row(
+              children: [
+                Text(
+                  frame == null ? '未连接' : _captureLabel(frame!.capturedAt),
+                  style: theme.textTheme.muted,
+                ),
+                const Spacer(),
+                TextButton.icon(
+                  onPressed: loading ? null : _load,
+                  icon: const Icon(LucideIcons.refreshCw, size: 14),
+                  label: const Text('刷新画面'),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
+  }
+
+  static String _captureLabel(double? timestamp) {
+    if (timestamp == null) return '实时 · 2s';
+    final date = DateTime.fromMillisecondsSinceEpoch(
+      (timestamp * 1000).round(),
+    ).toLocal();
+    String two(int value) => value.toString().padLeft(2, '0');
+    return '捕获于 ${two(date.hour)}:${two(date.minute)}:${two(date.second)}';
   }
 }
