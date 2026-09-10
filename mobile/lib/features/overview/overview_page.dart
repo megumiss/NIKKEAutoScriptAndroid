@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
+import 'package:nkas_mobile_preview/core/api/calendar_info.dart';
 import 'package:nkas_mobile_preview/core/api/instance_info.dart';
 import 'package:nkas_mobile_preview/core/widgets/avatar.dart';
 import 'package:nkas_mobile_preview/core/widgets/buttons.dart';
@@ -23,6 +24,11 @@ class OverviewPage extends StatelessWidget {
     required this.loadingInstances,
     required this.instancesError,
     required this.avatarUrl,
+    required this.calendarItems,
+    required this.calendarUpdatedAt,
+    required this.calendarLoading,
+    required this.calendarError,
+    required this.onRefreshCalendar,
     super.key,
   });
   final bool serviceRunning;
@@ -33,6 +39,11 @@ class OverviewPage extends StatelessWidget {
   final bool loadingInstances;
   final String? instancesError;
   final String? Function(InstanceInfo item) avatarUrl;
+  final List<CalendarItem> calendarItems;
+  final int calendarUpdatedAt;
+  final bool calendarLoading;
+  final String? calendarError;
+  final Future<void> Function() onRefreshCalendar;
 
   @override
   Widget build(BuildContext context) {
@@ -204,10 +215,12 @@ class OverviewPage extends StatelessWidget {
         const SizedBox(height: 25),
         SectionHeader(
           title: '活动日历',
-          subtitle: '更新于 2026/09/10 08:00',
+          subtitle: calendarUpdatedAt == 0
+              ? null
+              : '更新于 ${_formatDateTime(calendarUpdatedAt)}',
           action: '刷新',
           actionIcon: LucideIcons.refreshCw,
-          onAction: () {},
+          onAction: () => onRefreshCalendar(),
         ),
         const SizedBox(height: 9),
         SizedBox(
@@ -226,14 +239,39 @@ class OverviewPage extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 9),
-        const _EventCard(),
+        if (calendarLoading)
+          const SizedBox(
+            height: 140,
+            child: Center(child: CircularProgressIndicator()),
+          )
+        else if (calendarItems.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 22),
+            child: Text(
+              calendarError == null ? '暂无进行中的活动' : '活动数据加载失败',
+              style: theme.textTheme.muted,
+            ),
+          )
+        else
+          _EventCard(item: calendarItems.first),
       ],
     );
+  }
+
+  static String _formatDateTime(int timestamp) {
+    final date = DateTime.fromMillisecondsSinceEpoch(
+      timestamp * 1000,
+    ).toLocal();
+    String two(int value) => value.toString().padLeft(2, '0');
+    return '${date.year}/${two(date.month)}/${two(date.day)} '
+        '${two(date.hour)}:${two(date.minute)}';
   }
 }
 
 class _EventCard extends StatelessWidget {
-  const _EventCard();
+  const _EventCard({required this.item});
+
+  final CalendarItem item;
 
   @override
   Widget build(BuildContext context) {
@@ -249,21 +287,13 @@ class _EventCard extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(11, 9, 11, 9),
             alignment: Alignment.bottomLeft,
             color: scheme.eventBannerDefault,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: NkasColors.eventBadgeBg,
-                borderRadius: BorderRadius.circular(7),
-              ),
-              child: const Text(
-                '剧情活动',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
+            child: item.bannerUrl != null && item.bannerUrl!.isNotEmpty
+                ? Image.network(
+                    item.bannerUrl!,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, _, _) => _bannerLabel(context),
+                  )
+                : _bannerLabel(context),
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 11, 12, 12),
@@ -271,25 +301,87 @@ class _EventCard extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    Expanded(child: Text('当前剧情活动', style: theme.textTheme.h4)),
-                    const Tag(label: 'PASS'),
+                    Expanded(
+                      child: Text(item.title, style: theme.textTheme.h4),
+                    ),
+                    if (item.subtype != null && item.subtype!.isNotEmpty)
+                      Tag(
+                        label: item.subtype == 'pass' ? 'PASS' : item.subtype!,
+                      ),
                   ],
                 ),
-                const SizedBox(height: 4),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text('活动任务、商店与签到持续开放', style: theme.textTheme.muted),
-                ),
+                if (item.subtitle.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(item.subtitle, style: theme.textTheme.muted),
+                  ),
+                ],
                 const Divider(height: 20),
-                const _EventTime(label: '开始', value: '2026/09/03 05:00'),
-                const _EventTime(label: '结束', value: '2026/09/24 04:59'),
-                const _EventTime(label: '剩余', value: '15天 12小时', active: true),
+                _EventTime(
+                  label: '开始',
+                  value: OverviewPage._formatDateTime(item.startTime),
+                ),
+                _EventTime(
+                  label: '结束',
+                  value: OverviewPage._formatDateTime(item.endTime),
+                ),
+                _EventTime(
+                  label: '剩余',
+                  value: _remainingText(item.endTime),
+                  active: true,
+                ),
               ],
             ),
           ),
         ],
       ),
     );
+  }
+
+  Widget _bannerLabel(BuildContext context) {
+    final label =
+        const {
+          'character_gacha': '招募',
+          'raid': 'Raid',
+          'simulation_room': '超频',
+          'skin_gacha': '时装',
+          'version_event': '剧情活动',
+          'arena': '竞技场',
+        }[item.category] ??
+        item.category;
+    return Align(
+      alignment: Alignment.bottomLeft,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: NkasColors.eventBadgeBg,
+          borderRadius: BorderRadius.circular(7),
+        ),
+        child: Text(
+          label,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 10,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ),
+    );
+  }
+
+  static String _remainingText(int timestamp) {
+    final seconds = (timestamp - DateTime.now().millisecondsSinceEpoch ~/ 1000)
+        .clamp(0, 1 << 31);
+    if (seconds < 60) return '不足1分钟';
+    final days = seconds ~/ 86400;
+    final hours = (seconds % 86400) ~/ 3600;
+    final minutes = (seconds % 3600) ~/ 60;
+    final parts = <String>[];
+    if (days > 0) parts.add('$days天');
+    if (hours > 0 || days > 0) parts.add('$hours小时');
+    if (days == 0) parts.add('$minutes分钟');
+    return parts.join(' ');
   }
 }
 

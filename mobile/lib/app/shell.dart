@@ -10,6 +10,7 @@ import 'package:nkas_mobile_preview/core/connection/connection_controller.dart';
 import 'package:nkas_mobile_preview/core/connection/instance_state_socket.dart';
 import 'package:nkas_mobile_preview/core/connection/instance_queue_socket.dart';
 import 'package:nkas_mobile_preview/core/api/queue_info.dart';
+import 'package:nkas_mobile_preview/core/api/calendar_info.dart';
 import 'package:nkas_mobile_preview/core/widgets/status.dart';
 import 'package:nkas_mobile_preview/features/instances/instances_page.dart';
 import 'package:nkas_mobile_preview/features/logs/logs_page.dart';
@@ -67,6 +68,11 @@ class _NkasShellState extends State<NkasShell> {
   InstanceQueueSocket? queueSocket;
   String? queueSocketInstance;
   Timer? queueSocketReconnectTimer;
+  List<CalendarItem> calendarItems = const [];
+  int calendarUpdatedAt = 0;
+  bool loadingCalendar = false;
+  String? calendarError;
+  String? calendarBaseUrl;
 
   @override
   void initState() {
@@ -104,12 +110,21 @@ class _NkasShellState extends State<NkasShell> {
         queues.clear();
         queueError = null;
         queueSocketInstance = null;
+        calendarItems = const [];
+        calendarUpdatedAt = 0;
+        calendarError = null;
+        calendarBaseUrl = null;
       }
     });
     if (connection.phase == ConnectionPhase.connected &&
         loadedInstancesBaseUrl != connection.baseUrl &&
         !loadingInstances) {
       unawaited(_loadInstances());
+    }
+    if (connection.phase == ConnectionPhase.connected &&
+        calendarBaseUrl != connection.baseUrl &&
+        !loadingCalendar) {
+      unawaited(_loadCalendar());
     }
     if (widget.enableRealtime &&
         connection.phase == ConnectionPhase.connected &&
@@ -250,6 +265,30 @@ class _NkasShellState extends State<NkasShell> {
     }
   }
 
+  Future<void> _loadCalendar({bool refresh = false}) async {
+    setState(() {
+      loadingCalendar = true;
+      if (refresh) calendarError = null;
+    });
+    try {
+      final result = await widget.connectionController.fetchCalendar(
+        refresh: refresh,
+      );
+      if (!mounted) return;
+      setState(() {
+        calendarItems = result.items;
+        calendarUpdatedAt = result.updatedAt;
+        calendarBaseUrl = widget.connectionController.state.baseUrl;
+        calendarError = null;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => calendarError = error.toString());
+    } finally {
+      if (mounted) setState(() => loadingCalendar = false);
+    }
+  }
+
   Future<void> _openQueueSocket(String name) async {
     queueSocketReconnectTimer?.cancel();
     await _closeQueueSocket();
@@ -358,6 +397,11 @@ class _NkasShellState extends State<NkasShell> {
       canControlService: canControlLocalService,
       onToggleService: () => setState(() => serviceRunning = !serviceRunning),
       onOpenInstances: () => _selectPage(NkasPage.instances),
+      calendarItems: calendarItems,
+      calendarUpdatedAt: calendarUpdatedAt,
+      calendarLoading: loadingCalendar,
+      calendarError: calendarError,
+      onRefreshCalendar: () => _loadCalendar(refresh: true),
     ),
     NkasPage.instances => InstancesPage(
       instances: instances,

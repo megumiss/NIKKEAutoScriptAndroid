@@ -221,4 +221,50 @@ void main() {
     expect(event.name, 'nkas');
     expect(event.queue.waiting, isEmpty);
   });
+
+  test('parses activity calendar data', () async {
+    late Uri requestedUri;
+    final api = ApiClient(
+      client: MockClient((request) async {
+        requestedUri = request.url;
+        return http.Response.bytes(
+          utf8.encode(
+            jsonEncode({
+              'updated_at': 1770000000,
+              'cached': false,
+              'language': 'zh-CN',
+              'items': [
+                {
+                  'id': 'event-1',
+                  'category': 'version_event',
+                  'title': '测试活动',
+                  'subtitle': '活动说明',
+                  'start_time': 1769000000,
+                  'end_time': 1773000000,
+                  'subtype': 'pass',
+                  'banner_url': 'https://example.com/banner.webp',
+                },
+              ],
+            }),
+          ),
+          200,
+        );
+      }),
+    );
+    addTearDown(api.close);
+
+    final calendar = await api.fetchCalendar(
+      'http://nkas.example:12271',
+      refresh: true,
+    );
+
+    expect(
+      requestedUri.toString(),
+      'http://nkas.example:12271/api/calendar?language=zh-CN&refresh=1',
+    );
+    expect(calendar.updatedAt, 1770000000);
+    expect(calendar.items, hasLength(1));
+    expect(calendar.items.single.title, '测试活动');
+    expect(calendar.items.single.subtype, 'pass');
+  });
 }

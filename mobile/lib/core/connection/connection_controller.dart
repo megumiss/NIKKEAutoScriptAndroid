@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:nkas_mobile_preview/core/api/api_client.dart';
 import 'package:nkas_mobile_preview/core/api/instance_info.dart';
 import 'package:nkas_mobile_preview/core/api/queue_info.dart';
+import 'package:nkas_mobile_preview/core/api/calendar_info.dart';
 import 'package:nkas_mobile_preview/core/api/system_status.dart';
 import 'package:nkas_mobile_preview/core/settings/backend_settings.dart';
 
@@ -135,6 +136,13 @@ class ConnectionController extends ChangeNotifier {
       return Future.error(const ApiException('后端未连接'));
     }
     return _api.fetchQueue(_state.baseUrl, name);
+  }
+
+  Future<CalendarInfo> fetchCalendar({bool refresh = false}) {
+    if (_state.phase != ConnectionPhase.connected) {
+      return Future.error(const ApiException('后端未连接'));
+    }
+    return _api.fetchCalendar(_state.baseUrl, refresh: refresh);
   }
 
   Uri avatarUri(String filename) => _api.endpoint(

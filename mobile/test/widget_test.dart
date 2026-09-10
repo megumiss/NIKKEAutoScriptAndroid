@@ -26,40 +26,59 @@ class _MemoryBackendSettings implements BackendSettings {
 }
 
 ConnectionController _connectedController({_MemoryBackendSettings? settings}) {
-  final client = MockClient(
-    (request) async => request.url.path.endsWith('/api/instances')
-        ? http.Response.bytes(
-            utf8.encode(
-              jsonEncode([
-                {
-                  'name': 'nkas',
-                  'state': 2,
-                  'mod': 'nkas',
-                  'next_task': '重启设置',
-                  'remark': '测试实例',
-                },
-                {
-                  'name': 'nkas2',
-                  'state': 1,
-                  'mod': 'nkas',
-                  'current_task': '收获',
-                },
-              ]),
-            ),
-            200,
-            headers: {'content-type': 'application/json; charset=utf-8'},
-          )
-        : http.Response(
-            jsonEncode({
-              'api_version': 2,
-              'spa_version': '1',
-              'version': 'test',
-              'capabilities': {'spa': true, 'websocket': true},
-            }),
-            200,
-            headers: {'content-type': 'application/json; charset=utf-8'},
-          ),
-  );
+  final client = MockClient((request) async {
+    if (request.url.path.endsWith('/api/instances')) {
+      return http.Response.bytes(
+        utf8.encode(
+          jsonEncode([
+            {
+              'name': 'nkas',
+              'state': 2,
+              'mod': 'nkas',
+              'next_task': '重启设置',
+              'remark': '测试实例',
+            },
+            {'name': 'nkas2', 'state': 1, 'mod': 'nkas', 'current_task': '收获'},
+          ]),
+        ),
+        200,
+        headers: {'content-type': 'application/json; charset=utf-8'},
+      );
+    }
+    if (request.url.path.endsWith('/api/calendar')) {
+      return http.Response.bytes(
+        utf8.encode(
+          jsonEncode({
+            'updated_at': 1770000000,
+            'items': [
+              {
+                'id': 'event-1',
+                'category': 'version_event',
+                'title': '测试活动',
+                'subtitle': '活动说明',
+                'start_time': 1769000000,
+                'end_time': 1773000000,
+                'subtype': 'pass',
+                'banner_url': '',
+              },
+            ],
+          }),
+        ),
+        200,
+        headers: {'content-type': 'application/json; charset=utf-8'},
+      );
+    }
+    return http.Response(
+      jsonEncode({
+        'api_version': 2,
+        'spa_version': '1',
+        'version': 'test',
+        'capabilities': {'spa': true, 'websocket': true},
+      }),
+      200,
+      headers: {'content-type': 'application/json; charset=utf-8'},
+    );
+  });
   return ConnectionController(
     api: ApiClient(client: client),
     settings: settings ?? _MemoryBackendSettings(),
