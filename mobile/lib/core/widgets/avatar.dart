@@ -11,12 +11,14 @@ class Avatar extends StatelessWidget {
     this.fontSize = 13,
     this.background,
     this.foreground,
+    this.imageUrl,
   });
   final String text;
   final double size;
   final double fontSize;
   final Color? background;
   final Color? foreground;
+  final String? imageUrl;
 
   @override
   Widget build(BuildContext context) {
@@ -29,14 +31,32 @@ class Avatar extends StatelessWidget {
         color: background ?? scheme.avatarBg,
         borderRadius: BorderRadius.circular(11),
       ),
-      child: Text(
-        text,
-        style: TextStyle(
-          color: foreground ?? scheme.avatarText,
-          fontSize: fontSize,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
+      child: imageUrl == null || imageUrl!.isEmpty
+          ? Text(
+              text,
+              style: TextStyle(
+                color: foreground ?? scheme.avatarText,
+                fontSize: fontSize,
+                fontWeight: FontWeight.w700,
+              ),
+            )
+          : ClipRRect(
+              borderRadius: BorderRadius.circular(11),
+              child: Image.network(
+                imageUrl!,
+                width: size,
+                height: size,
+                fit: BoxFit.cover,
+                errorBuilder: (_, _, _) => Text(
+                  text,
+                  style: TextStyle(
+                    color: foreground ?? scheme.avatarText,
+                    fontSize: fontSize,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
     );
   }
 }

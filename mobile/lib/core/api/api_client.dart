@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import 'package:nkas_mobile_preview/core/api/system_status.dart';
+import 'package:nkas_mobile_preview/core/api/instance_info.dart';
 
 class ApiClient {
   ApiClient({http.Client? client, this.timeout = const Duration(seconds: 5)})
@@ -63,6 +64,34 @@ class ApiClient {
       throw const ApiException('后端返回了无效数据');
     }
     return SystemStatus.fromJson(decoded);
+  }
+
+  Future<List<InstanceInfo>> fetchInstances(String baseUrl) async {
+    final response = await _client
+        .get(endpoint(baseUrl, '/api/instances'))
+        .timeout(timeout);
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw ApiException('后端返回 HTTP ${response.statusCode}');
+    }
+
+    final Object? decoded;
+    try {
+      decoded = jsonDecode(utf8.decode(response.bodyBytes));
+    } on FormatException {
+      throw const ApiException('后端返回了无效实例数据');
+    }
+    if (decoded is! List) {
+      throw const ApiException('后端返回了无效实例数据');
+    }
+    try {
+      return decoded
+          .map((item) => InstanceInfo.fromJson(item as Map<String, dynamic>))
+          .toList(growable: false);
+    } on FormatException {
+      throw const ApiException('后端返回了无效实例数据');
+    } on TypeError {
+      throw const ApiException('后端返回了无效实例数据');
+    }
   }
 
   void close() => _client.close();

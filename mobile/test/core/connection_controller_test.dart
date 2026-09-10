@@ -75,6 +75,36 @@ void main() {
     expect(settings.value, 'http://nkas.example:12271');
   });
 
+  test('parses the instance list returned by the backend', () async {
+    final api = ApiClient(
+      client: MockClient(
+        (request) async => http.Response.bytes(
+          utf8.encode(
+            jsonEncode([
+              {
+                'name': 'nkas',
+                'state': 2,
+                'mod': 'nkas',
+                'next_task': '重启设置',
+                'remark': '测试实例',
+                'avatar': 'avatar.webp',
+              },
+            ]),
+          ),
+          200,
+        ),
+      ),
+    );
+    addTearDown(api.close);
+
+    final instances = await api.fetchInstances('http://nkas.example:12271');
+
+    expect(instances, hasLength(1));
+    expect(instances.single.name, 'nkas');
+    expect(instances.single.detail, '下一任务 · 重启设置');
+    expect(instances.single.avatar, 'avatar.webp');
+  });
+
   test('reports incompatible API versions without persisting', () async {
     final settings = _MemoryBackendSettings();
     final controller = ConnectionController(

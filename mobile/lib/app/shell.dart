@@ -1,11 +1,13 @@
+import 'dart:async';
 import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
-import 'package:nkas_mobile_preview/core/widgets/status.dart';
+import 'package:nkas_mobile_preview/core/api/instance_info.dart';
 import 'package:nkas_mobile_preview/core/connection/connection_controller.dart';
+import 'package:nkas_mobile_preview/core/widgets/status.dart';
 import 'package:nkas_mobile_preview/features/instances/instances_page.dart';
 import 'package:nkas_mobile_preview/features/logs/logs_page.dart';
 import 'package:nkas_mobile_preview/features/overview/overview_page.dart';
@@ -46,11 +48,16 @@ class _NkasShellState extends State<NkasShell> {
     '小号': false,
     '测试账号': false,
   };
+  List<InstanceInfo> instances = const [];
+  bool loadingInstances = false;
+  String? instancesError;
+  String? loadedInstancesBaseUrl;
 
   @override
   void initState() {
     super.initState();
     widget.connectionController.addListener(_connectionChanged);
+    _connectionChanged();
   }
 
   @override
@@ -68,7 +75,67 @@ class _NkasShellState extends State<NkasShell> {
     super.dispose();
   }
 
-  void _connectionChanged() => setState(() {});
+  void _connectionChanged() {
+    if (!mounted) return;
+    final connection = widget.connectionController.state;
+    setState(() {
+      if (connection.phase != ConnectionPhase.connected) {
+        instances = const [];
+        instancesError = null;
+        loadedInstancesBaseUrl = null;
+      }
+    });
+    if (connection.phase == ConnectionPhase.connected &&
+        loadedInstancesBaseUrl != connection.baseUrl &&
+        !loadingInstances) {
+      unawaited(_loadInstances());
+    }
+  }
+
+  Future<void> _loadInstances() async {
+    final baseUrl = widget.connectionController.state.baseUrl;
+    setState(() {
+      loadingInstances = true;
+      instancesError = null;
+    });
+    try {
+      final result = await widget.connectionController.fetchInstances();
+      if (!mounted || widget.connectionController.state.baseUrl != baseUrl) {
+        return;
+      }
+      setState(() {
+        instances = result;
+        loadedInstancesBaseUrl = baseUrl;
+        if (result.isNotEmpty && !result.any((item) => item.name == instance)) {
+          instance = result.first.name;
+        }
+        for (final item in result) {
+          instanceStates.putIfAbsent(item.name, () => item.isRunning);
+        }
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        instances = const [];
+        instancesError = error.toString();
+        loadedInstancesBaseUrl = baseUrl;
+      });
+    } finally {
+      if (mounted) setState(() => loadingInstances = false);
+    }
+  }
+
+  InstanceInfo? get selectedInstance {
+    for (final item in instances) {
+      if (item.name == instance) return item;
+    }
+    return null;
+  }
+
+  String? _avatarUrl(InstanceInfo item) {
+    if (item.avatar.isEmpty) return null;
+    return widget.connectionController.avatarUri(item.avatar).toString();
+  }
 
   bool get canControlLocalService =>
       kIsWeb || defaultTargetPlatform == TargetPlatform.android;
@@ -125,12 +192,21 @@ class _NkasShellState extends State<NkasShell> {
 
   Widget _pageBody() => switch (page) {
     NkasPage.overview => OverviewPage(
+      instances: instances,
+      loadingInstances: loadingInstances,
+      instancesError: instancesError,
+      avatarUrl: _avatarUrl,
       serviceRunning: serviceRunning,
       canControlService: canControlLocalService,
       onToggleService: () => setState(() => serviceRunning = !serviceRunning),
       onOpenInstances: () => _selectPage(NkasPage.instances),
     ),
     NkasPage.instances => InstancesPage(
+      instances: instances,
+      selectedInstance: selectedInstance,
+      loading: loadingInstances,
+      error: instancesError,
+      avatarUrl: _avatarUrl,
       selected: instance,
       running: instanceStates[instance] ?? false,
       tab: instanceTab,

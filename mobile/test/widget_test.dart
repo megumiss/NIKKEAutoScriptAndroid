@@ -27,16 +27,38 @@ class _MemoryBackendSettings implements BackendSettings {
 
 ConnectionController _connectedController({_MemoryBackendSettings? settings}) {
   final client = MockClient(
-    (_) async => http.Response(
-      jsonEncode({
-        'api_version': 2,
-        'spa_version': '1',
-        'version': 'test',
-        'capabilities': {'spa': true, 'websocket': true},
-      }),
-      200,
-      headers: {'content-type': 'application/json; charset=utf-8'},
-    ),
+    (request) async => request.url.path.endsWith('/api/instances')
+        ? http.Response.bytes(
+            utf8.encode(
+              jsonEncode([
+                {
+                  'name': 'nkas',
+                  'state': 2,
+                  'mod': 'nkas',
+                  'next_task': '重启设置',
+                  'remark': '测试实例',
+                },
+                {
+                  'name': 'nkas2',
+                  'state': 1,
+                  'mod': 'nkas',
+                  'current_task': '收获',
+                },
+              ]),
+            ),
+            200,
+            headers: {'content-type': 'application/json; charset=utf-8'},
+          )
+        : http.Response(
+            jsonEncode({
+              'api_version': 2,
+              'spa_version': '1',
+              'version': 'test',
+              'capabilities': {'spa': true, 'websocket': true},
+            }),
+            200,
+            headers: {'content-type': 'application/json; charset=utf-8'},
+          ),
   );
   return ConnectionController(
     api: ApiClient(client: client),

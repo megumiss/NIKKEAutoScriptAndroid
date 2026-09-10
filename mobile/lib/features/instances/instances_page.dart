@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
+import 'package:nkas_mobile_preview/core/api/instance_info.dart';
 import 'package:nkas_mobile_preview/core/widgets/avatar.dart';
 import 'package:nkas_mobile_preview/core/widgets/buttons.dart';
 import 'package:nkas_mobile_preview/core/widgets/icon_box.dart';
@@ -19,6 +20,11 @@ enum InstanceTab { overview, tasks, schedule, liveLogs, screen }
 class InstancesPage extends StatelessWidget {
   const InstancesPage({
     required this.selected,
+    required this.selectedInstance,
+    required this.instances,
+    required this.loading,
+    required this.error,
+    required this.avatarUrl,
     required this.running,
     required this.tab,
     required this.onTabChanged,
@@ -27,6 +33,11 @@ class InstancesPage extends StatelessWidget {
     super.key,
   });
   final String selected;
+  final InstanceInfo? selectedInstance;
+  final List<InstanceInfo> instances;
+  final bool loading;
+  final String? error;
+  final String? Function(InstanceInfo item) avatarUrl;
   final bool running;
   final InstanceTab tab;
   final ValueChanged<InstanceTab> onTabChanged;
@@ -37,6 +48,13 @@ class InstancesPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = ShadTheme.of(context).colorScheme;
     final inset = nkasPageInset(context);
+    final displayName =
+        selectedInstance?.name ??
+        (loading
+            ? '加载中…'
+            : error == null
+            ? '暂无实例'
+            : '实例加载失败');
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -51,11 +69,14 @@ class InstancesPage extends StatelessWidget {
             child: Row(
               children: [
                 Avatar(
-                  text: selected.characters.first,
+                  text: selectedInstance?.name.characters.first ?? '实',
                   size: 38,
                   fontSize: 15,
                   background: scheme.accentSoft,
                   foreground: scheme.configIconText,
+                  imageUrl: selectedInstance == null
+                      ? null
+                      : avatarUrl(selectedInstance!),
                 ),
                 const SizedBox(width: 9),
                 Expanded(
@@ -63,7 +84,7 @@ class InstancesPage extends StatelessWidget {
                     children: [
                       Flexible(
                         child: Text(
-                          selected,
+                          displayName,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
                             fontSize: 15,
@@ -71,12 +92,10 @@ class InstancesPage extends StatelessWidget {
                           ),
                         ),
                       ),
-                      const SizedBox(width: 7),
-                      Status(
-                        status: running
-                            ? InstanceStatus.running
-                            : InstanceStatus.idle,
-                      ),
+                      if (selectedInstance != null) ...[
+                        const SizedBox(width: 7),
+                        Status(status: selectedInstance!.status),
+                      ],
                     ],
                   ),
                 ),
@@ -85,13 +104,15 @@ class InstancesPage extends StatelessWidget {
                   label: '切换',
                   onPressed: () => _showInstancePicker(context),
                 ),
-                const SizedBox(width: 7),
-                PrimaryButton(
-                  icon: running ? LucideIcons.square : LucideIcons.play,
-                  label: running ? '停止' : '启动',
-                  onPressed: onToggle,
-                  compact: true,
-                ),
+                if (selectedInstance != null) ...[
+                  const SizedBox(width: 7),
+                  PrimaryButton(
+                    icon: running ? LucideIcons.square : LucideIcons.play,
+                    label: running ? '停止' : '启动',
+                    onPressed: onToggle,
+                    compact: true,
+                  ),
+                ],
               ],
             ),
           ),
@@ -115,18 +136,34 @@ class InstancesPage extends StatelessWidget {
             children: [
               Text('切换实例', style: ShadTheme.of(context).textTheme.h3),
               const SizedBox(height: 8),
-              for (final name in ['主账号', '小号', '测试账号'])
+              if (loading)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 24),
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              else if (instances.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 18),
+                  child: Text(
+                    error == null ? '暂无实例' : '实例加载失败，请检查后端连接',
+                    style: ShadTheme.of(context).textTheme.muted,
+                  ),
+                ),
+              for (final item in instances)
                 ListTile(
                   contentPadding: EdgeInsets.zero,
-                  leading: Avatar(text: name.characters.first),
-                  title: Text(name),
+                  leading: Avatar(
+                    text: item.name.characters.first,
+                    imageUrl: avatarUrl(item),
+                  ),
+                  title: Text(item.name),
                   trailing: Icon(
-                    name == selected
+                    item.name == selected
                         ? LucideIcons.check
                         : LucideIcons.chevronRight,
                   ),
                   onTap: () {
-                    onSelectInstance(name);
+                    onSelectInstance(item.name);
                     Navigator.pop(context);
                   },
                 ),

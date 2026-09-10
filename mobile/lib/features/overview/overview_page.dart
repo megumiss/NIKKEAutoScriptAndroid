@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
+import 'package:nkas_mobile_preview/core/api/instance_info.dart';
 import 'package:nkas_mobile_preview/core/widgets/avatar.dart';
 import 'package:nkas_mobile_preview/core/widgets/buttons.dart';
 import 'package:nkas_mobile_preview/core/widgets/filter_chip.dart';
@@ -18,12 +19,20 @@ class OverviewPage extends StatelessWidget {
     required this.canControlService,
     required this.onToggleService,
     required this.onOpenInstances,
+    required this.instances,
+    required this.loadingInstances,
+    required this.instancesError,
+    required this.avatarUrl,
     super.key,
   });
   final bool serviceRunning;
   final bool canControlService;
   final VoidCallback onToggleService;
   final VoidCallback onOpenInstances;
+  final List<InstanceInfo> instances;
+  final bool loadingInstances;
+  final String? instancesError;
+  final String? Function(InstanceInfo item) avatarUrl;
 
   @override
   Widget build(BuildContext context) {
@@ -162,25 +171,35 @@ class OverviewPage extends StatelessWidget {
         const SizedBox(height: 25),
         SectionHeader(title: '实例状态', action: '查看全部', onAction: onOpenInstances),
         const SizedBox(height: 8),
-        const Surface(
+        Surface(
           padding: EdgeInsets.zero,
-          child: Column(
-            children: [
-              _InstanceRow(
-                initial: '主',
-                name: '主账号',
-                detail: '每日任务 · 最后同步 2 分钟前',
-                status: InstanceStatus.running,
-              ),
-              Divider(height: 1),
-              _InstanceRow(
-                initial: '小',
-                name: '小号',
-                detail: '等待初始化 · 上次运行昨天',
-                status: InstanceStatus.idle,
-              ),
-            ],
-          ),
+          child: loadingInstances
+              ? const SizedBox(
+                  height: 68,
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              : instances.isEmpty
+              ? Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Text(
+                    instancesError == null ? '暂无实例' : '实例加载失败',
+                    style: theme.textTheme.muted,
+                  ),
+                )
+              : Column(
+                  children: [
+                    for (var i = 0; i < instances.take(2).length; i++) ...[
+                      if (i > 0) const Divider(height: 1),
+                      _InstanceRow(
+                        initial: instances[i].name.characters.first,
+                        name: instances[i].name,
+                        detail: instances[i].detail,
+                        status: instances[i].status,
+                        imageUrl: avatarUrl(instances[i]),
+                      ),
+                    ],
+                  ],
+                ),
         ),
         const SizedBox(height: 25),
         SectionHeader(
@@ -280,11 +299,13 @@ class _InstanceRow extends StatelessWidget {
     required this.name,
     required this.detail,
     required this.status,
+    this.imageUrl,
   });
   final String initial;
   final String name;
   final String detail;
   final InstanceStatus status;
+  final String? imageUrl;
 
   @override
   Widget build(BuildContext context) {
@@ -295,7 +316,7 @@ class _InstanceRow extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         child: Row(
           children: [
-            Avatar(text: initial),
+            Avatar(text: initial, imageUrl: imageUrl),
             const SizedBox(width: 11),
             Expanded(
               child: Column(

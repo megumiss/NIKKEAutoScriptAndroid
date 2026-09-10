@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import 'package:nkas_mobile_preview/core/api/api_client.dart';
+import 'package:nkas_mobile_preview/core/api/instance_info.dart';
 import 'package:nkas_mobile_preview/core/api/system_status.dart';
 import 'package:nkas_mobile_preview/core/settings/backend_settings.dart';
 
@@ -113,6 +114,18 @@ class ConnectionController extends ChangeNotifier {
     }
     return false;
   }
+
+  Future<List<InstanceInfo>> fetchInstances() {
+    if (_state.phase != ConnectionPhase.connected) {
+      return Future.error(const ApiException('后端未连接'));
+    }
+    return _api.fetchInstances(_state.baseUrl);
+  }
+
+  Uri avatarUri(String filename) => _api.endpoint(
+    _state.baseUrl,
+    '/avatars/${Uri.encodeComponent(filename)}',
+  );
 
   void _disconnect(String baseUrl, String message) {
     _setState(
