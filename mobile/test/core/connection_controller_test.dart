@@ -7,6 +7,7 @@ import 'package:nkas_mobile_preview/core/api/api_client.dart';
 import 'package:nkas_mobile_preview/core/connection/connection_controller.dart';
 import 'package:nkas_mobile_preview/core/settings/backend_settings.dart';
 import 'package:nkas_mobile_preview/core/connection/instance_state_socket.dart';
+import 'package:nkas_mobile_preview/core/connection/instance_queue_socket.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class _MemoryBackendSettings implements BackendSettings {
@@ -187,5 +188,37 @@ void main() {
     await api.setInstanceRunning('http://nkas.example:12271', 'nkas', false);
 
     expect(requests, ['POST /api/nkas/start', 'POST /api/nkas/stop']);
+  });
+
+  test('parses queue snapshots and queue websocket events', () async {
+    final api = ApiClient(
+      client: MockClient(
+        (_) async => http.Response.bytes(
+          utf8.encode(
+            jsonEncode({
+              'running': [
+                {'command': 'daily', 'next_run': 'now', 'name_i18n': '日常'},
+              ],
+              'pending': [],
+              'waiting': [],
+            }),
+          ),
+          200,
+        ),
+      ),
+    );
+    addTearDown(api.close);
+    final queue = await api.fetchQueue('http://nkas.example:12271', 'nkas');
+    expect(queue.running.single.name, '日常');
+
+    final event = InstanceQueueEvent.fromJson({
+      'type': 'queue',
+      'name': 'nkas',
+      'running': [],
+      'pending': [],
+      'waiting': [],
+    });
+    expect(event.name, 'nkas');
+    expect(event.queue.waiting, isEmpty);
   });
 }

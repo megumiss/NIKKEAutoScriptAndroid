@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import 'package:nkas_mobile_preview/core/api/instance_info.dart';
+import 'package:nkas_mobile_preview/core/api/queue_info.dart';
 import 'package:nkas_mobile_preview/core/widgets/avatar.dart';
 import 'package:nkas_mobile_preview/core/widgets/buttons.dart';
 import 'package:nkas_mobile_preview/core/widgets/icon_box.dart';
@@ -26,6 +27,9 @@ class InstancesPage extends StatelessWidget {
     required this.toggleLoading,
     required this.error,
     required this.avatarUrl,
+    required this.queue,
+    required this.queueLoading,
+    required this.queueError,
     required this.running,
     required this.tab,
     required this.onTabChanged,
@@ -40,6 +44,9 @@ class InstancesPage extends StatelessWidget {
   final bool toggleLoading;
   final String? error;
   final String? Function(InstanceInfo item) avatarUrl;
+  final QueueInfo? queue;
+  final bool queueLoading;
+  final String? queueError;
   final bool running;
   final InstanceTab tab;
   final ValueChanged<InstanceTab> onTabChanged;
@@ -128,7 +135,14 @@ class InstancesPage extends StatelessWidget {
           ),
         ),
         _InstanceTabs(tab: tab, onChanged: onTabChanged),
-        Expanded(child: _InstanceBody(tab: tab)),
+        Expanded(
+          child: _InstanceBody(
+            tab: tab,
+            queue: queue,
+            loading: queueLoading,
+            error: queueError,
+          ),
+        ),
       ],
     );
   }
@@ -255,8 +269,16 @@ class _InstanceTabs extends StatelessWidget {
 }
 
 class _InstanceBody extends StatelessWidget {
-  const _InstanceBody({required this.tab});
+  const _InstanceBody({
+    required this.tab,
+    required this.queue,
+    required this.loading,
+    required this.error,
+  });
   final InstanceTab tab;
+  final QueueInfo? queue;
+  final bool loading;
+  final String? error;
 
   @override
   Widget build(BuildContext context) {
@@ -264,27 +286,38 @@ class _InstanceBody extends StatelessWidget {
     return ListView(
       padding: EdgeInsets.fromLTRB(inset, 8, inset, 88),
       children: switch (tab) {
-        InstanceTab.overview => const [
-          _QueueGroup(
-            label: '运行中',
-            colorKind: 0,
-            rows: [('每日任务', '主账号 · 执行中', '09:32')],
-          ),
-          SizedBox(height: 16),
-          _QueueGroup(
-            label: '队列中',
-            colorKind: 1,
-            rows: [
-              ('剧情活动', '已到执行时间 · 等待前一任务', '09:51'),
-              ('领取邮件', '已到执行时间 · 排队等待', '10:04'),
-            ],
-          ),
-          SizedBox(height: 16),
-          _QueueGroup(
-            label: '等待中',
-            colorKind: 2,
-            rows: [('协同作战', '下一次运行 · 明日 06:00', '明日')],
-          ),
+        InstanceTab.overview => [
+          if (loading)
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.only(top: 36),
+                child: CircularProgressIndicator(),
+              ),
+            )
+          else if (queue == null)
+            Padding(
+              padding: const EdgeInsets.only(top: 28),
+              child: Text(error == null ? '暂无队列数据' : '队列加载失败'),
+            )
+          else ...[
+            _QueueGroup.fromItems(
+              label: '运行中',
+              colorKind: 0,
+              items: queue!.running,
+            ),
+            const SizedBox(height: 16),
+            _QueueGroup.fromItems(
+              label: '队列中',
+              colorKind: 1,
+              items: queue!.pending,
+            ),
+            const SizedBox(height: 16),
+            _QueueGroup.fromItems(
+              label: '等待中',
+              colorKind: 2,
+              items: queue!.waiting,
+            ),
+          ],
         ],
         InstanceTab.tasks => const [
           _ConfigGroup(
@@ -317,6 +350,16 @@ class _InstanceBody extends StatelessWidget {
 }
 
 class _QueueGroup extends StatelessWidget {
+  factory _QueueGroup.fromItems({
+    required String label,
+    required int colorKind,
+    required List<QueueItem> items,
+  }) => _QueueGroup(
+    label: label,
+    colorKind: colorKind,
+    rows: [for (final item in items) (item.name, item.command, item.nextRun)],
+  );
+
   const _QueueGroup({
     required this.label,
     required this.colorKind,

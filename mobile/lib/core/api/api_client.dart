@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 
 import 'package:nkas_mobile_preview/core/api/system_status.dart';
 import 'package:nkas_mobile_preview/core/api/instance_info.dart';
+import 'package:nkas_mobile_preview/core/api/queue_info.dart';
 
 class ApiClient {
   ApiClient({http.Client? client, this.timeout = const Duration(seconds: 5)})
@@ -104,6 +105,24 @@ class ApiClient {
         .timeout(timeout);
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw ApiException('后端返回 HTTP ${response.statusCode}');
+    }
+  }
+
+  Future<QueueInfo> fetchQueue(String baseUrl, String name) async {
+    final response = await _client
+        .get(endpoint(baseUrl, '/api/$name/queue'))
+        .timeout(timeout);
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw ApiException('后端返回 HTTP ${response.statusCode}');
+    }
+    try {
+      final decoded = jsonDecode(utf8.decode(response.bodyBytes));
+      if (decoded is! Map<String, dynamic>) throw const FormatException();
+      return QueueInfo.fromJson(decoded);
+    } on FormatException {
+      throw const ApiException('后端返回了无效队列数据');
+    } on TypeError {
+      throw const ApiException('后端返回了无效队列数据');
     }
   }
 

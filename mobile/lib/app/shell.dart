@@ -8,6 +8,8 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:nkas_mobile_preview/core/api/instance_info.dart';
 import 'package:nkas_mobile_preview/core/connection/connection_controller.dart';
 import 'package:nkas_mobile_preview/core/connection/instance_state_socket.dart';
+import 'package:nkas_mobile_preview/core/connection/instance_queue_socket.dart';
+import 'package:nkas_mobile_preview/core/api/queue_info.dart';
 import 'package:nkas_mobile_preview/core/widgets/status.dart';
 import 'package:nkas_mobile_preview/features/instances/instances_page.dart';
 import 'package:nkas_mobile_preview/features/logs/logs_page.dart';
@@ -59,6 +61,12 @@ class _NkasShellState extends State<NkasShell> {
   InstanceStateSocket? stateSocket;
   String? stateSocketBaseUrl;
   Timer? stateSocketReconnectTimer;
+  final queues = <String, QueueInfo>{};
+  bool loadingQueue = false;
+  String? queueError;
+  InstanceQueueSocket? queueSocket;
+  String? queueSocketInstance;
+  Timer? queueSocketReconnectTimer;
 
   @override
   void initState() {
@@ -80,6 +88,7 @@ class _NkasShellState extends State<NkasShell> {
   void dispose() {
     widget.connectionController.removeListener(_connectionChanged);
     unawaited(_closeStateSocket());
+    unawaited(_closeQueueSocket());
     super.dispose();
   }
 
@@ -92,6 +101,9 @@ class _NkasShellState extends State<NkasShell> {
         instancesError = null;
         loadedInstancesBaseUrl = null;
         stateSocketBaseUrl = null;
+        queues.clear();
+        queueError = null;
+        queueSocketInstance = null;
       }
     });
     if (connection.phase == ConnectionPhase.connected &&
@@ -191,6 +203,11 @@ class _NkasShellState extends State<NkasShell> {
           instanceStates.putIfAbsent(item.name, () => item.isRunning);
         }
       });
+      if (result.isNotEmpty) {
+        unawaited(
+          _loadQueue(result.firstWhere((item) => item.name == instance).name),
+        );
+      }
     } catch (error) {
       if (!mounted) return;
       setState(() {
@@ -213,6 +230,69 @@ class _NkasShellState extends State<NkasShell> {
   String? _avatarUrl(InstanceInfo item) {
     if (item.avatar.isEmpty) return null;
     return widget.connectionController.avatarUri(item.avatar).toString();
+  }
+
+  Future<void> _loadQueue(String name) async {
+    setState(() {
+      loadingQueue = true;
+      queueError = null;
+    });
+    try {
+      final result = await widget.connectionController.fetchQueue(name);
+      if (!mounted) return;
+      setState(() => queues[name] = result);
+      unawaited(_openQueueSocket(name));
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => queueError = error.toString());
+    } finally {
+      if (mounted) setState(() => loadingQueue = false);
+    }
+  }
+
+  Future<void> _openQueueSocket(String name) async {
+    queueSocketReconnectTimer?.cancel();
+    await _closeQueueSocket();
+    final connection = widget.connectionController.state;
+    if (!mounted || connection.phase != ConnectionPhase.connected) return;
+    final socket = InstanceQueueSocket(
+      uri: widget.connectionController.websocketUri(
+        '/ws/${Uri.encodeComponent(name)}/queue',
+      ),
+    );
+    queueSocket = socket;
+    queueSocketInstance = name;
+    await socket.connect(
+      onQueue: (event) {
+        if (!mounted) return;
+        setState(() => queues[event.name] = event.queue);
+      },
+      onError: (_) => _scheduleQueueSocketReconnect(socket, name),
+      onClosed: () => _scheduleQueueSocketReconnect(socket, name),
+    );
+  }
+
+  void _scheduleQueueSocketReconnect(InstanceQueueSocket socket, String name) {
+    if (!mounted ||
+        queueSocket != socket ||
+        queueSocketInstance != name ||
+        widget.connectionController.state.phase != ConnectionPhase.connected) {
+      return;
+    }
+    queueSocketReconnectTimer?.cancel();
+    queueSocketReconnectTimer = Timer(
+      const Duration(seconds: 3),
+      () => unawaited(_openQueueSocket(name)),
+    );
+  }
+
+  Future<void> _closeQueueSocket() async {
+    queueSocketReconnectTimer?.cancel();
+    queueSocketReconnectTimer = null;
+    final socket = queueSocket;
+    queueSocket = null;
+    queueSocketInstance = null;
+    await socket?.close();
   }
 
   bool get canControlLocalService =>
@@ -286,15 +366,22 @@ class _NkasShellState extends State<NkasShell> {
       toggleLoading: togglingInstance,
       error: instancesError,
       avatarUrl: _avatarUrl,
+      queue: queues[instance],
+      queueLoading: loadingQueue,
+      queueError: queueError,
       selected: instance,
       running: instanceStates[instance] ?? false,
       tab: instanceTab,
       onTabChanged: (value) => setState(() => instanceTab = value),
       onToggle: () => unawaited(_toggleSelectedInstance()),
-      onSelectInstance: (value) => setState(() {
-        instance = value;
-        instanceTab = InstanceTab.overview;
-      }),
+      onSelectInstance: (value) {
+        setState(() {
+          instance = value;
+          instanceTab = InstanceTab.overview;
+          queueError = null;
+        });
+        unawaited(_loadQueue(value));
+      },
     ),
     NkasPage.logs => const LogsPage(),
     NkasPage.settings => SettingsPage(
