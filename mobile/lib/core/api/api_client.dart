@@ -7,6 +7,7 @@ import 'package:nkas_mobile_preview/core/api/instance_info.dart';
 import 'package:nkas_mobile_preview/core/api/queue_info.dart';
 import 'package:nkas_mobile_preview/core/api/calendar_info.dart';
 import 'package:nkas_mobile_preview/core/api/log_info.dart';
+import 'package:nkas_mobile_preview/core/api/update_info.dart';
 
 class ApiClient {
   ApiClient({http.Client? client, this.timeout = const Duration(seconds: 5)})
@@ -206,6 +207,39 @@ class ApiClient {
     baseUrl,
     '/api/system/logs/download',
   ).replace(queryParameters: {'date': date, 'source': source});
+
+  Future<UpdateInfo> fetchUpdateInfo(String baseUrl) async {
+    final response = await _client
+        .get(endpoint(baseUrl, '/api/system/update'))
+        .timeout(timeout);
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw ApiException('后端返回 HTTP ${response.statusCode}');
+    }
+    try {
+      final decoded = jsonDecode(utf8.decode(response.bodyBytes));
+      if (decoded is! Map<String, dynamic>) throw const FormatException();
+      return UpdateInfo.fromJson(decoded);
+    } on FormatException {
+      throw const ApiException('后端返回了无效更新状态');
+    }
+  }
+
+  Future<void> checkForUpdate(String baseUrl) async {
+    await _postUpdateAction(baseUrl, '/api/update/check');
+  }
+
+  Future<void> applyUpdate(String baseUrl) async {
+    await _postUpdateAction(baseUrl, '/api/update');
+  }
+
+  Future<void> _postUpdateAction(String baseUrl, String path) async {
+    final response = await _client
+        .post(endpoint(baseUrl, path))
+        .timeout(timeout);
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw ApiException('后端返回 HTTP ${response.statusCode}');
+    }
+  }
 
   void close() => _client.close();
 }

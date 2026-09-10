@@ -337,4 +337,40 @@ void main() {
       'http://nkas.example:12271/api/system/logs/download?date=2026-09-10&source=%E4%B8%BB%E8%B4%A6%E5%8F%B7',
     );
   });
+
+  test('reads, checks, and applies source updates', () async {
+    final requests = <String>[];
+    final api = ApiClient(
+      client: MockClient((request) async {
+        requests.add('${request.method} ${request.url.path}');
+        if (request.method == 'GET') {
+          return http.Response(
+            jsonEncode({
+              'state': 1,
+              'error': null,
+              'local': ['abc123', 'tester', '2026-09-10', 'local'],
+              'upstream': ['def456', 'tester', '2026-09-11', 'upstream'],
+              'history': [],
+            }),
+            200,
+          );
+        }
+        return http.Response('{}', 200);
+      }),
+    );
+    addTearDown(api.close);
+
+    final info = await api.fetchUpdateInfo('http://nkas.example:12271');
+    await api.checkForUpdate('http://nkas.example:12271');
+    await api.applyUpdate('http://nkas.example:12271');
+
+    expect(info.available, isTrue);
+    expect(info.stateLabel, '有新版本');
+    expect(info.local?.first, 'abc123');
+    expect(requests, [
+      'GET /api/system/update',
+      'POST /api/update/check',
+      'POST /api/update',
+    ]);
+  });
 }

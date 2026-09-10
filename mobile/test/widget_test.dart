@@ -110,6 +110,19 @@ ConnectionController _connectedController({_MemoryBackendSettings? settings}) {
         headers: {'content-type': 'application/json; charset=utf-8'},
       );
     }
+    if (request.url.path.endsWith('/api/system/update')) {
+      return http.Response(
+        jsonEncode({
+          'state': 0,
+          'error': null,
+          'local': ['abc123', 'tester', '2026-09-10', 'test'],
+          'upstream': ['abc123', 'tester', '2026-09-10', 'test'],
+          'history': [],
+        }),
+        200,
+        headers: {'content-type': 'application/json; charset=utf-8'},
+      );
+    }
     return http.Response(
       jsonEncode({
         'api_version': 2,
@@ -161,6 +174,7 @@ void main() {
     expect(find.text('后端地址'), findsOneWidget);
     expect(find.text('原始 WebUI'), findsOneWidget);
     expect(find.text('更新'), findsOneWidget);
+    expect(find.text('当前 test · 已是最新'), findsOneWidget);
 
     await tester.drag(find.byType(Scrollable).first, const Offset(0, -600));
     await tester.pumpAndSettle();
