@@ -7,6 +7,7 @@ import 'package:nkas_mobile_preview/core/api/instance_info.dart';
 import 'package:nkas_mobile_preview/core/api/queue_info.dart';
 import 'package:nkas_mobile_preview/core/api/screenshot_frame.dart';
 import 'package:nkas_mobile_preview/core/api/schedule_info.dart';
+import 'package:nkas_mobile_preview/core/api/schema_info.dart';
 import 'package:nkas_mobile_preview/core/widgets/avatar.dart';
 import 'package:nkas_mobile_preview/core/widgets/buttons.dart';
 import 'package:nkas_mobile_preview/core/widgets/icon_box.dart';
@@ -42,6 +43,11 @@ class InstancesPage extends StatelessWidget {
     required this.loadSchedule,
     required this.saveSchedule,
     required this.resetSchedule,
+    required this.schema,
+    required this.schemaLoading,
+    required this.schemaError,
+    required this.loadSchema,
+    required this.patchConfig,
     required this.onSelectInstance,
     super.key,
   });
@@ -63,6 +69,11 @@ class InstancesPage extends StatelessWidget {
   final Future<List<ScheduleTask>> Function() loadSchedule;
   final Future<void> Function(List<Map<String, dynamic>>) saveSchedule;
   final Future<void> Function() resetSchedule;
+  final SchemaInfo? schema;
+  final bool schemaLoading;
+  final String? schemaError;
+  final Future<void> Function() loadSchema;
+  final Future<void> Function(String, Object?) patchConfig;
   final ValueChanged<String> onSelectInstance;
 
   @override
@@ -158,6 +169,11 @@ class InstancesPage extends StatelessWidget {
             loadSchedule: loadSchedule,
             saveSchedule: saveSchedule,
             resetSchedule: resetSchedule,
+            schema: schema,
+            schemaLoading: schemaLoading,
+            schemaError: schemaError,
+            loadSchema: loadSchema,
+            patchConfig: patchConfig,
           ),
         ),
       ],
@@ -296,6 +312,11 @@ class _InstanceBody extends StatelessWidget {
     required this.loadSchedule,
     required this.saveSchedule,
     required this.resetSchedule,
+    required this.schema,
+    required this.schemaLoading,
+    required this.schemaError,
+    required this.loadSchema,
+    required this.patchConfig,
   });
   final InstanceTab tab;
   final QueueInfo? queue;
@@ -306,6 +327,11 @@ class _InstanceBody extends StatelessWidget {
   final Future<List<ScheduleTask>> Function() loadSchedule;
   final Future<void> Function(List<Map<String, dynamic>>) saveSchedule;
   final Future<void> Function() resetSchedule;
+  final SchemaInfo? schema;
+  final bool schemaLoading;
+  final String? schemaError;
+  final Future<void> Function() loadSchema;
+  final Future<void> Function(String, Object?) patchConfig;
 
   @override
   Widget build(BuildContext context) {
@@ -346,26 +372,13 @@ class _InstanceBody extends StatelessWidget {
             ),
           ],
         ],
-        InstanceTab.tasks => const [
-          _ConfigGroup(
-            title: '日常',
-            rows: [
-              ('前哨基地', '领取派遣、商店与基地奖励', true, LucideIcons.home),
-              ('咨询', '自动完成妮姬咨询', true, LucideIcons.messageCircle),
-            ],
-          ),
-          SizedBox(height: 16),
-          _ConfigGroup(
-            title: '活动',
-            rows: [
-              ('剧情活动', '推图、签到、商店与协同', true, LucideIcons.scrollText),
-              ('协同作战', '大型活动内置协同任务', false, LucideIcons.swords),
-            ],
-          ),
-          SizedBox(height: 16),
-          _ConfigGroup(
-            title: '工具',
-            rows: [('设备与通知', '分辨率、通知和设备相关配置', true, LucideIcons.wrench)],
+        InstanceTab.tasks => [
+          _SchemaPanel(
+            schema: schema,
+            loading: schemaLoading,
+            error: schemaError,
+            onReload: loadSchema,
+            onPatch: patchConfig,
           ),
         ],
         InstanceTab.schedule => [
@@ -513,76 +526,302 @@ class _QueueRow extends StatelessWidget {
   }
 }
 
-class _ConfigGroup extends StatelessWidget {
-  const _ConfigGroup({required this.title, required this.rows});
-  final String title;
-  final List<(String, String, bool, IconData)> rows;
+class _SchemaPanel extends StatefulWidget {
+  const _SchemaPanel({
+    required this.schema,
+    required this.loading,
+    required this.error,
+    required this.onReload,
+    required this.onPatch,
+  });
+
+  final SchemaInfo? schema;
+  final bool loading;
+  final String? error;
+  final Future<void> Function() onReload;
+  final Future<void> Function(String, Object?) onPatch;
+
+  @override
+  State<_SchemaPanel> createState() => _SchemaPanelState();
+}
+
+class _SchemaPanelState extends State<_SchemaPanel> {
+  String? menuKey;
+  String? taskKey;
+  String? savingKey;
 
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
-    final scheme = theme.colorScheme;
+    if (widget.loading && widget.schema == null) {
+      return const Padding(
+        padding: EdgeInsets.only(top: 36),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+    if (widget.schema == null) {
+      return Column(
+        children: [
+          Text(widget.error == null ? '暂无任务配置' : '任务配置加载失败'),
+          const SizedBox(height: 10),
+          SecondaryButton(
+            icon: LucideIcons.refreshCw,
+            label: '重新加载',
+            onPressed: widget.onReload,
+          ),
+        ],
+      );
+    }
+    final schema = widget.schema!;
+    final menu = _selectedMenu(schema);
+    final task = menu == null ? null : _selectedTask(schema, menu);
+    final firstMenuName = schema.menus.isEmpty ? '暂无' : schema.menus.first.name;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.only(left: 3, bottom: 8),
-          child: Text(title, style: theme.textTheme.muted),
+        _SchemaSelector(
+          label: '分组',
+          value: menu?.name ?? firstMenuName,
+          options: [
+            for (final item in schema.menus)
+              FieldSelectOption(item.key, item.name),
+          ],
+          onChanged: (value) => setState(() {
+            menuKey = value;
+            taskKey = null;
+          }),
         ),
+        const SizedBox(height: 8),
+        if (menu != null)
+          _SchemaSelector(
+            label: '任务',
+            value:
+                task?.name ??
+                (menu.tasks.isEmpty ? '暂无' : menu.tasks.first.name),
+            options: [
+              for (final item in menu.tasks)
+                FieldSelectOption(item.key, item.name),
+            ],
+            onChanged: (value) => setState(() => taskKey = value),
+          ),
+        if (task != null) ...[
+          const SizedBox(height: 14),
+          for (var index = 0; index < task.groups.length; index++) ...[
+            if (index > 0) const SizedBox(height: 14),
+            _SchemaGroup(
+              group: task.groups[index],
+              savingKey: savingKey,
+              onPatch: _patch,
+            ),
+          ],
+        ],
+        if (task == null)
+          Padding(
+            padding: const EdgeInsets.only(top: 28),
+            child: Text('请选择任务', style: theme.textTheme.muted),
+          ),
+      ],
+    );
+  }
+
+  SchemaMenu? _selectedMenu(SchemaInfo schema) {
+    if (schema.menus.isEmpty) return null;
+    return schema.menus.firstWhere(
+      (item) => item.key == menuKey,
+      orElse: () => schema.menus.first,
+    );
+  }
+
+  SchemaTask? _selectedTask(SchemaInfo schema, SchemaMenu menu) {
+    if (menu.tasks.isEmpty) return null;
+    final key = taskKey ?? menu.tasks.first.key;
+    return schema.tasks[menu.tasks
+        .firstWhere((item) => item.key == key, orElse: () => menu.tasks.first)
+        .key];
+  }
+
+  Future<void> _patch(String key, Object? value) async {
+    setState(() => savingKey = key);
+    try {
+      await widget.onPatch(key, value);
+      await widget.onReload();
+    } catch (exception) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('保存失败：$exception')));
+      }
+    } finally {
+      if (mounted) setState(() => savingKey = null);
+    }
+  }
+}
+
+class _SchemaSelector extends StatelessWidget {
+  const _SchemaSelector({
+    required this.label,
+    required this.value,
+    required this.options,
+    required this.onChanged,
+  });
+  final String label;
+  final String value;
+  final List<FieldSelectOption> options;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) => FieldSelect(
+    label: label,
+    value: value,
+    options: options,
+    onChanged: onChanged,
+  );
+}
+
+class _SchemaGroup extends StatelessWidget {
+  const _SchemaGroup({
+    required this.group,
+    required this.savingKey,
+    required this.onPatch,
+  });
+  final SchemaGroup group;
+  final String? savingKey;
+  final Future<void> Function(String, Object?) onPatch;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ShadTheme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(group.name, style: theme.textTheme.h4),
+        if (group.help.isNotEmpty) ...[
+          const SizedBox(height: 3),
+          Text(group.help, style: theme.textTheme.muted),
+        ],
+        const SizedBox(height: 7),
         Surface(
-          padding: EdgeInsets.zero,
+          padding: const EdgeInsets.all(12),
           child: Column(
             children: [
-              for (var i = 0; i < rows.length; i++) ...[
-                if (i > 0) const Divider(height: 1),
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 10,
-                  ),
-                  child: Row(
-                    children: [
-                      IconBox(
-                        icon: rows[i].$4,
-                        color: scheme.configIconText,
-                        background: scheme.configIconBg,
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              rows[i].$1,
-                              style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const SizedBox(height: 3),
-                            Text(rows[i].$2, style: theme.textTheme.muted),
-                          ],
-                        ),
-                      ),
-                      Tag(
-                        label: rows[i].$3 ? '已启用' : '未启用',
-                        color: rows[i].$3
-                            ? scheme.success
-                            : scheme.mutedForeground,
-                      ),
-                      const SizedBox(width: 5),
-                      Icon(
-                        LucideIcons.chevronRight,
-                        size: 15,
-                        color: scheme.mutedForeground,
-                      ),
-                    ],
-                  ),
+              for (var index = 0; index < group.fields.length; index++) ...[
+                if (index > 0) const Divider(height: 18),
+                _SchemaFieldView(
+                  field: group.fields[index],
+                  saving: savingKey == group.fields[index].key,
+                  onPatch: onPatch,
                 ),
               ],
             ],
           ),
         ),
+      ],
+    );
+  }
+}
+
+class _SchemaFieldView extends StatelessWidget {
+  const _SchemaFieldView({
+    required this.field,
+    required this.saving,
+    required this.onPatch,
+  });
+  final SchemaField field;
+  final bool saving;
+  final Future<void> Function(String, Object?) onPatch;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ShadTheme.of(context);
+    final disabled = field.readonly || saving;
+    final label = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(field.title, style: const TextStyle(fontWeight: FontWeight.w600)),
+        if (field.help.isNotEmpty) ...[
+          const SizedBox(height: 3),
+          Text(field.help, style: theme.textTheme.muted),
+        ],
+      ],
+    );
+    if (field.widget == 'checkbox') {
+      return Row(
+        children: [
+          Expanded(child: label),
+          Switch(
+            value: field.value == true,
+            onChanged: disabled ? null : (value) => onPatch(field.key, value),
+          ),
+        ],
+      );
+    }
+    if (field.widget == 'select' || field.widget == 'multiselect') {
+      final isMulti = field.widget == 'multiselect';
+      final selectedValues = field.value is List
+          ? (field.value as List).map((value) => value.toString()).toSet()
+          : {field.value.toString()};
+      final current = field.options.firstWhere(
+        (option) => selectedValues.contains(option.value.toString()),
+        orElse: () => field.options.isEmpty
+            ? const SchemaOption(value: '', label: '暂无选项')
+            : field.options.first,
+      );
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          label,
+          const SizedBox(height: 7),
+          FieldSelect(
+            label: '',
+            value: isMulti
+                ? field.options
+                      .where(
+                        (option) =>
+                            selectedValues.contains(option.value.toString()),
+                      )
+                      .map((option) => option.label)
+                      .join('、')
+                : current.label,
+            options: [
+              for (final option in field.options)
+                FieldSelectOption(option.value.toString(), option.label),
+            ],
+            onChanged: disabled
+                ? null
+                : (value) {
+                    final option = field.options.firstWhere(
+                      (item) => item.value.toString() == value,
+                    );
+                    onPatch(field.key, isMulti ? [option.value] : option.value);
+                  },
+          ),
+        ],
+      );
+    }
+    if (field.widget == 'input' ||
+        field.widget == 'textarea' ||
+        field.widget == 'datetime') {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          label,
+          const SizedBox(height: 7),
+          TextFormField(
+            key: ValueKey('${field.key}:${field.value}'),
+            initialValue: field.value?.toString() ?? '',
+            enabled: !disabled,
+            maxLines: field.widget == 'textarea' ? 4 : 1,
+            onFieldSubmitted: (value) => onPatch(field.key, value),
+          ),
+        ],
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        label,
+        const SizedBox(height: 6),
+        Text('该字段请通过原始 WebUI 操作', style: theme.textTheme.muted),
       ],
     );
   }

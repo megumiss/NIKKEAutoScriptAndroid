@@ -476,4 +476,87 @@ void main() {
       ],
     });
   });
+
+  test('loads task configuration schema', () async {
+    final api = ApiClient(
+      client: MockClient(
+        (request) async => http.Response.bytes(
+          utf8.encode(
+            jsonEncode({
+              'menus': [
+                {
+                  'key': 'NKAS',
+                  'name': 'NKAS',
+                  'tasks': [
+                    {'key': 'NKAS', 'name': 'NKAS设置', 'help': ''},
+                  ],
+                },
+              ],
+              'tasks': {
+                'NKAS': {
+                  'name': 'NKAS设置',
+                  'help': '',
+                  'groups': [
+                    {
+                      'key': 'Client',
+                      'name': '客户端设置',
+                      'help': '',
+                      'fields': [
+                        {
+                          'key': 'NKAS.Client.Platform',
+                          'title': '客户端平台',
+                          'widget': 'select',
+                          'value': 'win',
+                          'readonly': false,
+                          'options': [
+                            {'value': 'win', 'label': 'Windows'},
+                          ],
+                        },
+                      ],
+                    },
+                  ],
+                },
+              },
+            }),
+          ),
+          200,
+        ),
+      ),
+    );
+    addTearDown(api.close);
+
+    final schema = await api.fetchSchema('http://nkas.example:12271', 'nkas');
+
+    expect(schema.menus.single.tasks.single.name, 'NKAS设置');
+    expect(schema.tasks['NKAS']!.groups.single.fields.single.title, '客户端平台');
+    expect(
+      schema.tasks['NKAS']!.groups.single.fields.single.options.single.label,
+      'Windows',
+    );
+  });
+
+  test('patches one task configuration field', () async {
+    late http.Request request;
+    final api = ApiClient(
+      client: MockClient((value) async {
+        request = value;
+        return http.Response('{}', 200);
+      }),
+    );
+    addTearDown(api.close);
+
+    await api.patchConfig(
+      'http://nkas.example:12271',
+      'nkas',
+      'NKAS.Client.Platform',
+      'adb',
+    );
+
+    expect(request.method, 'PATCH');
+    expect(request.url.path, '/api/nkas/config');
+    expect(jsonDecode(request.body), {
+      'key': 'NKAS.Client.Platform',
+      'value': 'adb',
+    });
+  });
 }

@@ -10,6 +10,7 @@ import 'package:nkas_mobile_preview/core/api/log_info.dart';
 import 'package:nkas_mobile_preview/core/api/update_info.dart';
 import 'package:nkas_mobile_preview/core/api/screenshot_frame.dart';
 import 'package:nkas_mobile_preview/core/api/schedule_info.dart';
+import 'package:nkas_mobile_preview/core/api/schema_info.dart';
 
 class ApiClient {
   ApiClient({http.Client? client, this.timeout = const Duration(seconds: 5)})
@@ -300,6 +301,40 @@ class ApiClient {
     final response = await _client
         .post(
           endpoint(baseUrl, '/api/${Uri.encodeComponent(name)}/schedule/reset'),
+        )
+        .timeout(timeout);
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw ApiException('后端返回 HTTP ${response.statusCode}');
+    }
+  }
+
+  Future<SchemaInfo> fetchSchema(String baseUrl, String name) async {
+    final response = await _client
+        .get(endpoint(baseUrl, '/api/${Uri.encodeComponent(name)}/schema'))
+        .timeout(timeout);
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw ApiException('后端返回 HTTP ${response.statusCode}');
+    }
+    try {
+      final decoded = jsonDecode(utf8.decode(response.bodyBytes));
+      if (decoded is! Map<String, dynamic>) throw const FormatException();
+      return SchemaInfo.fromJson(decoded);
+    } on FormatException {
+      throw const ApiException('后端返回了无效任务配置结构');
+    }
+  }
+
+  Future<void> patchConfig(
+    String baseUrl,
+    String name,
+    String key,
+    Object? value,
+  ) async {
+    final response = await _client
+        .patch(
+          endpoint(baseUrl, '/api/${Uri.encodeComponent(name)}/config'),
+          body: jsonEncode({'key': key, 'value': value}),
+          headers: {'content-type': 'application/json'},
         )
         .timeout(timeout);
     if (response.statusCode < 200 || response.statusCode >= 300) {

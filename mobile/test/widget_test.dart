@@ -25,6 +25,51 @@ class _MemoryBackendSettings implements BackendSettings {
   Future<void> writeBaseUrl(String value) async => this.value = value;
 }
 
+Map<String, dynamic> _schemaFixture() => {
+  'menus': [
+    {
+      'key': 'NKAS',
+      'name': 'NKAS',
+      'tasks': [
+        {'key': 'NKAS', 'name': 'NKAS设置', 'help': ''},
+      ],
+    },
+  ],
+  'tasks': {
+    'NKAS': {
+      'name': 'NKAS设置',
+      'help': '',
+      'groups': [
+        {
+          'key': 'Client',
+          'name': '客户端设置',
+          'help': '',
+          'fields': [
+            {
+              'key': 'NKAS.Client.Platform',
+              'title': '客户端平台',
+              'widget': 'select',
+              'value': 'win',
+              'readonly': false,
+              'options': [
+                {'value': 'win', 'label': 'Windows'},
+                {'value': 'adb', 'label': 'ADB'},
+              ],
+            },
+            {
+              'key': 'NKAS.Optimization.AutoRedCircle',
+              'title': '自动点击红圈',
+              'widget': 'checkbox',
+              'value': true,
+              'readonly': false,
+            },
+          ],
+        },
+      ],
+    },
+  },
+};
+
 ConnectionController _connectedController({_MemoryBackendSettings? settings}) {
   final client = MockClient((request) async {
     if (request.url.path.endsWith('/api/instances')) {
@@ -67,6 +112,16 @@ ConnectionController _connectedController({_MemoryBackendSettings? settings}) {
         200,
         headers: {'content-type': 'application/json; charset=utf-8'},
       );
+    }
+    if (request.url.path.endsWith('/schema')) {
+      return http.Response.bytes(
+        utf8.encode(jsonEncode(_schemaFixture())),
+        200,
+        headers: {'content-type': 'application/json; charset=utf-8'},
+      );
+    }
+    if (request.url.path.endsWith('/config') && request.method == 'PATCH') {
+      return http.Response('{}', 200);
     }
     if (request.url.path.endsWith('/api/system/logs/files')) {
       return http.Response.bytes(
@@ -211,6 +266,20 @@ void main() {
 
     expect(find.text('关于'), findsOneWidget);
     expect(find.text('部署'), findsNothing);
+  });
+
+  testWidgets('renders task configuration from backend schema', (tester) async {
+    await _pumpTestApp(tester);
+
+    await tester.tap(find.byTooltip('实例'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('任务配置'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('客户端设置'), findsOneWidget);
+    expect(find.text('客户端平台'), findsOneWidget);
+    expect(find.text('自动点击红圈'), findsOneWidget);
+    expect(find.text('日常'), findsNothing);
   });
 
   testWidgets('backend address is tested and persisted from settings', (

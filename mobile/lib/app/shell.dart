@@ -11,6 +11,7 @@ import 'package:nkas_mobile_preview/core/connection/instance_state_socket.dart';
 import 'package:nkas_mobile_preview/core/connection/instance_queue_socket.dart';
 import 'package:nkas_mobile_preview/core/api/queue_info.dart';
 import 'package:nkas_mobile_preview/core/api/calendar_info.dart';
+import 'package:nkas_mobile_preview/core/api/schema_info.dart';
 import 'package:nkas_mobile_preview/core/widgets/status.dart';
 import 'package:nkas_mobile_preview/features/instances/instances_page.dart';
 import 'package:nkas_mobile_preview/features/logs/logs_page.dart';
@@ -73,6 +74,9 @@ class _NkasShellState extends State<NkasShell> {
   bool loadingCalendar = false;
   String? calendarError;
   String? calendarBaseUrl;
+  SchemaInfo? schema;
+  bool loadingSchema = false;
+  String? schemaError;
 
   @override
   void initState() {
@@ -114,6 +118,8 @@ class _NkasShellState extends State<NkasShell> {
         calendarUpdatedAt = 0;
         calendarError = null;
         calendarBaseUrl = null;
+        schema = null;
+        schemaError = null;
       }
     });
     if (connection.phase == ConnectionPhase.connected &&
@@ -416,7 +422,12 @@ class _NkasShellState extends State<NkasShell> {
       selected: instance,
       running: instanceStates[instance] ?? false,
       tab: instanceTab,
-      onTabChanged: (value) => setState(() => instanceTab = value),
+      onTabChanged: (value) {
+        setState(() => instanceTab = value);
+        if (value == InstanceTab.tasks && schema == null) {
+          unawaited(_loadSchema(instance));
+        }
+      },
       onToggle: () => unawaited(_toggleSelectedInstance()),
       loadScreenshot: () =>
           widget.connectionController.fetchScreenshot(instance),
@@ -424,11 +435,19 @@ class _NkasShellState extends State<NkasShell> {
       saveSchedule: (changes) =>
           widget.connectionController.saveSchedule(instance, changes),
       resetSchedule: () => widget.connectionController.resetSchedule(instance),
+      schema: schema,
+      schemaLoading: loadingSchema,
+      schemaError: schemaError,
+      loadSchema: () => _loadSchema(instance),
+      patchConfig: (key, value) =>
+          widget.connectionController.patchConfig(instance, key, value),
       onSelectInstance: (value) {
         setState(() {
           instance = value;
           instanceTab = InstanceTab.overview;
           queueError = null;
+          schema = null;
+          schemaError = null;
         });
         unawaited(_loadQueue(value));
       },
@@ -448,6 +467,22 @@ class _NkasShellState extends State<NkasShell> {
   };
 
   void _selectPage(NkasPage value) => setState(() => page = value);
+
+  Future<void> _loadSchema(String name) async {
+    if (loadingSchema) return;
+    setState(() {
+      loadingSchema = true;
+      schemaError = null;
+    });
+    try {
+      final value = await widget.connectionController.fetchSchema(name);
+      if (mounted) setState(() => schema = value);
+    } catch (exception) {
+      if (mounted) setState(() => schemaError = exception.toString());
+    } finally {
+      if (mounted) setState(() => loadingSchema = false);
+    }
+  }
 
   Future<void> _toggleSelectedInstance() async {
     final selected = selectedInstance;
