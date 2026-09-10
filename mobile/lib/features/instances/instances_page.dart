@@ -11,14 +11,12 @@ import 'package:nkas_mobile_preview/core/api/schema_info.dart';
 import 'package:nkas_mobile_preview/core/widgets/avatar.dart';
 import 'package:nkas_mobile_preview/core/widgets/buttons.dart';
 import 'package:nkas_mobile_preview/core/widgets/icon_box.dart';
-import 'package:nkas_mobile_preview/core/widgets/log_line.dart';
 import 'package:nkas_mobile_preview/core/widgets/field_select.dart';
 import 'package:nkas_mobile_preview/core/widgets/page_inset.dart';
 import 'package:nkas_mobile_preview/core/widgets/page_subtitle.dart';
 import 'package:nkas_mobile_preview/core/widgets/status.dart';
 import 'package:nkas_mobile_preview/core/widgets/surface.dart';
 import 'package:nkas_mobile_preview/core/widgets/tag.dart';
-import 'package:nkas_mobile_preview/features/logs/logs_page.dart';
 import 'package:nkas_mobile_preview/theme.dart';
 
 enum InstanceTab { overview, tasks, schedule, liveLogs, screen }
@@ -1078,41 +1076,28 @@ class _LiveLogPanel extends StatelessWidget {
   const _LiveLogPanel();
 
   @override
-  Widget build(BuildContext context) {
-    return LogCard(
-      title: '实时日志',
-      rows: const [
-        LogRowData(
-          time: '09:32:04',
-          level: 'INFO',
-          source: null,
-          message: '每日任务：开始执行前哨基地',
-          kind: LogKind.info,
-        ),
-        LogRowData(
-          time: '09:32:01',
-          level: 'INFO',
-          source: null,
-          message: '设备连接已确认，进入任务队列',
-          kind: LogKind.info,
-        ),
-        LogRowData(
-          time: '09:31:58',
-          level: 'DEBUG',
-          source: null,
-          message: '检测当前页面：前哨基地',
-          kind: LogKind.info,
-        ),
-        LogRowData(
-          time: '09:31:44',
-          level: 'WARN',
-          source: null,
-          message: '等待游戏窗口响应，重试 1/3',
-          kind: LogKind.warn,
-        ),
-      ],
-    );
-  }
+  Widget build(BuildContext context) => Surface(
+    child: Padding(
+      padding: const EdgeInsets.symmetric(vertical: 20),
+      child: Column(
+        children: [
+          Icon(
+            LucideIcons.radio,
+            size: 22,
+            color: ShadTheme.of(context).colorScheme.mutedForeground,
+          ),
+          const SizedBox(height: 10),
+          const Text('实时日志暂未接入', style: TextStyle(fontWeight: FontWeight.w600)),
+          const SizedBox(height: 4),
+          Text(
+            '请在原始 WebUI 查看当前实例的实时输出',
+            style: ShadTheme.of(context).textTheme.muted,
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 class _ScreenPanel extends StatefulWidget {

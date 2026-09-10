@@ -282,6 +282,20 @@ void main() {
     expect(find.text('日常'), findsNothing);
   });
 
+  testWidgets('does not present prototype rows as real-time logs', (
+    tester,
+  ) async {
+    await _pumpTestApp(tester);
+
+    await tester.tap(find.byTooltip('实例'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('实时日志'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('实时日志暂未接入'), findsOneWidget);
+    expect(find.text('每日任务：开始执行前哨基地'), findsNothing);
+  });
+
   testWidgets('backend address is tested and persisted from settings', (
     tester,
   ) async {
