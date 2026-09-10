@@ -209,6 +209,8 @@ class ConnectionController extends ChangeNotifier {
 
   Uri websocketUri(String path) => _api.websocketUri(_state.baseUrl, path);
 
+  Uri get webUiUri => _api.endpoint(_state.baseUrl, '/app/');
+
   void _disconnect(String baseUrl, String message) {
     _setState(
       BackendConnectionState(

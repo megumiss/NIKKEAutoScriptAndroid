@@ -49,6 +49,17 @@ void main() {
     );
   });
 
+  test('builds the original WebUI URL from the active backend', () async {
+    final controller = ConnectionController(
+      api: ApiClient(client: MockClient((_) async => _statusResponse(2))),
+      settings: _MemoryBackendSettings(),
+    );
+    addTearDown(controller.dispose);
+    await controller.connect('https://nkas.example/base');
+
+    expect(controller.webUiUri.toString(), 'https://nkas.example/base/app/');
+  });
+
   test('connects to API v2 and persists the normalized address', () async {
     late Uri requestedUri;
     final settings = _MemoryBackendSettings();

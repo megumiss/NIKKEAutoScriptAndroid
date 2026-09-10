@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'package:nkas_mobile_preview/core/api/update_info.dart';
 import 'package:nkas_mobile_preview/core/widgets/icon_box.dart';
@@ -65,11 +66,12 @@ class SettingsPage extends StatelessWidget {
               trailing: LucideIcons.pencil,
               onTap: () => _editBackendAddress(context),
             ),
-            const _SettingRow(
+            _SettingRow(
               icon: LucideIcons.globe2,
               title: '原始 WebUI',
               subtitle: '打开完整控制台，使用更多高级功能',
               trailing: LucideIcons.externalLink,
+              onTap: () => _openWebUi(context),
             ),
             _UpdateSettingRow(connectionController: connectionController),
           ],
@@ -124,6 +126,24 @@ class SettingsPage extends StatelessWidget {
       builder: (_) =>
           _BackendAddressDialog(connectionController: connectionController),
     );
+  }
+
+  Future<void> _openWebUi(BuildContext context) async {
+    if (connectionController.state.phase != ConnectionPhase.connected) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('请先连接后端')));
+      return;
+    }
+    final opened = await launchUrl(
+      connectionController.webUiUri,
+      mode: LaunchMode.externalApplication,
+    );
+    if (!opened && context.mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('无法打开原始 WebUI')));
+    }
   }
 }
 
