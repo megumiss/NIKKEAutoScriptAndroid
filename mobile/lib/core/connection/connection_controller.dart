@@ -122,6 +122,13 @@ class ConnectionController extends ChangeNotifier {
     return _api.fetchInstances(_state.baseUrl);
   }
 
+  Future<void> setInstanceRunning(String name, bool running) {
+    if (_state.phase != ConnectionPhase.connected) {
+      return Future.error(const ApiException('后端未连接'));
+    }
+    return _api.setInstanceRunning(_state.baseUrl, name, running);
+  }
+
   Uri avatarUri(String filename) => _api.endpoint(
     _state.baseUrl,
     '/avatars/${Uri.encodeComponent(filename)}',

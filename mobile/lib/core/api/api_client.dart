@@ -94,6 +94,19 @@ class ApiClient {
     }
   }
 
+  Future<void> setInstanceRunning(
+    String baseUrl,
+    String name,
+    bool running,
+  ) async {
+    final response = await _client
+        .post(endpoint(baseUrl, '/api/$name/${running ? 'start' : 'stop'}'))
+        .timeout(timeout);
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw ApiException('后端返回 HTTP ${response.statusCode}');
+    }
+  }
+
   void close() => _client.close();
 }
 

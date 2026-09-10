@@ -53,6 +53,7 @@ class _NkasShellState extends State<NkasShell> {
   };
   List<InstanceInfo> instances = const [];
   bool loadingInstances = false;
+  bool togglingInstance = false;
   String? instancesError;
   String? loadedInstancesBaseUrl;
   InstanceStateSocket? stateSocket;
@@ -282,15 +283,14 @@ class _NkasShellState extends State<NkasShell> {
       instances: instances,
       selectedInstance: selectedInstance,
       loading: loadingInstances,
+      toggleLoading: togglingInstance,
       error: instancesError,
       avatarUrl: _avatarUrl,
       selected: instance,
       running: instanceStates[instance] ?? false,
       tab: instanceTab,
       onTabChanged: (value) => setState(() => instanceTab = value),
-      onToggle: () => setState(() {
-        instanceStates[instance] = !(instanceStates[instance] ?? false);
-      }),
+      onToggle: () => unawaited(_toggleSelectedInstance()),
       onSelectInstance: (value) => setState(() {
         instance = value;
         instanceTab = InstanceTab.overview;
@@ -309,6 +309,26 @@ class _NkasShellState extends State<NkasShell> {
   };
 
   void _selectPage(NkasPage value) => setState(() => page = value);
+
+  Future<void> _toggleSelectedInstance() async {
+    final selected = selectedInstance;
+    if (selected == null || togglingInstance) return;
+    final nextRunning = selected.state != 1;
+    setState(() => togglingInstance = true);
+    try {
+      await widget.connectionController.setInstanceRunning(
+        selected.name,
+        nextRunning,
+      );
+      if (!mounted) return;
+      await _loadInstances();
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => instancesError = error.toString());
+    } finally {
+      if (mounted) setState(() => togglingInstance = false);
+    }
+  }
 }
 
 class _AppHeader extends StatelessWidget {

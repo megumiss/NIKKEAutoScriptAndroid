@@ -23,6 +23,7 @@ class InstancesPage extends StatelessWidget {
     required this.selectedInstance,
     required this.instances,
     required this.loading,
+    required this.toggleLoading,
     required this.error,
     required this.avatarUrl,
     required this.running,
@@ -36,6 +37,7 @@ class InstancesPage extends StatelessWidget {
   final InstanceInfo? selectedInstance;
   final List<InstanceInfo> instances;
   final bool loading;
+  final bool toggleLoading;
   final String? error;
   final String? Function(InstanceInfo item) avatarUrl;
   final bool running;
@@ -107,8 +109,16 @@ class InstancesPage extends StatelessWidget {
                 if (selectedInstance != null) ...[
                   const SizedBox(width: 7),
                   PrimaryButton(
-                    icon: running ? LucideIcons.square : LucideIcons.play,
-                    label: running ? '停止' : '启动',
+                    icon: toggleLoading
+                        ? LucideIcons.loaderCircle
+                        : running
+                        ? LucideIcons.square
+                        : LucideIcons.play,
+                    label: toggleLoading
+                        ? '处理中…'
+                        : running
+                        ? '停止'
+                        : '启动',
                     onPressed: onToggle,
                     compact: true,
                   ),

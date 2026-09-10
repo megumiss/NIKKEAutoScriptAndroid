@@ -172,4 +172,20 @@ void main() {
       throwsFormatException,
     );
   });
+
+  test('sends start and stop actions for an instance', () async {
+    final requests = <String>[];
+    final api = ApiClient(
+      client: MockClient((request) async {
+        requests.add('${request.method} ${request.url.path}');
+        return http.Response('{}', 200);
+      }),
+    );
+    addTearDown(api.close);
+
+    await api.setInstanceRunning('http://nkas.example:12271', 'nkas', true);
+    await api.setInstanceRunning('http://nkas.example:12271', 'nkas', false);
+
+    expect(requests, ['POST /api/nkas/start', 'POST /api/nkas/stop']);
+  });
 }
