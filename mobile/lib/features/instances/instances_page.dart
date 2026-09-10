@@ -6,13 +6,14 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:nkas_mobile_preview/core/api/instance_info.dart';
 import 'package:nkas_mobile_preview/core/api/queue_info.dart';
 import 'package:nkas_mobile_preview/core/api/screenshot_frame.dart';
+import 'package:nkas_mobile_preview/core/api/schedule_info.dart';
 import 'package:nkas_mobile_preview/core/widgets/avatar.dart';
 import 'package:nkas_mobile_preview/core/widgets/buttons.dart';
 import 'package:nkas_mobile_preview/core/widgets/icon_box.dart';
 import 'package:nkas_mobile_preview/core/widgets/log_line.dart';
+import 'package:nkas_mobile_preview/core/widgets/field_select.dart';
 import 'package:nkas_mobile_preview/core/widgets/page_inset.dart';
 import 'package:nkas_mobile_preview/core/widgets/page_subtitle.dart';
-import 'package:nkas_mobile_preview/core/widgets/select_box.dart';
 import 'package:nkas_mobile_preview/core/widgets/status.dart';
 import 'package:nkas_mobile_preview/core/widgets/surface.dart';
 import 'package:nkas_mobile_preview/core/widgets/tag.dart';
@@ -38,6 +39,9 @@ class InstancesPage extends StatelessWidget {
     required this.onTabChanged,
     required this.onToggle,
     required this.loadScreenshot,
+    required this.loadSchedule,
+    required this.saveSchedule,
+    required this.resetSchedule,
     required this.onSelectInstance,
     super.key,
   });
@@ -56,6 +60,9 @@ class InstancesPage extends StatelessWidget {
   final ValueChanged<InstanceTab> onTabChanged;
   final VoidCallback onToggle;
   final Future<ScreenshotFrame?> Function() loadScreenshot;
+  final Future<List<ScheduleTask>> Function() loadSchedule;
+  final Future<void> Function(List<Map<String, dynamic>>) saveSchedule;
+  final Future<void> Function() resetSchedule;
   final ValueChanged<String> onSelectInstance;
 
   @override
@@ -148,6 +155,9 @@ class InstancesPage extends StatelessWidget {
             error: queueError,
             selected: selected,
             loadScreenshot: loadScreenshot,
+            loadSchedule: loadSchedule,
+            saveSchedule: saveSchedule,
+            resetSchedule: resetSchedule,
           ),
         ),
       ],
@@ -283,6 +293,9 @@ class _InstanceBody extends StatelessWidget {
     required this.error,
     required this.selected,
     required this.loadScreenshot,
+    required this.loadSchedule,
+    required this.saveSchedule,
+    required this.resetSchedule,
   });
   final InstanceTab tab;
   final QueueInfo? queue;
@@ -290,6 +303,9 @@ class _InstanceBody extends StatelessWidget {
   final String? error;
   final String selected;
   final Future<ScreenshotFrame?> Function() loadScreenshot;
+  final Future<List<ScheduleTask>> Function() loadSchedule;
+  final Future<void> Function(List<Map<String, dynamic>>) saveSchedule;
+  final Future<void> Function() resetSchedule;
 
   @override
   Widget build(BuildContext context) {
@@ -352,7 +368,14 @@ class _InstanceBody extends StatelessWidget {
             rows: [('设备与通知', '分辨率、通知和设备相关配置', true, LucideIcons.wrench)],
           ),
         ],
-        InstanceTab.schedule => const [_SchedulePanel()],
+        InstanceTab.schedule => [
+          _SchedulePanel(
+            key: ValueKey(selected),
+            loadSchedule: loadSchedule,
+            saveSchedule: saveSchedule,
+            resetSchedule: resetSchedule,
+          ),
+        ],
         InstanceTab.liveLogs => const [_LiveLogPanel()],
         InstanceTab.screen => [
           _ScreenPanel(key: ValueKey(selected), loadScreenshot: loadScreenshot),
@@ -566,41 +589,154 @@ class _ConfigGroup extends StatelessWidget {
 }
 
 class _SchedulePanel extends StatefulWidget {
-  const _SchedulePanel();
+  const _SchedulePanel({
+    required this.loadSchedule,
+    required this.saveSchedule,
+    required this.resetSchedule,
+    super.key,
+  });
+
+  final Future<List<ScheduleTask>> Function() loadSchedule;
+  final Future<void> Function(List<Map<String, dynamic>>) saveSchedule;
+  final Future<void> Function() resetSchedule;
 
   @override
   State<_SchedulePanel> createState() => _SchedulePanelState();
 }
 
 class _SchedulePanelState extends State<_SchedulePanel> {
-  bool daily = true;
-  bool event = true;
+  List<ScheduleTask> tasks = const [];
+  bool loading = true;
+  bool saving = false;
+  String? error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      loading = true;
+      error = null;
+    });
+    try {
+      final value = await widget.loadSchedule();
+      if (mounted) setState(() => tasks = value);
+    } catch (exception) {
+      if (mounted) setState(() => error = exception.toString());
+    } finally {
+      if (mounted) setState(() => loading = false);
+    }
+  }
+
+  Future<void> _save(List<Map<String, dynamic>> changes) async {
+    setState(() => saving = true);
+    try {
+      await widget.saveSchedule(changes);
+      await _load();
+    } catch (exception) {
+      if (mounted) setState(() => error = exception.toString());
+    } finally {
+      if (mounted) setState(() => saving = false);
+    }
+  }
+
+  Future<void> _reset() async {
+    setState(() => saving = true);
+    try {
+      await widget.resetSchedule();
+      await _load();
+    } catch (exception) {
+      if (mounted) setState(() => error = exception.toString());
+    } finally {
+      if (mounted) setState(() => saving = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
-        _ScheduleRow(
-          title: '每日任务',
-          subtitle: '下次运行：明日 05:00',
-          time: '05:00',
-          enabled: daily,
-          onChanged: (value) => setState(() => daily = value),
-        ),
-        const SizedBox(height: 10),
-        _ScheduleRow(
-          title: '剧情活动',
-          subtitle: '下次运行：明日 06:00',
-          time: '06:00',
-          enabled: event,
-          onChanged: (value) => setState(() => event = value),
-        ),
-        const SizedBox(height: 12),
-        PrimaryButton(
-          icon: LucideIcons.save,
-          label: '保存调度设置',
-          onPressed: () {},
-        ),
+        if (loading)
+          const Padding(
+            padding: EdgeInsets.only(top: 30),
+            child: CircularProgressIndicator(),
+          )
+        else if (tasks.isEmpty)
+          Text(error == null ? '暂无调度任务' : '调度加载失败')
+        else ...[
+          for (var i = 0; i < tasks.length; i++) ...[
+            if (i > 0) const SizedBox(height: 10),
+            _ScheduleRow(
+              task: tasks[i],
+              disabled: saving,
+              onChanged: (change) {
+                final next = tasks[i];
+                setState(() {
+                  tasks = [
+                    ...tasks.sublist(0, i),
+                    ScheduleTask(
+                      command: next.command,
+                      name: next.name,
+                      enabled: change['enable'] as bool? ?? next.enabled,
+                      locked: next.locked,
+                      enableLocked: next.enableLocked,
+                      cadence: change['cadence']?.toString() ?? next.cadence,
+                      cadenceLocked: next.cadenceLocked,
+                      nextRun: next.nextRun,
+                      dailyTimes:
+                          change['daily_times']?.toString() ?? next.dailyTimes,
+                      weeklyDays: next.weeklyDays,
+                      weeklyTime:
+                          change['weekly_time']?.toString() ?? next.weeklyTime,
+                      monthlyDay: next.monthlyDay,
+                      monthlyTime:
+                          change['monthly_time']?.toString() ??
+                          next.monthlyTime,
+                    ),
+                    ...tasks.sublist(i + 1),
+                  ];
+                });
+              },
+            ),
+          ],
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: SecondaryButton(
+                  icon: LucideIcons.rotateCcw,
+                  label: '还原默认',
+                  onPressed: saving ? null : _reset,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: PrimaryButton(
+                  icon: LucideIcons.save,
+                  label: saving ? '保存中…' : '保存调度设置',
+                  onPressed: saving
+                      ? null
+                      : () => _save([
+                          for (final task in tasks)
+                            {
+                              'command': task.command,
+                              'enable': task.enabled,
+                              'cadence': task.cadence,
+                              'daily_times': task.dailyTimes,
+                              'weekly_days': task.weeklyDays,
+                              'weekly_time': task.weeklyTime,
+                              'monthly_day': task.monthlyDay,
+                              'monthly_time': task.monthlyTime,
+                            },
+                        ]),
+                ),
+              ),
+            ],
+          ),
+        ],
       ],
     );
   }
@@ -608,17 +744,13 @@ class _SchedulePanelState extends State<_SchedulePanel> {
 
 class _ScheduleRow extends StatelessWidget {
   const _ScheduleRow({
-    required this.title,
-    required this.subtitle,
-    required this.time,
-    required this.enabled,
+    required this.task,
+    required this.disabled,
     required this.onChanged,
   });
-  final String title;
-  final String subtitle;
-  final String time;
-  final bool enabled;
-  final ValueChanged<bool> onChanged;
+  final ScheduleTask task;
+  final bool disabled;
+  final ValueChanged<Map<String, dynamic>> onChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -633,32 +765,74 @@ class _ScheduleRow extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      title,
+                      task.name,
                       style: const TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
                     const SizedBox(height: 3),
-                    Text(subtitle, style: theme.textTheme.muted),
+                    Text(
+                      task.nextRun.isEmpty ? '未安排下次运行' : '下次运行：${task.nextRun}',
+                      style: theme.textTheme.muted,
+                    ),
                   ],
                 ),
               ),
-              Switch(value: enabled, onChanged: onChanged),
+              Switch(
+                value: task.enabled,
+                onChanged: disabled || task.enableLocked
+                    ? null
+                    : (value) => onChanged({'enable': value}),
+              ),
             ],
           ),
           const SizedBox(height: 8),
           Row(
             children: [
-              const Expanded(child: SelectBox(label: '每天')),
+              Expanded(
+                child: FieldSelect(
+                  label: '周期',
+                  value: _cadenceLabel(task.cadence),
+                  options: const [
+                    FieldSelectOption('daily', '每天'),
+                    FieldSelectOption('weekly', '每周'),
+                    FieldSelectOption('monthly', '每月'),
+                  ],
+                  onChanged: disabled || task.cadenceLocked
+                      ? null
+                      : (value) => onChanged({'cadence': value}),
+                ),
+              ),
               const SizedBox(width: 7),
-              Expanded(child: SelectBox(label: time)),
+              Expanded(
+                child: TextFormField(
+                  key: ValueKey('${task.command}-${task.cadence}'),
+                  initialValue: task.activeTime,
+                  enabled: !disabled && !task.locked,
+                  decoration: const InputDecoration(labelText: '时间'),
+                  onChanged: (value) {
+                    final key = switch (task.cadence) {
+                      'weekly' => 'weekly_time',
+                      'monthly' => 'monthly_time',
+                      _ => 'daily_times',
+                    };
+                    onChanged({key: value});
+                  },
+                ),
+              ),
             ],
           ),
         ],
       ),
     );
   }
+
+  static String _cadenceLabel(String value) => switch (value) {
+    'weekly' => '每周',
+    'monthly' => '每月',
+    _ => '每天',
+  };
 }
 
 class _LiveLogPanel extends StatelessWidget {

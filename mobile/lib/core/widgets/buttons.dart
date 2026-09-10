@@ -23,7 +23,7 @@ class NkasButton extends StatelessWidget {
   });
   final IconData icon;
   final String label;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
   final Color background;
   final Color foreground;
   final Color? iconColor;
@@ -93,7 +93,7 @@ class PrimaryButton extends StatelessWidget {
   });
   final IconData icon;
   final String label;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
   final bool compact;
 
   @override
@@ -122,7 +122,7 @@ class SecondaryButton extends StatelessWidget {
   });
   final IconData icon;
   final String label;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
@@ -149,7 +149,7 @@ class CompactButton extends StatelessWidget {
   });
   final IconData icon;
   final String label;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {

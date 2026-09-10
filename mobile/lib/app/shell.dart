@@ -420,6 +420,10 @@ class _NkasShellState extends State<NkasShell> {
       onToggle: () => unawaited(_toggleSelectedInstance()),
       loadScreenshot: () =>
           widget.connectionController.fetchScreenshot(instance),
+      loadSchedule: () => widget.connectionController.fetchSchedule(instance),
+      saveSchedule: (changes) =>
+          widget.connectionController.saveSchedule(instance, changes),
+      resetSchedule: () => widget.connectionController.resetSchedule(instance),
       onSelectInstance: (value) {
         setState(() {
           instance = value;

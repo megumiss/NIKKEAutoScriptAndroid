@@ -355,14 +355,16 @@ void main() {
       client: MockClient((request) async {
         requests.add('${request.method} ${request.url.path}');
         if (request.method == 'GET') {
-          return http.Response(
-            jsonEncode({
-              'state': 1,
-              'error': null,
-              'local': ['abc123', 'tester', '2026-09-10', 'local'],
-              'upstream': ['def456', 'tester', '2026-09-11', 'upstream'],
-              'history': [],
-            }),
+          return http.Response.bytes(
+            utf8.encode(
+              jsonEncode({
+                'state': 1,
+                'error': null,
+                'local': ['abc123', 'tester', '2026-09-10', 'local'],
+                'upstream': ['def456', 'tester', '2026-09-11', 'upstream'],
+                'history': [],
+              }),
+            ),
             200,
           );
         }
@@ -416,5 +418,62 @@ void main() {
       await api.fetchScreenshot('http://nkas.example:12271', 'nkas'),
       isNull,
     );
+  });
+
+  test('loads and saves instance schedules', () async {
+    final requests = <http.Request>[];
+    final api = ApiClient(
+      client: MockClient((request) async {
+        requests.add(request);
+        if (request.method == 'GET') {
+          return http.Response.bytes(
+            utf8.encode(
+              jsonEncode({
+                'status': 'success',
+                'tasks': [
+                  {
+                    'command': 'Daily',
+                    'name_i18n': '每日任务',
+                    'enabled': true,
+                    'locked': false,
+                    'enable_locked': false,
+                    'cadence': 'daily',
+                    'cadence_locked': false,
+                    'next_run': '2026-09-12 04:00:00',
+                    'daily_times': '04:00',
+                    'weekly_days': '2',
+                    'weekly_time': '04:00',
+                    'monthly_day': '1',
+                    'monthly_time': '04:00',
+                  },
+                ],
+              }),
+            ),
+            200,
+          );
+        }
+        return http.Response('{}', 200);
+      }),
+    );
+    addTearDown(api.close);
+
+    final tasks = await api.fetchSchedule('http://nkas.example:12271', 'nkas');
+    await api.saveSchedule('http://nkas.example:12271', 'nkas', [
+      {'command': 'Daily', 'enable': false, 'cadence': 'daily'},
+    ]);
+    await api.resetSchedule('http://nkas.example:12271', 'nkas');
+
+    expect(tasks.single.name, '每日任务');
+    expect(tasks.single.activeTime, '04:00');
+    expect(requests.map((request) => '${request.method} ${request.url.path}'), [
+      'GET /api/nkas/schedule',
+      'POST /api/nkas/schedule/save',
+      'POST /api/nkas/schedule/reset',
+    ]);
+    expect(jsonDecode(requests[1].body), {
+      'changes': [
+        {'command': 'Daily', 'enable': false, 'cadence': 'daily'},
+      ],
+    });
   });
 }

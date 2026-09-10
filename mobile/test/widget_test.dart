@@ -126,6 +126,33 @@ ConnectionController _connectedController({_MemoryBackendSettings? settings}) {
     if (request.url.path.endsWith('/screenshot')) {
       return http.Response('{}', 404);
     }
+    if (request.url.path.endsWith('/schedule')) {
+      return http.Response.bytes(
+        utf8.encode(
+          jsonEncode({
+            'status': 'success',
+            'tasks': [
+              {
+                'command': 'Daily',
+                'name_i18n': '每日任务',
+                'enabled': true,
+                'locked': false,
+                'enable_locked': false,
+                'cadence': 'daily',
+                'cadence_locked': false,
+                'next_run': '2026-09-12 04:00:00',
+                'daily_times': '04:00',
+                'weekly_days': '2',
+                'weekly_time': '04:00',
+                'monthly_day': '1',
+                'monthly_time': '04:00',
+              },
+            ],
+          }),
+        ),
+        200,
+      );
+    }
     return http.Response(
       jsonEncode({
         'api_version': 2,

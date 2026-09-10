@@ -9,6 +9,7 @@ import 'package:nkas_mobile_preview/core/api/calendar_info.dart';
 import 'package:nkas_mobile_preview/core/api/log_info.dart';
 import 'package:nkas_mobile_preview/core/api/update_info.dart';
 import 'package:nkas_mobile_preview/core/api/screenshot_frame.dart';
+import 'package:nkas_mobile_preview/core/api/schedule_info.dart';
 
 class ApiClient {
   ApiClient({http.Client? client, this.timeout = const Duration(seconds: 5)})
@@ -254,6 +255,56 @@ class ApiClient {
       bytes: response.bodyBytes,
       capturedAt: double.tryParse(response.headers['x-captured-at'] ?? ''),
     );
+  }
+
+  Future<List<ScheduleTask>> fetchSchedule(String baseUrl, String name) async {
+    final response = await _client
+        .get(endpoint(baseUrl, '/api/${Uri.encodeComponent(name)}/schedule'))
+        .timeout(timeout);
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw ApiException('后端返回 HTTP ${response.statusCode}');
+    }
+    try {
+      final decoded = jsonDecode(utf8.decode(response.bodyBytes));
+      if (decoded is! Map<String, dynamic> || decoded['tasks'] is! List) {
+        throw const FormatException();
+      }
+      return (decoded['tasks'] as List)
+          .whereType<Map<String, dynamic>>()
+          .map(ScheduleTask.fromJson)
+          .where((task) => task.command.isNotEmpty)
+          .toList(growable: false);
+    } on FormatException {
+      throw const ApiException('后端返回了无效调度数据');
+    }
+  }
+
+  Future<void> saveSchedule(
+    String baseUrl,
+    String name,
+    List<Map<String, dynamic>> changes,
+  ) async {
+    final response = await _client
+        .post(
+          endpoint(baseUrl, '/api/${Uri.encodeComponent(name)}/schedule/save'),
+          body: jsonEncode({'changes': changes}),
+          headers: {'content-type': 'application/json'},
+        )
+        .timeout(timeout);
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw ApiException('后端返回 HTTP ${response.statusCode}');
+    }
+  }
+
+  Future<void> resetSchedule(String baseUrl, String name) async {
+    final response = await _client
+        .post(
+          endpoint(baseUrl, '/api/${Uri.encodeComponent(name)}/schedule/reset'),
+        )
+        .timeout(timeout);
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw ApiException('后端返回 HTTP ${response.statusCode}');
+    }
   }
 
   void close() => _client.close();

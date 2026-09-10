@@ -9,6 +9,7 @@ import 'package:nkas_mobile_preview/core/api/calendar_info.dart';
 import 'package:nkas_mobile_preview/core/api/log_info.dart';
 import 'package:nkas_mobile_preview/core/api/update_info.dart';
 import 'package:nkas_mobile_preview/core/api/screenshot_frame.dart';
+import 'package:nkas_mobile_preview/core/api/schedule_info.dart';
 import 'package:nkas_mobile_preview/core/api/system_status.dart';
 import 'package:nkas_mobile_preview/core/settings/backend_settings.dart';
 
@@ -200,6 +201,27 @@ class ConnectionController extends ChangeNotifier {
       return Future.error(const ApiException('后端未连接'));
     }
     return _api.fetchScreenshot(_state.baseUrl, name);
+  }
+
+  Future<List<ScheduleTask>> fetchSchedule(String name) {
+    if (_state.phase != ConnectionPhase.connected) {
+      return Future.error(const ApiException('后端未连接'));
+    }
+    return _api.fetchSchedule(_state.baseUrl, name);
+  }
+
+  Future<void> saveSchedule(String name, List<Map<String, dynamic>> changes) {
+    if (_state.phase != ConnectionPhase.connected) {
+      return Future.error(const ApiException('后端未连接'));
+    }
+    return _api.saveSchedule(_state.baseUrl, name, changes);
+  }
+
+  Future<void> resetSchedule(String name) {
+    if (_state.phase != ConnectionPhase.connected) {
+      return Future.error(const ApiException('后端未连接'));
+    }
+    return _api.resetSchedule(_state.baseUrl, name);
   }
 
   Uri avatarUri(String filename) => _api.endpoint(
