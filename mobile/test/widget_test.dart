@@ -68,6 +68,48 @@ ConnectionController _connectedController({_MemoryBackendSettings? settings}) {
         headers: {'content-type': 'application/json; charset=utf-8'},
       );
     }
+    if (request.url.path.endsWith('/api/system/logs/files')) {
+      return http.Response.bytes(
+        utf8.encode(
+          jsonEncode({
+            'files': [
+              {'date': '2026-09-10', 'source': '主账号'},
+              {'date': '2026-09-10', 'source': '小号'},
+            ],
+          }),
+        ),
+        200,
+        headers: {'content-type': 'application/json; charset=utf-8'},
+      );
+    }
+    if (request.url.path.endsWith('/api/system/logs')) {
+      return http.Response.bytes(
+        utf8.encode(
+          jsonEncode({
+            'records': [
+              {
+                'time': '09:24:42',
+                'level': 'INFO',
+                'rank': 1,
+                'source': '主账号',
+                'text': '读取任务配置并加入调度队列',
+              },
+              {
+                'time': '09:23:42',
+                'level': 'WARNING',
+                'rank': 2,
+                'source': '服务',
+                'text': '等待游戏窗口响应，稍后重试',
+              },
+            ],
+            'matched': 2,
+            'truncated': false,
+          }),
+        ),
+        200,
+        headers: {'content-type': 'application/json; charset=utf-8'},
+      );
+    }
     return http.Response(
       jsonEncode({
         'api_version': 2,
@@ -190,7 +232,8 @@ void main() {
 
         expect(find.text('查看 log 目录下的日志文件'), findsOneWidget);
         expect(find.text('日志文件'), findsOneWidget);
-        expect(find.text('31 条记录'), findsOneWidget);
+        expect(find.text('共 2 条'), findsOneWidget);
+        expect(find.text('读取任务配置并加入调度队列'), findsOneWidget);
       });
 
       testWidgets('settings page', (tester) async {

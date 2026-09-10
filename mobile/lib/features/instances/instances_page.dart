@@ -656,10 +656,34 @@ class _LiveLogPanel extends StatelessWidget {
     return LogCard(
       title: '实时日志',
       rows: const [
-        ('09:32:04', 'INFO', null, '每日任务：开始执行前哨基地', LogKind.info),
-        ('09:32:01', 'INFO', null, '设备连接已确认，进入任务队列', LogKind.info),
-        ('09:31:58', 'DEBUG', null, '检测当前页面：前哨基地', LogKind.info),
-        ('09:31:44', 'WARN', null, '等待游戏窗口响应，重试 1/3', LogKind.warn),
+        LogRowData(
+          time: '09:32:04',
+          level: 'INFO',
+          source: null,
+          message: '每日任务：开始执行前哨基地',
+          kind: LogKind.info,
+        ),
+        LogRowData(
+          time: '09:32:01',
+          level: 'INFO',
+          source: null,
+          message: '设备连接已确认，进入任务队列',
+          kind: LogKind.info,
+        ),
+        LogRowData(
+          time: '09:31:58',
+          level: 'DEBUG',
+          source: null,
+          message: '检测当前页面：前哨基地',
+          kind: LogKind.info,
+        ),
+        LogRowData(
+          time: '09:31:44',
+          level: 'WARN',
+          source: null,
+          message: '等待游戏窗口响应，重试 1/3',
+          kind: LogKind.warn,
+        ),
       ],
     );
   }

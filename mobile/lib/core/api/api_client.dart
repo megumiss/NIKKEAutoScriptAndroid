@@ -6,6 +6,7 @@ import 'package:nkas_mobile_preview/core/api/system_status.dart';
 import 'package:nkas_mobile_preview/core/api/instance_info.dart';
 import 'package:nkas_mobile_preview/core/api/queue_info.dart';
 import 'package:nkas_mobile_preview/core/api/calendar_info.dart';
+import 'package:nkas_mobile_preview/core/api/log_info.dart';
 
 class ApiClient {
   ApiClient({http.Client? client, this.timeout = const Duration(seconds: 5)})
@@ -146,6 +147,65 @@ class ApiClient {
       throw const ApiException('后端返回了无效活动数据');
     }
   }
+
+  Future<List<LogFileRef>> fetchLogFiles(String baseUrl) async {
+    final response = await _client
+        .get(endpoint(baseUrl, '/api/system/logs/files'))
+        .timeout(timeout);
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw ApiException('后端返回 HTTP ${response.statusCode}');
+    }
+    try {
+      final decoded = jsonDecode(utf8.decode(response.bodyBytes));
+      if (decoded is! Map<String, dynamic> || decoded['files'] is! List) {
+        throw const FormatException();
+      }
+      return (decoded['files'] as List)
+          .whereType<Map<String, dynamic>>()
+          .map(LogFileRef.fromJson)
+          .where((file) => file.date.isNotEmpty && file.source.isNotEmpty)
+          .toList(growable: false);
+    } on FormatException {
+      throw const ApiException('后端返回了无效日志文件数据');
+    }
+  }
+
+  Future<LogQueryResult> fetchLogs(
+    String baseUrl, {
+    required String date,
+    String source = '',
+    String level = 'info',
+    int limit = 500,
+  }) async {
+    final uri = endpoint(baseUrl, '/api/system/logs').replace(
+      queryParameters: {
+        'date': date,
+        'source': source,
+        'level': level,
+        'limit': '$limit',
+      },
+    );
+    final response = await _client.get(uri).timeout(timeout);
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw ApiException('后端返回 HTTP ${response.statusCode}');
+    }
+    try {
+      final decoded = jsonDecode(utf8.decode(response.bodyBytes));
+      if (decoded is! Map<String, dynamic>) throw const FormatException();
+      return LogQueryResult.fromJson(decoded);
+    } on FormatException {
+      throw const ApiException('后端返回了无效日志数据');
+    }
+  }
+
+  Uri logDownloadUri(
+    String baseUrl, {
+    required String date,
+    required String source,
+  }) => endpoint(
+    baseUrl,
+    '/api/system/logs/download',
+  ).replace(queryParameters: {'date': date, 'source': source});
 
   void close() => _client.close();
 }

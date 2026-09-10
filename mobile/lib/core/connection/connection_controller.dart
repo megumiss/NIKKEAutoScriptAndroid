@@ -6,6 +6,7 @@ import 'package:nkas_mobile_preview/core/api/api_client.dart';
 import 'package:nkas_mobile_preview/core/api/instance_info.dart';
 import 'package:nkas_mobile_preview/core/api/queue_info.dart';
 import 'package:nkas_mobile_preview/core/api/calendar_info.dart';
+import 'package:nkas_mobile_preview/core/api/log_info.dart';
 import 'package:nkas_mobile_preview/core/api/system_status.dart';
 import 'package:nkas_mobile_preview/core/settings/backend_settings.dart';
 
@@ -144,6 +145,32 @@ class ConnectionController extends ChangeNotifier {
     }
     return _api.fetchCalendar(_state.baseUrl, refresh: refresh);
   }
+
+  Future<List<LogFileRef>> fetchLogFiles() {
+    if (_state.phase != ConnectionPhase.connected) {
+      return Future.error(const ApiException('后端未连接'));
+    }
+    return _api.fetchLogFiles(_state.baseUrl);
+  }
+
+  Future<LogQueryResult> fetchLogs({
+    required String date,
+    String source = '',
+    String level = 'info',
+  }) {
+    if (_state.phase != ConnectionPhase.connected) {
+      return Future.error(const ApiException('后端未连接'));
+    }
+    return _api.fetchLogs(
+      _state.baseUrl,
+      date: date,
+      source: source,
+      level: level,
+    );
+  }
+
+  Uri logDownloadUri({required String date, required String source}) =>
+      _api.logDownloadUri(_state.baseUrl, date: date, source: source);
 
   Uri avatarUri(String filename) => _api.endpoint(
     _state.baseUrl,

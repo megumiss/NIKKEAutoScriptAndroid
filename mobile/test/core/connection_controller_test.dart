@@ -267,4 +267,74 @@ void main() {
     expect(calendar.items.single.title, '测试活动');
     expect(calendar.items.single.subtype, 'pass');
   });
+
+  test('loads and queries historical logs', () async {
+    final requestedUris = <Uri>[];
+    final api = ApiClient(
+      client: MockClient((request) async {
+        requestedUris.add(request.url);
+        if (request.url.path.endsWith('/files')) {
+          return http.Response.bytes(
+            utf8.encode(
+              jsonEncode({
+                'files': [
+                  {'date': '2026-09-10', 'source': '主账号'},
+                ],
+              }),
+            ),
+            200,
+          );
+        }
+        return http.Response.bytes(
+          utf8.encode(
+            jsonEncode({
+              'records': [
+                {
+                  'time': '09:24:42',
+                  'level': 'ERROR',
+                  'rank': 3,
+                  'source': '主账号',
+                  'text': '任务执行失败',
+                  'traceback': 'RuntimeError: failed',
+                  'traceback_collapsed': 'Traceback details',
+                },
+              ],
+              'matched': 3,
+              'truncated': true,
+            }),
+          ),
+          200,
+        );
+      }),
+    );
+    addTearDown(api.close);
+
+    final files = await api.fetchLogFiles('http://nkas.example:12271');
+    final logs = await api.fetchLogs(
+      'http://nkas.example:12271',
+      date: '2026-09-10',
+      source: '主账号',
+      level: 'warn',
+    );
+    final download = api.logDownloadUri(
+      'http://nkas.example:12271',
+      date: '2026-09-10',
+      source: '主账号',
+    );
+
+    expect(files.single.source, '主账号');
+    expect(logs.matched, 3);
+    expect(logs.truncated, isTrue);
+    expect(logs.records.single.traceback, 'RuntimeError: failed');
+    expect(requestedUris.last.queryParameters, {
+      'date': '2026-09-10',
+      'source': '主账号',
+      'level': 'warn',
+      'limit': '500',
+    });
+    expect(
+      download.toString(),
+      'http://nkas.example:12271/api/system/logs/download?date=2026-09-10&source=%E4%B8%BB%E8%B4%A6%E5%8F%B7',
+    );
+  });
 }

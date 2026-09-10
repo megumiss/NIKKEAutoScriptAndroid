@@ -427,7 +427,9 @@ class _NkasShellState extends State<NkasShell> {
         unawaited(_loadQueue(value));
       },
     ),
-    NkasPage.logs => const LogsPage(),
+    NkasPage.logs => LogsPage(
+      connectionController: widget.connectionController,
+    ),
     NkasPage.settings => SettingsPage(
       connectionController: widget.connectionController,
       themeMode: widget.themeMode,
