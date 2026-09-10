@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import 'package:nkas_mobile_preview/core/widgets/status.dart';
+import 'package:nkas_mobile_preview/core/connection/connection_controller.dart';
 import 'package:nkas_mobile_preview/features/instances/instances_page.dart';
 import 'package:nkas_mobile_preview/features/logs/logs_page.dart';
 import 'package:nkas_mobile_preview/features/overview/overview_page.dart';
@@ -16,11 +17,13 @@ enum NkasPage { overview, instances, logs, settings }
 class NkasShell extends StatefulWidget {
   const NkasShell({
     required this.themeMode,
+    required this.connectionController,
     required this.onThemeModeChanged,
     super.key,
   });
 
   final ThemeMode themeMode;
+  final ConnectionController connectionController;
   final ValueChanged<ThemeMode> onThemeModeChanged;
 
   @override
@@ -44,6 +47,29 @@ class _NkasShellState extends State<NkasShell> {
     '测试账号': false,
   };
 
+  @override
+  void initState() {
+    super.initState();
+    widget.connectionController.addListener(_connectionChanged);
+  }
+
+  @override
+  void didUpdateWidget(covariant NkasShell oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.connectionController != widget.connectionController) {
+      oldWidget.connectionController.removeListener(_connectionChanged);
+      widget.connectionController.addListener(_connectionChanged);
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.connectionController.removeListener(_connectionChanged);
+    super.dispose();
+  }
+
+  void _connectionChanged() => setState(() {});
+
   bool get canControlLocalService =>
       kIsWeb || defaultTargetPlatform == TargetPlatform.android;
 
@@ -62,7 +88,10 @@ class _NkasShellState extends State<NkasShell> {
             child: SafeArea(
               child: Column(
                 children: [
-                  _AppHeader(title: _pageTitle, connected: true),
+                  _AppHeader(
+                    title: _pageTitle,
+                    connection: widget.connectionController.state,
+                  ),
                   // 底部导航悬浮在内容之上（原型 .np-nav：bottom 14 + 阴影 + 毛玻璃），
                   // 各页面底部预留 88 避让区
                   Expanded(
@@ -116,6 +145,7 @@ class _NkasShellState extends State<NkasShell> {
     ),
     NkasPage.logs => const LogsPage(),
     NkasPage.settings => SettingsPage(
+      connectionController: widget.connectionController,
       themeMode: widget.themeMode,
       notifications: notifications,
       autoScroll: autoScroll,
@@ -129,14 +159,20 @@ class _NkasShellState extends State<NkasShell> {
 }
 
 class _AppHeader extends StatelessWidget {
-  const _AppHeader({required this.title, required this.connected});
+  const _AppHeader({required this.title, required this.connection});
   final String title;
-  final bool connected;
+  final BackendConnectionState connection;
 
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
     final scheme = theme.colorScheme;
+    final color = switch (connection.phase) {
+      ConnectionPhase.connected => scheme.success,
+      ConnectionPhase.connecting => scheme.primary,
+      ConnectionPhase.disconnected => scheme.destructive,
+      ConnectionPhase.incompatible => scheme.warning,
+    };
     return SizedBox(
       height: 58,
       child: Padding(
@@ -147,18 +183,18 @@ class _AppHeader extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
               decoration: BoxDecoration(
-                color: scheme.connectionBg,
+                color: color.withValues(alpha: .12),
                 borderRadius: BorderRadius.circular(999),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Dot(color: scheme.connectionDot),
+                  Dot(color: color),
                   const SizedBox(width: 6),
                   Text(
-                    connected ? '已连接' : '未连接',
+                    connection.label,
                     style: TextStyle(
-                      color: scheme.connectionText,
+                      color: color,
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
                     ),

@@ -4,14 +4,60 @@
 // any RenderFlex overflow throws and fails the test, so they act as layout
 // regression guards for narrow phones.
 
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:nkas_mobile_preview/app/app.dart';
+import 'package:nkas_mobile_preview/core/api/api_client.dart';
+import 'package:nkas_mobile_preview/core/connection/connection_controller.dart';
+import 'package:nkas_mobile_preview/core/settings/backend_settings.dart';
+
+class _MemoryBackendSettings implements BackendSettings {
+  String? value;
+
+  @override
+  Future<String?> readBaseUrl() async => value;
+
+  @override
+  Future<void> writeBaseUrl(String value) async => this.value = value;
+}
+
+ConnectionController _connectedController({_MemoryBackendSettings? settings}) {
+  final client = MockClient(
+    (_) async => http.Response(
+      jsonEncode({
+        'api_version': 2,
+        'spa_version': '1',
+        'version': 'test',
+        'capabilities': {'spa': true, 'websocket': true},
+      }),
+      200,
+      headers: {'content-type': 'application/json; charset=utf-8'},
+    ),
+  );
+  return ConnectionController(
+    api: ApiClient(client: client),
+    settings: settings ?? _MemoryBackendSettings(),
+  );
+}
+
+Future<ConnectionController> _pumpTestApp(
+  WidgetTester tester, {
+  _MemoryBackendSettings? settings,
+}) async {
+  final controller = _connectedController(settings: settings);
+  addTearDown(controller.dispose);
+  await tester.pumpWidget(NkasPreviewApp(connectionController: controller));
+  await tester.pumpAndSettle();
+  return controller;
+}
 
 void main() {
   testWidgets('renders the mobile overview', (tester) async {
-    await tester.pumpWidget(const NkasPreviewApp());
-    await tester.pumpAndSettle();
+    await _pumpTestApp(tester);
 
     expect(find.text('快速查看本机服务与实例状态'), findsOneWidget);
     expect(find.text('服务运行正常'), findsOneWidget);
@@ -19,8 +65,7 @@ void main() {
   });
 
   testWidgets('settings keeps the mobile control entry points', (tester) async {
-    await tester.pumpWidget(const NkasPreviewApp());
-    await tester.pumpAndSettle();
+    await _pumpTestApp(tester);
 
     await tester.tap(find.byTooltip('设置'));
     await tester.pumpAndSettle();
@@ -39,6 +84,25 @@ void main() {
     expect(find.text('部署'), findsNothing);
   });
 
+  testWidgets('backend address is tested and persisted from settings', (
+    tester,
+  ) async {
+    final settings = _MemoryBackendSettings();
+    await _pumpTestApp(tester, settings: settings);
+
+    await tester.tap(find.byTooltip('设置'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('后端地址'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'localhost:12271/');
+    await tester.tap(find.text('保存并连接'));
+    await tester.pumpAndSettle();
+
+    expect(settings.value, 'http://localhost:12271');
+    expect(find.text('http://localhost:12271'), findsOneWidget);
+    expect(find.text('已连接'), findsOneWidget);
+  });
+
   const sizes = {'360x800': Size(360, 800), '390x844': Size(390, 844)};
 
   for (final entry in sizes.entries) {
@@ -47,8 +111,7 @@ void main() {
         tester.view.physicalSize = entry.value;
         tester.view.devicePixelRatio = 1;
         addTearDown(tester.view.reset);
-        await tester.pumpWidget(const NkasPreviewApp());
-        await tester.pumpAndSettle();
+        await _pumpTestApp(tester);
       }
 
       testWidgets('overview page', (tester) async {

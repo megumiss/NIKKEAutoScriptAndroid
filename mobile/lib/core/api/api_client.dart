@@ -1,0 +1,78 @@
+import 'dart:convert';
+
+import 'package:http/http.dart' as http;
+
+import 'package:nkas_mobile_preview/core/api/system_status.dart';
+
+class ApiClient {
+  ApiClient({http.Client? client, this.timeout = const Duration(seconds: 5)})
+    : _client = client ?? http.Client();
+
+  final http.Client _client;
+  final Duration timeout;
+
+  static String normalizeBaseUrl(String value) {
+    var input = value.trim();
+    if (input.isEmpty) {
+      throw const FormatException('请输入后端地址');
+    }
+    if (!input.contains('://')) {
+      input = 'http://$input';
+    }
+
+    final uri = Uri.tryParse(input);
+    if (uri == null ||
+        !const {'http', 'https'}.contains(uri.scheme) ||
+        uri.host.isEmpty ||
+        uri.hasQuery ||
+        uri.hasFragment) {
+      throw const FormatException('请输入有效的 HTTP 或 HTTPS 地址');
+    }
+
+    final path = uri.path.replaceFirst(RegExp(r'/+$'), '');
+    return uri.replace(path: path).toString().replaceFirst(RegExp(r'/+$'), '');
+  }
+
+  Uri endpoint(String baseUrl, String path) {
+    final normalized = normalizeBaseUrl(baseUrl);
+    return Uri.parse(
+      '$normalized/',
+    ).resolve(path.replaceFirst(RegExp(r'^/+'), ''));
+  }
+
+  Uri websocketUri(String baseUrl, String path) {
+    final uri = endpoint(baseUrl, path);
+    return uri.replace(scheme: uri.scheme == 'https' ? 'wss' : 'ws');
+  }
+
+  Future<SystemStatus> fetchSystemStatus(String baseUrl) async {
+    final response = await _client
+        .get(endpoint(baseUrl, '/api/system/status'))
+        .timeout(timeout);
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw ApiException('后端返回 HTTP ${response.statusCode}');
+    }
+
+    final Object? decoded;
+    try {
+      decoded = jsonDecode(utf8.decode(response.bodyBytes));
+    } on FormatException {
+      throw const ApiException('后端返回了无效数据');
+    }
+    if (decoded is! Map<String, dynamic>) {
+      throw const ApiException('后端返回了无效数据');
+    }
+    return SystemStatus.fromJson(decoded);
+  }
+
+  void close() => _client.close();
+}
+
+class ApiException implements Exception {
+  const ApiException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
+}

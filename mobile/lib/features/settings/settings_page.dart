@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import 'package:nkas_mobile_preview/core/widgets/icon_box.dart';
+import 'package:nkas_mobile_preview/core/connection/connection_controller.dart';
 import 'package:nkas_mobile_preview/core/widgets/page_inset.dart';
 import 'package:nkas_mobile_preview/core/widgets/page_subtitle.dart';
 import 'package:nkas_mobile_preview/core/widgets/surface.dart';
@@ -10,6 +11,7 @@ import 'package:nkas_mobile_preview/theme.dart';
 class SettingsPage extends StatelessWidget {
   const SettingsPage({
     required this.themeMode,
+    required this.connectionController,
     required this.notifications,
     required this.autoScroll,
     required this.onThemeModeChanged,
@@ -18,6 +20,7 @@ class SettingsPage extends StatelessWidget {
     super.key,
   });
   final ThemeMode themeMode;
+  final ConnectionController connectionController;
   final bool notifications;
   final bool autoScroll;
   final ValueChanged<ThemeMode> onThemeModeChanged;
@@ -49,16 +52,17 @@ class SettingsPage extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 20),
-        const _SettingGroup(
+        _SettingGroup(
           label: '后端连接',
           rows: [
             _SettingRow(
               icon: LucideIcons.server,
               title: '后端地址',
-              subtitle: 'http://127.0.0.1:12271',
+              subtitle: connectionController.state.baseUrl,
               trailing: LucideIcons.pencil,
+              onTap: () => _editBackendAddress(context),
             ),
-            _SettingRow(
+            const _SettingRow(
               icon: LucideIcons.globe2,
               title: '原始 WebUI',
               subtitle: '打开完整控制台，使用更多高级功能',
@@ -114,6 +118,105 @@ class SettingsPage extends StatelessWidget {
       ],
     );
   }
+
+  Future<void> _editBackendAddress(BuildContext context) async {
+    await showDialog<void>(
+      context: context,
+      builder: (_) =>
+          _BackendAddressDialog(connectionController: connectionController),
+    );
+  }
+}
+
+class _BackendAddressDialog extends StatefulWidget {
+  const _BackendAddressDialog({required this.connectionController});
+
+  final ConnectionController connectionController;
+
+  @override
+  State<_BackendAddressDialog> createState() => _BackendAddressDialogState();
+}
+
+class _BackendAddressDialogState extends State<_BackendAddressDialog> {
+  late final TextEditingController _textController;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _textController = TextEditingController(
+      text: widget.connectionController.state.baseUrl,
+    );
+  }
+
+  @override
+  void dispose() {
+    _textController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    setState(() => _saving = true);
+    final connected = await widget.connectionController.connect(
+      _textController.text,
+      persist: true,
+    );
+    if (!mounted) return;
+    if (connected) {
+      Navigator.pop(context);
+    } else {
+      setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = widget.connectionController.state;
+    final scheme = ShadTheme.of(context).colorScheme;
+    final error =
+        state.phase == ConnectionPhase.disconnected ||
+        state.phase == ConnectionPhase.incompatible;
+    return AlertDialog(
+      title: const Text('后端地址'),
+      content: SizedBox(
+        width: 360,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TextField(
+              controller: _textController,
+              enabled: !_saving,
+              keyboardType: TextInputType.url,
+              autocorrect: false,
+              decoration: const InputDecoration(
+                hintText: 'http://127.0.0.1:12271',
+                border: OutlineInputBorder(),
+              ),
+              onSubmitted: _saving ? null : (_) => _save(),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              state.message ?? '远程地址仅用于本机或可信网络',
+              style: ShadTheme.of(context).textTheme.muted.copyWith(
+                color: error ? scheme.destructive : null,
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _saving ? null : () => Navigator.pop(context),
+          child: const Text('取消'),
+        ),
+        FilledButton(
+          onPressed: _saving ? null : _save,
+          child: Text(_saving ? '连接中…' : '保存并连接'),
+        ),
+      ],
+    );
+  }
 }
 
 class _SettingGroup extends StatelessWidget {
@@ -155,6 +258,7 @@ class _SettingRow extends StatelessWidget {
     this.iconColor,
     this.trailing,
     this.customTrailing,
+    this.onTap,
   });
   final IconData? icon;
   final Color? iconColor;
@@ -162,11 +266,12 @@ class _SettingRow extends StatelessWidget {
   final String subtitle;
   final IconData? trailing;
   final Widget? customTrailing;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
-    return ConstrainedBox(
+    final content = ConstrainedBox(
       constraints: const BoxConstraints(minHeight: 56),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
@@ -212,6 +317,8 @@ class _SettingRow extends StatelessWidget {
         ),
       ),
     );
+    if (onTap == null) return content;
+    return InkWell(onTap: onTap, child: content);
   }
 }
 
