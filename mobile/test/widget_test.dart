@@ -386,6 +386,37 @@ void main() {
     expect(find.text('后端连接'), findsOneWidget);
   });
 
+  testWidgets('about entry opens the about subpage with runtime info', (
+    tester,
+  ) async {
+    await _pumpTestApp(tester);
+
+    await tester.tap(find.byTooltip('设置'));
+    await tester.pumpAndSettle();
+    await tester.drag(find.byType(Scrollable).first, const Offset(0, -600));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('关于'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('NKAS Mobile'), findsOneWidget);
+    expect(find.text('0.1.0'), findsWidgets);
+    expect(find.text('NIKKEAutoScript 移动控制端'), findsOneWidget);
+    expect(find.text('项目仓库'), findsOneWidget);
+    expect(find.text('问题反馈'), findsOneWidget);
+    expect(find.text('应用版本'), findsOneWidget);
+    expect(find.text('后端版本'), findsOneWidget);
+    expect(find.text('后端地址'), findsOneWidget);
+    expect(find.text('http://127.0.0.1:12271'), findsOneWidget);
+    expect(find.text('API 版本'), findsOneWidget);
+    expect(find.text('v2'), findsOneWidget);
+    expect(find.text('技术栈'), findsOneWidget);
+    expect(find.text('Flutter + shadcn_ui'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('返回设置'));
+    await tester.pumpAndSettle();
+    expect(find.text('后端连接'), findsOneWidget);
+  });
+
   testWidgets('renders deploy configuration from backend schema', (
     tester,
   ) async {

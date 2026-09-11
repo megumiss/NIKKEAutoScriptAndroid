@@ -24,6 +24,7 @@ import 'package:nkas_mobile/features/overview/overview_page.dart';
 import 'package:nkas_mobile/features/settings/settings_page.dart';
 import 'package:nkas_mobile/features/settings/setup_page.dart';
 import 'package:nkas_mobile/features/settings/star_verify_page.dart';
+import 'package:nkas_mobile/features/settings/about_page.dart';
 import 'package:nkas_mobile/features/settings/update_page.dart';
 import 'package:nkas_mobile/theme.dart';
 
@@ -36,6 +37,7 @@ enum NkasPage {
   starVerify,
   setup,
   update,
+  about,
 }
 
 class NkasShell extends StatefulWidget {
@@ -464,12 +466,14 @@ class _NkasShellState extends State<NkasShell> {
     NkasPage.starVerify => 'STAR 验证',
     NkasPage.setup => '初始化 NKAS',
     NkasPage.update => '更新',
+    NkasPage.about => '关于',
   };
 
   bool get _isSettingsSubpage =>
       page == NkasPage.starVerify ||
       page == NkasPage.setup ||
-      page == NkasPage.update;
+      page == NkasPage.update ||
+      page == NkasPage.about;
 
   Widget _pageBody() => switch (page) {
     NkasPage.overview => OverviewPage(
@@ -576,6 +580,7 @@ class _NkasShellState extends State<NkasShell> {
       onOpenStarVerify: () => _selectPage(NkasPage.starVerify),
       onOpenSetup: () => unawaited(_openSetup()),
       onOpenUpdate: () => _selectPage(NkasPage.update),
+      onOpenAbout: () => _selectPage(NkasPage.about),
     ),
     NkasPage.starVerify => StarVerifyPage(
       onOpenSetup: () => unawaited(_openSetup()),
@@ -586,6 +591,9 @@ class _NkasShellState extends State<NkasShell> {
     NkasPage.update => UpdatePage(
       connectionController: widget.connectionController,
       enabled: _starAccessGranted,
+    ),
+    NkasPage.about => AboutPage(
+      connectionController: widget.connectionController,
     ),
   };
 

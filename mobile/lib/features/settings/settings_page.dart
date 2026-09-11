@@ -26,6 +26,7 @@ class SettingsPage extends StatefulWidget {
     required this.onOpenStarVerify,
     required this.onOpenSetup,
     required this.onOpenUpdate,
+    required this.onOpenAbout,
     super.key,
   });
   final ThemeMode themeMode;
@@ -37,6 +38,7 @@ class SettingsPage extends StatefulWidget {
   final VoidCallback onOpenStarVerify;
   final VoidCallback onOpenSetup;
   final VoidCallback onOpenUpdate;
+  final VoidCallback onOpenAbout;
 
   @override
   State<SettingsPage> createState() => _SettingsPageState();
@@ -176,14 +178,14 @@ class _SettingsPageState extends State<SettingsPage> {
           ],
         ),
         const SizedBox(height: 20),
-        const _SettingGroup(
-          label: '关于',
-          rows: [
-            _SettingRow(
-              title: 'NKAS Mobile',
-              subtitle: 'Flutter + shadcn_ui · 0.1.0',
-            ),
-          ],
+        Surface(
+          padding: EdgeInsets.zero,
+          child: _SettingRow(
+            icon: LucideIcons.info,
+            title: '关于',
+            subtitle: '版本、项目链接与运行信息',
+            onTap: widget.onOpenAbout,
+          ),
         ),
       ],
     );
