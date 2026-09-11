@@ -8,10 +8,12 @@ import 'package:nkas_mobile_preview/core/api/queue_info.dart';
 import 'package:nkas_mobile_preview/core/api/screenshot_frame.dart';
 import 'package:nkas_mobile_preview/core/api/schedule_info.dart';
 import 'package:nkas_mobile_preview/core/api/schema_info.dart';
+import 'package:nkas_mobile_preview/core/connection/instance_log_socket.dart';
 import 'package:nkas_mobile_preview/core/widgets/avatar.dart';
 import 'package:nkas_mobile_preview/core/widgets/buttons.dart';
 import 'package:nkas_mobile_preview/core/widgets/icon_box.dart';
 import 'package:nkas_mobile_preview/core/widgets/field_select.dart';
+import 'package:nkas_mobile_preview/core/widgets/log_line.dart';
 import 'package:nkas_mobile_preview/core/widgets/page_inset.dart';
 import 'package:nkas_mobile_preview/core/widgets/page_subtitle.dart';
 import 'package:nkas_mobile_preview/core/widgets/status.dart';
@@ -48,6 +50,7 @@ class InstancesPage extends StatelessWidget {
     required this.patchConfig,
     required this.onSelectInstance,
     required this.onOpenControl,
+    required this.liveLogUri,
     super.key,
   });
   final String selected;
@@ -75,6 +78,7 @@ class InstancesPage extends StatelessWidget {
   final Future<void> Function(String, Object?) patchConfig;
   final ValueChanged<String> onSelectInstance;
   final VoidCallback onOpenControl;
+  final Uri liveLogUri;
 
   @override
   Widget build(BuildContext context) {
@@ -176,6 +180,7 @@ class InstancesPage extends StatelessWidget {
             schemaError: schemaError,
             loadSchema: loadSchema,
             patchConfig: patchConfig,
+            liveLogUri: liveLogUri,
           ),
         ),
       ],
@@ -321,6 +326,7 @@ class _InstanceBody extends StatelessWidget {
     required this.schemaError,
     required this.loadSchema,
     required this.patchConfig,
+    required this.liveLogUri,
   });
   final InstanceTab tab;
   final QueueInfo? queue;
@@ -338,6 +344,7 @@ class _InstanceBody extends StatelessWidget {
   final String? schemaError;
   final Future<void> Function() loadSchema;
   final Future<void> Function(String, Object?) patchConfig;
+  final Uri liveLogUri;
 
   @override
   Widget build(BuildContext context) {
@@ -395,7 +402,13 @@ class _InstanceBody extends StatelessWidget {
             resetSchedule: resetSchedule,
           ),
         ],
-        InstanceTab.liveLogs => [_LiveLogPanel(running: running)],
+        InstanceTab.liveLogs => [
+          _LiveLogPanel(
+            key: ValueKey(selected),
+            running: running,
+            uri: liveLogUri,
+          ),
+        ],
         InstanceTab.screen => [
           _ScreenPanel(
             key: ValueKey(selected),
@@ -1207,9 +1220,10 @@ class _ScheduleRow extends StatelessWidget {
 }
 
 class _LiveLogPanel extends StatefulWidget {
-  const _LiveLogPanel({required this.running});
+  const _LiveLogPanel({required this.running, required this.uri, super.key});
 
   final bool running;
+  final Uri uri;
 
   @override
   State<_LiveLogPanel> createState() => _LiveLogPanelState();
@@ -1218,6 +1232,161 @@ class _LiveLogPanel extends StatefulWidget {
 class _LiveLogPanelState extends State<_LiveLogPanel> {
   String level = 'INFO';
   bool autoScroll = true;
+  final scrollController = ScrollController();
+  final lines = <_LiveLogLine>[];
+  InstanceLogSocket? socket;
+  Timer? reconnectTimer;
+  bool connected = false;
+  String? error;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_connect());
+  }
+
+  @override
+  void didUpdateWidget(covariant _LiveLogPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.uri != widget.uri) unawaited(_connect());
+  }
+
+  @override
+  void dispose() {
+    reconnectTimer?.cancel();
+    unawaited(socket?.close());
+    scrollController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _connect() async {
+    reconnectTimer?.cancel();
+    final previous = socket;
+    socket = null;
+    await previous?.close();
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      connected = false;
+      error = null;
+      lines.clear();
+    });
+    final next = InstanceLogSocket(uri: widget.uri);
+    socket = next;
+    await next.connect(
+      onLog: _receive,
+      onError: (_) {
+        if (mounted) {
+          setState(() {
+            connected = false;
+            error = '日志连接中断';
+          });
+        }
+        _scheduleReconnect(next);
+      },
+      onClosed: () {
+        if (mounted) setState(() => connected = false);
+        _scheduleReconnect(next);
+      },
+    );
+    if (mounted && socket == next) setState(() => connected = true);
+  }
+
+  void _scheduleReconnect(InstanceLogSocket source) {
+    if (!mounted || socket != source) return;
+    reconnectTimer?.cancel();
+    reconnectTimer = Timer(
+      const Duration(seconds: 3),
+      () => unawaited(_connect()),
+    );
+  }
+
+  void _receive(InstanceLogEvent event) {
+    if (!mounted) return;
+    final parsed = event.html.expand(_parseFragment).toList(growable: false);
+    if (parsed.isEmpty) return;
+    setState(() {
+      lines.addAll(parsed);
+      if (lines.length > 500) lines.removeRange(0, lines.length - 500);
+    });
+    if (autoScroll) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && scrollController.hasClients) {
+          scrollController.jumpTo(scrollController.position.maxScrollExtent);
+        }
+      });
+    }
+  }
+
+  Iterable<_LiveLogLine> _parseFragment(String fragment) sync* {
+    final lineMatch = RegExp(
+      r'<div class="log-line([^>]*)">([\\s\\S]*?)</div>(?:<div class="log-traceback">([\\s\\S]*?)</div>)?',
+    ).firstMatch(fragment);
+    final content = lineMatch?.group(2) ?? fragment;
+    final classes = lineMatch?.group(1) ?? '';
+    final timestamp = _text(
+      RegExp(
+        r'<span class="ts">([\\s\\S]*?)</span>',
+      ).firstMatch(content)?.group(1),
+    );
+    final levelText = _text(
+      RegExp(
+        r'<span class="lv-chip[^>]*>([\\s\\S]*?)</span>',
+      ).firstMatch(content)?.group(1),
+    );
+    final message = _text(
+      RegExp(
+        r'<span class="log-message[^>]*>([\\s\\S]*?)</span>',
+      ).firstMatch(content)?.group(1),
+    ).trim();
+    final fallback = _text(content).trim();
+    final traceback = _text(lineMatch?.group(3)).trim();
+    final value = message.isEmpty ? fallback : message;
+    if (value.isEmpty) return;
+    final kind =
+        classes.contains('lv-err') ||
+            levelText == 'ERROR' ||
+            levelText == 'CRITICAL'
+        ? LogKind.error
+        : classes.contains('lv-warn') || levelText == 'WARNING'
+        ? LogKind.warn
+        : LogKind.info;
+    yield _LiveLogLine(
+      time: timestamp,
+      level: levelText.isEmpty
+          ? (classes.contains('section') ? 'INFO' : 'INFO')
+          : levelText,
+      message: value,
+      kind: kind,
+      traceback: traceback.isEmpty ? null : traceback,
+    );
+  }
+
+  String _text(String? value) {
+    if (value == null) return '';
+    return value
+        .replaceAll(RegExp(r'<br\\s*/?>'), '\\n')
+        .replaceAll(RegExp(r'<[^>]+>'), '')
+        .replaceAll('&amp;', '&')
+        .replaceAll('&lt;', '<')
+        .replaceAll('&gt;', '>')
+        .replaceAll('&quot;', '"')
+        .replaceAll('&#39;', "'");
+  }
+
+  bool _visible(_LiveLogLine line) {
+    const ranks = {
+      'DEBUG': 0,
+      'INFO': 1,
+      'WARNING': 2,
+      'WARN': 2,
+      'ERROR': 3,
+      'CRITICAL': 3,
+    };
+    final selected = ranks[level] ?? 1;
+    return (ranks[line.level] ?? 1) >= selected;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1282,40 +1451,71 @@ class _LiveLogPanelState extends State<_LiveLogPanel> {
                   value: autoScroll,
                   onChanged: (value) => setState(() => autoScroll = value),
                 ),
+                const SizedBox(width: 6),
+                Semantics(
+                  label: connected ? '日志已连接' : '日志未连接',
+                  child: Icon(
+                    connected ? LucideIcons.wifi : LucideIcons.wifiOff,
+                    size: 15,
+                    color: connected ? scheme.success : scheme.mutedForeground,
+                  ),
+                ),
               ],
             ),
           ),
-          Container(
-            width: double.infinity,
-            constraints: const BoxConstraints(minHeight: 280),
-            color: scheme.logBodyBg,
-            padding: const EdgeInsets.all(18),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  LucideIcons.radio,
-                  size: 22,
-                  color: scheme.mutedForeground,
-                ),
-                const SizedBox(height: 10),
-                const Text(
-                  '实时日志暂未接入',
-                  style: TextStyle(fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '请在原始 WebUI 查看当前实例的实时输出',
-                  style: theme.textTheme.muted,
-                  textAlign: TextAlign.center,
-                ),
-              ],
+          SizedBox(
+            height: 420,
+            child: Container(
+              width: double.infinity,
+              color: scheme.logBodyBg,
+              padding: const EdgeInsets.all(8),
+              child: !connected && lines.isEmpty
+                  ? Center(
+                      child: Text(
+                        error ?? '正在连接实时日志…',
+                        style: theme.textTheme.muted,
+                      ),
+                    )
+                  : ListView.builder(
+                      controller: scrollController,
+                      padding: EdgeInsets.zero,
+                      itemCount: lines.where(_visible).length,
+                      itemBuilder: (context, index) {
+                        final visible = lines
+                            .where(_visible)
+                            .toList(growable: false);
+                        final line = visible[index];
+                        return LogLine(
+                          time: line.time,
+                          level: line.level,
+                          message: line.message,
+                          kind: line.kind,
+                          traceback: line.traceback,
+                        );
+                      },
+                    ),
             ),
           ),
         ],
       ),
     );
   }
+}
+
+class _LiveLogLine {
+  const _LiveLogLine({
+    required this.time,
+    required this.level,
+    required this.message,
+    required this.kind,
+    this.traceback,
+  });
+
+  final String time;
+  final String level;
+  final String message;
+  final LogKind kind;
+  final String? traceback;
 }
 
 class _LiveToggle extends StatelessWidget {

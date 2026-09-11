@@ -504,6 +504,9 @@ class _NkasShellState extends State<NkasShell> {
       patchConfig: (key, value) =>
           widget.connectionController.patchConfig(instance, key, value),
       onOpenControl: _openWebUi,
+      liveLogUri: widget.connectionController.websocketUri(
+        '/ws/${Uri.encodeComponent(instance)}/log',
+      ),
       onSelectInstance: (value) {
         setState(() {
           instance = value;
