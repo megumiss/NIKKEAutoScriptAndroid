@@ -18,6 +18,7 @@ class SettingsPage extends StatefulWidget {
   const SettingsPage({
     required this.themeMode,
     required this.connectionController,
+    required this.starAuthorized,
     required this.notifications,
     required this.autoScroll,
     required this.onThemeModeChanged,
@@ -29,6 +30,7 @@ class SettingsPage extends StatefulWidget {
   });
   final ThemeMode themeMode;
   final ConnectionController connectionController;
+  final bool starAuthorized;
   final bool notifications;
   final bool autoScroll;
   final ValueChanged<ThemeMode> onThemeModeChanged;
@@ -90,10 +92,11 @@ class _SettingsPageState extends State<SettingsPage> {
               icon: LucideIcons.sparkles,
               iconColor: warning,
               title: '初始化 NKAS',
-              subtitle: star.authorized
+              subtitle: widget.starAuthorized && star.authorized
                   ? '准备 Termux、设备连接和 NKAS 服务'
                   : '请先完成 STAR 验证',
-              onTap: widget.onOpenSetup,
+              enabled: widget.starAuthorized,
+              onTap: widget.starAuthorized ? widget.onOpenSetup : null,
             ),
           ],
         ),
@@ -106,17 +109,22 @@ class _SettingsPageState extends State<SettingsPage> {
               title: '后端地址',
               subtitle: widget.connectionController.state.baseUrl,
               trailing: LucideIcons.pencil,
-              onTap: () => _editBackendAddress(context),
+              enabled: widget.starAuthorized,
+              onTap: widget.starAuthorized
+                  ? () => _editBackendAddress(context)
+                  : null,
             ),
             _SettingRow(
               icon: LucideIcons.globe2,
               title: '原始 WebUI',
               subtitle: '打开完整控制台，使用更多高级功能',
               trailing: LucideIcons.externalLink,
-              onTap: () => _openWebUi(context),
+              enabled: widget.starAuthorized,
+              onTap: widget.starAuthorized ? () => _openWebUi(context) : null,
             ),
             _UpdateSettingRow(
               connectionController: widget.connectionController,
+              enabled: widget.starAuthorized,
             ),
           ],
         ),
@@ -129,29 +137,50 @@ class _SettingsPageState extends State<SettingsPage> {
               title: '主题',
               subtitle:
                   '当前：${widget.themeMode == ThemeMode.dark ? '深色' : '浅色'}',
-              customTrailing: _ThemeSegment(
-                themeMode: widget.themeMode,
-                onChanged: widget.onThemeModeChanged,
+              enabled: widget.starAuthorized,
+              customTrailing: IgnorePointer(
+                ignoring: !widget.starAuthorized,
+                child: Opacity(
+                  opacity: widget.starAuthorized ? 1 : .45,
+                  child: _ThemeSegment(
+                    themeMode: widget.themeMode,
+                    onChanged: widget.onThemeModeChanged,
+                  ),
+                ),
               ),
             ),
             _SettingRow(
               icon: LucideIcons.bell,
               title: '后台通知',
               subtitle: '任务完成或发生错误时提醒',
-              customTrailing: _SettingsSwitch(
-                label: '后台通知',
-                value: widget.notifications,
-                onChanged: widget.onNotificationsChanged,
+              enabled: widget.starAuthorized,
+              customTrailing: IgnorePointer(
+                ignoring: !widget.starAuthorized,
+                child: Opacity(
+                  opacity: widget.starAuthorized ? 1 : .45,
+                  child: _SettingsSwitch(
+                    label: '后台通知',
+                    value: widget.notifications,
+                    onChanged: widget.onNotificationsChanged,
+                  ),
+                ),
               ),
             ),
             _SettingRow(
               icon: LucideIcons.scrollText,
               title: '日志自动滚动',
               subtitle: '新日志到达时滚动到底部',
-              customTrailing: _SettingsSwitch(
-                label: '日志自动滚动',
-                value: widget.autoScroll,
-                onChanged: widget.onAutoScrollChanged,
+              enabled: widget.starAuthorized,
+              customTrailing: IgnorePointer(
+                ignoring: !widget.starAuthorized,
+                child: Opacity(
+                  opacity: widget.starAuthorized ? 1 : .45,
+                  child: _SettingsSwitch(
+                    label: '日志自动滚动',
+                    value: widget.autoScroll,
+                    onChanged: widget.onAutoScrollChanged,
+                  ),
+                ),
               ),
             ),
           ],
@@ -202,9 +231,13 @@ class _SettingsPageState extends State<SettingsPage> {
 }
 
 class _UpdateSettingRow extends StatefulWidget {
-  const _UpdateSettingRow({required this.connectionController});
+  const _UpdateSettingRow({
+    required this.connectionController,
+    required this.enabled,
+  });
 
   final ConnectionController connectionController;
+  final bool enabled;
 
   @override
   State<_UpdateSettingRow> createState() => _UpdateSettingRowState();
@@ -229,9 +262,19 @@ class _UpdateSettingRowState extends State<_UpdateSettingRow> {
     super.dispose();
   }
 
+  @override
+  void didUpdateWidget(covariant _UpdateSettingRow oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.connectionController != widget.connectionController ||
+        oldWidget.enabled != widget.enabled) {
+      _connectionChanged();
+    }
+  }
+
   void _connectionChanged() {
     final connection = widget.connectionController.state;
-    if (connection.phase == ConnectionPhase.connected &&
+    if (widget.enabled &&
+        connection.phase == ConnectionPhase.connected &&
         loadedBaseUrl != connection.baseUrl &&
         !busy) {
       unawaited(_load());
@@ -239,6 +282,7 @@ class _UpdateSettingRowState extends State<_UpdateSettingRow> {
   }
 
   Future<void> _load() async {
+    if (!widget.enabled) return;
     final baseUrl = widget.connectionController.state.baseUrl;
     try {
       final value = await widget.connectionController.fetchUpdateInfo();
@@ -349,6 +393,7 @@ class _UpdateSettingRowState extends State<_UpdateSettingRow> {
       icon: LucideIcons.squareArrowUp,
       title: '更新',
       subtitle: _subtitle(connected),
+      enabled: widget.enabled && connected && !busy,
       trailing: info?.available == true
           ? LucideIcons.download
           : LucideIcons.refreshCw,
@@ -517,6 +562,7 @@ class _SettingRow extends StatelessWidget {
     this.trailing,
     this.customTrailing,
     this.onTap,
+    this.enabled = true,
   });
   final IconData? icon;
   final Color? iconColor;
@@ -525,6 +571,7 @@ class _SettingRow extends StatelessWidget {
   final IconData? trailing;
   final Widget? customTrailing;
   final VoidCallback? onTap;
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
@@ -575,8 +622,9 @@ class _SettingRow extends StatelessWidget {
         ),
       ),
     );
-    if (onTap == null) return content;
-    return InkWell(onTap: onTap, child: content);
+    final displayed = enabled ? content : Opacity(opacity: .45, child: content);
+    if (onTap == null || !enabled) return displayed;
+    return InkWell(onTap: onTap, child: displayed);
   }
 }
 
