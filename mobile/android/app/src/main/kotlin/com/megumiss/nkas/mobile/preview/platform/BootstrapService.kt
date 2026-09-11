@@ -1,0 +1,13 @@
+package com.megumiss.nkas.mobile.preview.platform
+
+import android.content.Context
+
+class BootstrapService(context: Context) {
+    private val bridge = TermuxBridge(context)
+
+    fun start(onResult: (TermuxBridge.CommandResult) -> Unit = {}): Result<Unit> = runCatching { bridge.startBootstrap(onResult) }
+
+    fun readLog(onResult: (TermuxBridge.CommandResult) -> Unit) = bridge.readBootstrapLog(onResult)
+
+    fun checkArtifacts(onResult: (TermuxBridge.CommandResult) -> Unit) = bridge.checkArtifacts(onResult)
+}

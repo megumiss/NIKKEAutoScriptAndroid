@@ -7,12 +7,13 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:nkas_mobile_preview/core/api/update_info.dart';
 import 'package:nkas_mobile_preview/core/widgets/icon_box.dart';
 import 'package:nkas_mobile_preview/core/connection/connection_controller.dart';
+import 'package:nkas_mobile_preview/core/platform/nkas_platform.dart';
 import 'package:nkas_mobile_preview/core/widgets/page_inset.dart';
 import 'package:nkas_mobile_preview/core/widgets/page_subtitle.dart';
 import 'package:nkas_mobile_preview/core/widgets/surface.dart';
 import 'package:nkas_mobile_preview/theme.dart';
 
-class SettingsPage extends StatelessWidget {
+class SettingsPage extends StatefulWidget {
   const SettingsPage({
     required this.themeMode,
     required this.connectionController,
@@ -21,6 +22,8 @@ class SettingsPage extends StatelessWidget {
     required this.onThemeModeChanged,
     required this.onNotificationsChanged,
     required this.onAutoScrollChanged,
+    required this.onOpenStarVerify,
+    required this.onOpenSetup,
     super.key,
   });
   final ThemeMode themeMode;
@@ -30,6 +33,40 @@ class SettingsPage extends StatelessWidget {
   final ValueChanged<ThemeMode> onThemeModeChanged;
   final ValueChanged<bool> onNotificationsChanged;
   final ValueChanged<bool> onAutoScrollChanged;
+  final VoidCallback onOpenStarVerify;
+  final VoidCallback onOpenSetup;
+
+  @override
+  State<SettingsPage> createState() => _SettingsPageState();
+}
+
+class _SettingsPageState extends State<SettingsPage> {
+  StarAuthorization star = const StarAuthorization(authorized: false);
+  StreamSubscription<NkasPlatformEvent>? subscription;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_loadStar());
+    if (NkasPlatform.instance.supported) {
+      subscription = NkasPlatform.instance.events.listen((event) {
+        if (event case StarAuthorizationEvent(:final status)) {
+          if (mounted) setState(() => star = status);
+        }
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    unawaited(subscription?.cancel());
+    super.dispose();
+  }
+
+  Future<void> _loadStar() async {
+    final value = await NkasPlatform.instance.starStatus();
+    if (mounted) setState(() => star = value);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -42,16 +79,18 @@ class SettingsPage extends StatelessWidget {
         _SettingGroup(
           label: '验证与初始化',
           rows: [
-            const _SettingRow(
+            _SettingRow(
               icon: LucideIcons.shieldCheck,
               title: 'STAR 验证',
-              subtitle: '设备身份与授权状态 · 待验证',
+              subtitle: '设备身份与授权状态 · ${star.authorized ? '已验证' : '待验证'}',
+              onTap: widget.onOpenStarVerify,
             ),
             _SettingRow(
               icon: LucideIcons.sparkles,
               iconColor: warning,
               title: '初始化 NKAS',
-              subtitle: '完成后才可以部署实例',
+              subtitle: star.authorized ? '准备 Termux、设备连接和 NKAS 服务' : '请先完成 STAR 验证',
+              onTap: widget.onOpenSetup,
             ),
           ],
         ),
@@ -62,7 +101,7 @@ class SettingsPage extends StatelessWidget {
             _SettingRow(
               icon: LucideIcons.server,
               title: '后端地址',
-              subtitle: connectionController.state.baseUrl,
+              subtitle: widget.connectionController.state.baseUrl,
               trailing: LucideIcons.pencil,
               onTap: () => _editBackendAddress(context),
             ),
@@ -73,7 +112,7 @@ class SettingsPage extends StatelessWidget {
               trailing: LucideIcons.externalLink,
               onTap: () => _openWebUi(context),
             ),
-            _UpdateSettingRow(connectionController: connectionController),
+            _UpdateSettingRow(connectionController: widget.connectionController),
           ],
         ),
         const SizedBox(height: 20),
@@ -82,26 +121,26 @@ class SettingsPage extends StatelessWidget {
           rows: [
             _SettingRow(
               title: '主题',
-              subtitle: '当前：${themeMode == ThemeMode.dark ? '深色' : '浅色'}',
+              subtitle: '当前：${widget.themeMode == ThemeMode.dark ? '深色' : '浅色'}',
               customTrailing: _ThemeSegment(
-                themeMode: themeMode,
-                onChanged: onThemeModeChanged,
+                themeMode: widget.themeMode,
+                onChanged: widget.onThemeModeChanged,
               ),
             ),
             _SettingRow(
               title: '后台通知',
               subtitle: '任务完成或发生错误时提醒',
               customTrailing: Switch(
-                value: notifications,
-                onChanged: onNotificationsChanged,
+                value: widget.notifications,
+                onChanged: widget.onNotificationsChanged,
               ),
             ),
             _SettingRow(
               title: '日志自动滚动',
               subtitle: '新日志到达时滚动到底部',
               customTrailing: Switch(
-                value: autoScroll,
-                onChanged: onAutoScrollChanged,
+                value: widget.autoScroll,
+                onChanged: widget.onAutoScrollChanged,
               ),
             ),
           ],
@@ -124,19 +163,19 @@ class SettingsPage extends StatelessWidget {
     await showDialog<void>(
       context: context,
       builder: (_) =>
-          _BackendAddressDialog(connectionController: connectionController),
+          _BackendAddressDialog(connectionController: widget.connectionController),
     );
   }
 
   Future<void> _openWebUi(BuildContext context) async {
-    if (connectionController.state.phase != ConnectionPhase.connected) {
+    if (widget.connectionController.state.phase != ConnectionPhase.connected) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('请先连接后端')));
       return;
     }
     final opened = await launchUrl(
-      connectionController.webUiUri,
+      widget.connectionController.webUiUri,
       mode: LaunchMode.externalApplication,
     );
     if (!opened && context.mounted) {

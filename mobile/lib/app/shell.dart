@@ -17,9 +17,11 @@ import 'package:nkas_mobile_preview/features/instances/instances_page.dart';
 import 'package:nkas_mobile_preview/features/logs/logs_page.dart';
 import 'package:nkas_mobile_preview/features/overview/overview_page.dart';
 import 'package:nkas_mobile_preview/features/settings/settings_page.dart';
+import 'package:nkas_mobile_preview/features/settings/setup_page.dart';
+import 'package:nkas_mobile_preview/features/settings/star_verify_page.dart';
 import 'package:nkas_mobile_preview/theme.dart';
 
-enum NkasPage { overview, instances, logs, settings }
+enum NkasPage { overview, instances, logs, settings, starVerify, setup }
 
 class NkasShell extends StatefulWidget {
   const NkasShell({
@@ -361,6 +363,8 @@ class _NkasShellState extends State<NkasShell> {
                   _AppHeader(
                     title: _pageTitle,
                     connection: widget.connectionController.state,
+                    showBack: _isSettingsSubpage,
+                    onBack: () => _selectPage(NkasPage.settings),
                   ),
                   // 底部导航悬浮在内容之上（原型 .np-nav：bottom 14 + 阴影 + 毛玻璃），
                   // 各页面底部预留 88 避让区
@@ -368,12 +372,13 @@ class _NkasShellState extends State<NkasShell> {
                     child: Stack(
                       children: [
                         Positioned.fill(child: _pageBody()),
-                        Positioned(
-                          left: 0,
-                          right: 0,
-                          bottom: 14,
-                          child: _BottomNav(page: page, onSelect: _selectPage),
-                        ),
+                        if (!_isSettingsSubpage)
+                          Positioned(
+                            left: 0,
+                            right: 0,
+                            bottom: 14,
+                            child: _BottomNav(page: page, onSelect: _selectPage),
+                          ),
                       ],
                     ),
                   ),
@@ -391,7 +396,12 @@ class _NkasShellState extends State<NkasShell> {
     NkasPage.instances => '实例',
     NkasPage.logs => '日志',
     NkasPage.settings => '设置',
+    NkasPage.starVerify => 'STAR 验证',
+    NkasPage.setup => '初始化 NKAS',
   };
+
+  bool get _isSettingsSubpage =>
+      page == NkasPage.starVerify || page == NkasPage.setup;
 
   Widget _pageBody() => switch (page) {
     NkasPage.overview => OverviewPage(
@@ -463,6 +473,14 @@ class _NkasShellState extends State<NkasShell> {
       onThemeModeChanged: widget.onThemeModeChanged,
       onNotificationsChanged: (value) => setState(() => notifications = value),
       onAutoScrollChanged: (value) => setState(() => autoScroll = value),
+      onOpenStarVerify: () => _selectPage(NkasPage.starVerify),
+      onOpenSetup: () => _selectPage(NkasPage.setup),
+    ),
+    NkasPage.starVerify => StarVerifyPage(
+      onOpenSetup: () => _selectPage(NkasPage.setup),
+    ),
+    NkasPage.setup => NkasSetupPage(
+      onOpenStar: () => _selectPage(NkasPage.starVerify),
     ),
   };
 
@@ -506,9 +524,16 @@ class _NkasShellState extends State<NkasShell> {
 }
 
 class _AppHeader extends StatelessWidget {
-  const _AppHeader({required this.title, required this.connection});
+  const _AppHeader({
+    required this.title,
+    required this.connection,
+    this.showBack = false,
+    this.onBack,
+  });
   final String title;
   final BackendConnectionState connection;
+  final bool showBack;
+  final VoidCallback? onBack;
 
   @override
   Widget build(BuildContext context) {
@@ -526,6 +551,16 @@ class _AppHeader extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(18, 8, 18, 0),
         child: Row(
           children: [
+            if (showBack) ...[
+              IconButton(
+                onPressed: onBack,
+                icon: const Icon(LucideIcons.arrowLeft, size: 20),
+                tooltip: '返回设置',
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints.tightFor(width: 36, height: 36),
+              ),
+              const SizedBox(width: 4),
+            ],
             Expanded(child: Text(title, style: theme.textTheme.h2)),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
