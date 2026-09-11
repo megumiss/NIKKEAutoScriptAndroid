@@ -52,6 +52,7 @@ class InstancesPage extends StatelessWidget {
     required this.onOpenControl,
     required this.liveLogUri,
     required this.onOpenTask,
+    required this.initialTaskKey,
     super.key,
   });
   final String selected;
@@ -81,6 +82,7 @@ class InstancesPage extends StatelessWidget {
   final VoidCallback onOpenControl;
   final Uri liveLogUri;
   final ValueChanged<String> onOpenTask;
+  final String? initialTaskKey;
 
   @override
   Widget build(BuildContext context) {
@@ -184,6 +186,7 @@ class InstancesPage extends StatelessWidget {
             patchConfig: patchConfig,
             liveLogUri: liveLogUri,
             onOpenTask: onOpenTask,
+            initialTaskKey: initialTaskKey,
           ),
         ),
       ],
@@ -331,6 +334,7 @@ class _InstanceBody extends StatelessWidget {
     required this.patchConfig,
     required this.liveLogUri,
     required this.onOpenTask,
+    required this.initialTaskKey,
   });
   final InstanceTab tab;
   final QueueInfo? queue;
@@ -350,6 +354,7 @@ class _InstanceBody extends StatelessWidget {
   final Future<void> Function(String, Object?) patchConfig;
   final Uri liveLogUri;
   final ValueChanged<String> onOpenTask;
+  final String? initialTaskKey;
 
   @override
   Widget build(BuildContext context) {
@@ -400,6 +405,7 @@ class _InstanceBody extends StatelessWidget {
             error: schemaError,
             onReload: loadSchema,
             onPatch: patchConfig,
+            initialTaskKey: initialTaskKey,
           ),
         ],
         InstanceTab.schedule => [
@@ -577,6 +583,7 @@ class _SchemaPanel extends StatefulWidget {
     required this.error,
     required this.onReload,
     required this.onPatch,
+    required this.initialTaskKey,
   });
 
   final SchemaInfo? schema;
@@ -584,6 +591,7 @@ class _SchemaPanel extends StatefulWidget {
   final String? error;
   final Future<void> Function() onReload;
   final Future<void> Function(String, Object?) onPatch;
+  final String? initialTaskKey;
 
   @override
   State<_SchemaPanel> createState() => _SchemaPanelState();
@@ -592,6 +600,20 @@ class _SchemaPanel extends StatefulWidget {
 class _SchemaPanelState extends State<_SchemaPanel> {
   String? taskKey;
   String? savingKey;
+
+  @override
+  void initState() {
+    super.initState();
+    taskKey = widget.initialTaskKey;
+  }
+
+  @override
+  void didUpdateWidget(covariant _SchemaPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.initialTaskKey != widget.initialTaskKey) {
+      taskKey = widget.initialTaskKey;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1419,7 +1441,7 @@ class _LiveLogPanelState extends State<_LiveLogPanel> {
     });
     final next = InstanceLogSocket(uri: widget.uri);
     socket = next;
-    await next.connect(
+    final connectedNow = await next.connect(
       onLog: _receive,
       onError: (_) {
         if (mounted) {
@@ -1435,7 +1457,9 @@ class _LiveLogPanelState extends State<_LiveLogPanel> {
         _scheduleReconnect(next);
       },
     );
-    if (mounted && socket == next) setState(() => connected = true);
+    if (mounted && socket == next && connectedNow) {
+      setState(() => connected = true);
+    }
   }
 
   void _scheduleReconnect(InstanceLogSocket source) {

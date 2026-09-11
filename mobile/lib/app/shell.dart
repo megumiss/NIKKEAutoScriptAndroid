@@ -83,6 +83,7 @@ class _NkasShellState extends State<NkasShell> {
   SchemaInfo? schema;
   bool loadingSchema = false;
   String? schemaError;
+  String? taskKey;
 
   @override
   void initState() {
@@ -470,6 +471,7 @@ class _NkasShellState extends State<NkasShell> {
           instance = value;
           instanceTab = InstanceTab.overview;
           page = NkasPage.instances;
+          taskKey = null;
           queueError = null;
           schema = null;
           schemaError = null;
@@ -519,9 +521,13 @@ class _NkasShellState extends State<NkasShell> {
         '/ws/${Uri.encodeComponent(instance)}/log',
       ),
       onOpenTask: (value) {
-        setState(() => instanceTab = InstanceTab.tasks);
+        setState(() {
+          instanceTab = InstanceTab.tasks;
+          taskKey = value;
+        });
         if (schema == null) unawaited(_loadSchema(instance));
       },
+      initialTaskKey: taskKey,
       onSelectInstance: (value) {
         setState(() {
           instance = value;
@@ -529,6 +535,7 @@ class _NkasShellState extends State<NkasShell> {
           queueError = null;
           schema = null;
           schemaError = null;
+          taskKey = null;
         });
         unawaited(_loadQueue(value));
       },

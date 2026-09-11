@@ -28,7 +28,7 @@ class InstanceLogSocket {
   WebSocketChannel? _channel;
   StreamSubscription<Object?>? _subscription;
 
-  Future<void> connect({
+  Future<bool> connect({
     required void Function(InstanceLogEvent event) onLog,
     void Function(Object error)? onError,
     void Function()? onClosed,
@@ -41,7 +41,7 @@ class InstanceLogSocket {
     } catch (error) {
       await close();
       onError?.call(error);
-      return;
+      return false;
     }
     _subscription = channel.stream.listen(
       (message) {
@@ -57,6 +57,7 @@ class InstanceLogSocket {
       onError: onError,
       onDone: onClosed,
     );
+    return true;
   }
 
   Future<void> close() async {
