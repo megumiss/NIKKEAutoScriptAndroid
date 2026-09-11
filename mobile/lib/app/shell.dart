@@ -66,7 +66,7 @@ class _NkasShellState extends State<NkasShell> {
       ? NkasPage.values.asNameMap()[Uri.base.queryParameters['page']] ??
             NkasPage.overview
       : NkasPage.overview;
-  InstanceTab instanceTab = InstanceTab.overview;
+  InstanceLayer instanceLayer = InstanceLayer.list;
   String instance = '主账号';
   bool notifications = true;
   final instanceStates = <String, bool>{
@@ -325,6 +325,18 @@ class _NkasShellState extends State<NkasShell> {
     }
   }
 
+  /// 列表层为非选中实例拉一次队列快照：不开队列 WS，避免挤掉选中实例的 socket
+  Future<void> _loadQueueSnapshot(String name) async {
+    if (!_starAccessGranted) return;
+    try {
+      final result = await widget.connectionController.fetchQueue(name);
+      if (!mounted || !_starAccessGranted) return;
+      setState(() => queues[name] = result);
+    } catch (_) {
+      // 列表卡片计数失败静默：卡片不显示计数行
+    }
+  }
+
   Future<void> _loadCalendar({bool refresh = false}) async {
     if (!_starAccessGranted) return;
     setState(() {
@@ -495,7 +507,7 @@ class _NkasShellState extends State<NkasShell> {
       onSelectInstance: (value) {
         setState(() {
           instance = value;
-          instanceTab = InstanceTab.overview;
+          instanceLayer = InstanceLayer.dashboard;
           page = NkasPage.instances;
           taskKey = null;
           queueError = null;
@@ -517,19 +529,24 @@ class _NkasShellState extends State<NkasShell> {
       toggleLoading: togglingInstance,
       error: instancesError,
       avatarUrl: _avatarUrl,
-      queue: queues[instance],
+      queues: queues,
       queueLoading: loadingQueue,
       queueError: queueError,
       selected: instance,
       running: instanceStates[instance] ?? false,
-      tab: instanceTab,
-      onTabChanged: (value) {
-        setState(() => instanceTab = value);
-        if (value == InstanceTab.tasks && schema == null) {
+      layer: instanceLayer,
+      onLayerChanged: (value) {
+        setState(() => instanceLayer = value);
+        if (value == InstanceLayer.tasks && schema == null) {
           unawaited(_loadSchema(instance));
         }
       },
-      onToggle: () => unawaited(_toggleSelectedInstance()),
+      onToggle: () => unawaited(_toggleInstance(instance)),
+      onToggleInstance: (name) => unawaited(_toggleInstance(name)),
+      loadQueueSnapshot: _loadQueueSnapshot,
+      fetchScreenshot: (name) =>
+          widget.connectionController.fetchScreenshot(name),
+      onOpenScreen: () => _selectPage(NkasPage.screen),
       loadSchedule: () => widget.connectionController.fetchSchedule(instance),
       saveSchedule: (changes) =>
           widget.connectionController.saveSchedule(instance, changes),
@@ -545,7 +562,7 @@ class _NkasShellState extends State<NkasShell> {
       ),
       onOpenTask: (value) {
         setState(() {
-          instanceTab = InstanceTab.tasks;
+          instanceLayer = InstanceLayer.tasks;
           taskKey = value;
         });
         if (schema == null) unawaited(_loadSchema(instance));
@@ -603,7 +620,7 @@ class _NkasShellState extends State<NkasShell> {
   void _switchInstance(String value) {
     setState(() {
       instance = value;
-      instanceTab = InstanceTab.overview;
+      instanceLayer = InstanceLayer.dashboard;
       queueError = null;
       schema = null;
       schemaError = null;
@@ -656,16 +673,20 @@ class _NkasShellState extends State<NkasShell> {
     }
   }
 
-  Future<void> _toggleSelectedInstance() async {
-    final selected = selectedInstance;
-    if (!_starAccessGranted || selected == null || togglingInstance) return;
-    final nextRunning = selected.state != 1;
+  Future<void> _toggleInstance(String name) async {
+    if (!_starAccessGranted || togglingInstance) return;
+    InstanceInfo? target;
+    for (final item in instances) {
+      if (item.name == name) {
+        target = item;
+        break;
+      }
+    }
+    if (target == null) return;
+    final nextRunning = target.state != 1;
     setState(() => togglingInstance = true);
     try {
-      await widget.connectionController.setInstanceRunning(
-        selected.name,
-        nextRunning,
-      );
+      await widget.connectionController.setInstanceRunning(name, nextRunning);
       if (!mounted) return;
       await _loadInstances();
     } catch (error) {

@@ -277,6 +277,27 @@ ConnectionController _connectedController({_MemoryBackendSettings? settings}) {
     if (request.url.path.endsWith('/screenshot')) {
       return http.Response('{}', 404);
     }
+    if (request.url.path.endsWith('/queue')) {
+      return http.Response.bytes(
+        utf8.encode(
+          jsonEncode({
+            'running': [
+              {'command': 'Harvest', 'name_i18n': '收获', 'next_run': ''},
+            ],
+            'pending': [
+              {
+                'command': 'Daily',
+                'name_i18n': '每日任务',
+                'next_run': '2026-09-12 04:00:00',
+              },
+            ],
+            'waiting': [],
+          }),
+        ),
+        200,
+        headers: {'content-type': 'application/json; charset=utf-8'},
+      );
+    }
     if (request.url.path.endsWith('/schedule')) {
       return http.Response.bytes(
         utf8.encode(
@@ -445,6 +466,10 @@ void main() {
 
     await tester.tap(find.byTooltip('实例'));
     await tester.pumpAndSettle();
+    await tester.tap(find.text('nkas'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('任务配置'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('任务配置'));
     await tester.pumpAndSettle();
 
@@ -462,11 +487,58 @@ void main() {
 
     await tester.tap(find.byTooltip('实例'));
     await tester.pumpAndSettle();
+    await tester.tap(find.text('nkas'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('实时日志'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('实时日志'));
     await tester.pumpAndSettle();
 
-    expect(find.text('实时日志'), findsOneWidget);
+    // 返回条标题 + 面板头部各一处
+    expect(find.text('实时日志'), findsWidgets);
     expect(find.text('每日任务：开始执行前哨基地'), findsNothing);
+  });
+
+  testWidgets('instances list layer opens the dashboard layer', (tester) async {
+    await _pumpTestApp(tester);
+
+    await tester.tap(find.byTooltip('实例'));
+    await tester.pumpAndSettle();
+
+    // 列表层：两张实例卡 + 任务摘要 + 队列计数
+    expect(find.text('选择实例查看详情'), findsOneWidget);
+    expect(find.text('nkas'), findsOneWidget);
+    expect(find.text('nkas2'), findsOneWidget);
+    expect(find.text('下一任务 · 重启设置'), findsOneWidget);
+    expect(find.text('正在执行 · 收获'), findsOneWidget);
+    expect(find.text('运行 1'), findsNWidgets(2));
+    expect(find.text('队列 1'), findsNWidgets(2));
+    expect(find.text('等待 0'), findsNWidgets(2));
+
+    await tester.tap(find.text('nkas'));
+    await tester.pumpAndSettle();
+
+    // 详情层：头部 + 队列摘要 + 画面缩略 + 管理入口
+    expect(find.text('管理实例任务、调度、画面和日志'), findsOneWidget);
+    expect(find.text('运行中 1'), findsOneWidget);
+    expect(find.text('队列中 1'), findsOneWidget);
+    expect(find.text('等待中 0'), findsOneWidget);
+    expect(find.text('收获'), findsOneWidget);
+    expect(find.text('每日任务'), findsOneWidget);
+    expect(find.text('实时画面'), findsOneWidget);
+    expect(find.text('暂无画面'), findsOneWidget);
+    expect(find.text('任务配置'), findsOneWidget);
+    expect(find.text('调度设置'), findsOneWidget);
+    expect(find.text('实时日志'), findsOneWidget);
+
+    // 队列行点击跳任务配置层
+    await tester.tap(find.text('每日任务'));
+    await tester.pumpAndSettle();
+    expect(find.text('NKAS设置'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('返回实例'));
+    await tester.pumpAndSettle();
+    expect(find.text('实时画面'), findsOneWidget);
   });
 
   testWidgets('screen page shows the instance bar and empty state', (
@@ -524,20 +596,28 @@ void main() {
         expect(find.text('活动日历'), findsOneWidget);
       });
 
-      testWidgets('instances page, every tab', (tester) async {
+      testWidgets('instances list and detail layers', (tester) async {
         await pumpAtSize(tester);
 
         await tester.tap(find.byTooltip('实例'));
         await tester.pumpAndSettle();
-        expect(find.text('切换实例并管理任务、调度和日志'), findsOneWidget);
+        expect(find.text('选择实例查看详情'), findsOneWidget);
+        expect(find.text('nkas'), findsOneWidget);
+        expect(find.text('nkas2'), findsOneWidget);
 
-        for (final tab in ['任务配置', '调度设置', '实时日志', '概览']) {
-          await tester.ensureVisible(find.text(tab));
+        await tester.tap(find.text('nkas'));
+        await tester.pumpAndSettle();
+        expect(find.text('管理实例任务、调度、画面和日志'), findsOneWidget);
+
+        for (final entry in ['任务配置', '调度设置', '实时日志']) {
+          await tester.ensureVisible(find.text(entry));
           await tester.pumpAndSettle();
-          await tester.tap(find.text(tab));
+          await tester.tap(find.text(entry));
+          await tester.pumpAndSettle();
+          await tester.tap(find.byTooltip('返回实例'));
           await tester.pumpAndSettle();
         }
-        expect(find.text('概览'), findsOneWidget);
+        expect(find.text('实时画面'), findsOneWidget);
       });
 
       testWidgets('screen page', (tester) async {
