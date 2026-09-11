@@ -11,10 +11,6 @@ on:
           - debug
           - release
         default: debug
-  push:
-    branches:
-      - main
-
 permissions:
   contents: read
 

@@ -8,10 +8,6 @@ on:
         required: false
         default: false
         type: boolean
-  push:
-    tags:
-      - 'v*'
-
 permissions:
   contents: read
 
