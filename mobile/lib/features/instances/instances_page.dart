@@ -359,92 +359,105 @@ class _InstanceBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final inset = nkasPageInset(context);
-    return ListView(
-      padding: EdgeInsets.fromLTRB(inset, 8, inset, 88),
-      children: switch (tab) {
-        InstanceTab.overview => [
-          if (loading)
-            const Center(
-              child: Padding(
-                padding: EdgeInsets.only(top: 36),
-                child: CircularProgressIndicator(),
-              ),
-            )
-          else if (queue == null)
-            Padding(
-              padding: const EdgeInsets.only(top: 28),
-              child: Text(error == null ? '暂无队列数据' : '队列加载失败'),
-            )
-          else if (queue!.running.isEmpty &&
-              queue!.pending.isEmpty &&
-              queue!.waiting.isEmpty)
-            Padding(
-              padding: const EdgeInsets.only(top: 28),
-              child: Text('暂无任务', style: ShadTheme.of(context).textTheme.muted),
-            )
-          else ...[
-            if (queue!.running.isNotEmpty) ...[
-              _QueueGroup.fromItems(
-                label: '运行中',
-                colorKind: 0,
-                items: queue!.running,
-                onTap: onOpenTask,
-              ),
-            ],
-            if (queue!.pending.isNotEmpty) ...[
-              if (queue!.running.isNotEmpty) const SizedBox(height: 16),
-              _QueueGroup.fromItems(
-                label: '队列中',
-                colorKind: 1,
-                items: queue!.pending,
-                onTap: onOpenTask,
-              ),
-            ],
-            if (queue!.waiting.isNotEmpty) ...[
-              if (queue!.running.isNotEmpty || queue!.pending.isNotEmpty)
-                const SizedBox(height: 16),
-              _QueueGroup.fromItems(
-                label: '等待中',
-                colorKind: 2,
-                items: queue!.waiting,
-                onTap: onOpenTask,
-              ),
-            ],
+    final children = switch (tab) {
+      InstanceTab.overview => [
+        if (loading)
+          const Center(
+            child: Padding(
+              padding: EdgeInsets.only(top: 36),
+              child: CircularProgressIndicator(),
+            ),
+          )
+        else if (queue == null)
+          Padding(
+            padding: const EdgeInsets.only(top: 28),
+            child: Text(error == null ? '暂无队列数据' : '队列加载失败'),
+          )
+        else if (queue!.running.isEmpty &&
+            queue!.pending.isEmpty &&
+            queue!.waiting.isEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 28),
+            child: Text('暂无任务', style: ShadTheme.of(context).textTheme.muted),
+          )
+        else ...[
+          if (queue!.running.isNotEmpty) ...[
+            _QueueGroup.fromItems(
+              label: '运行中',
+              colorKind: 0,
+              items: queue!.running,
+              onTap: onOpenTask,
+            ),
+          ],
+          if (queue!.pending.isNotEmpty) ...[
+            if (queue!.running.isNotEmpty) const SizedBox(height: 16),
+            _QueueGroup.fromItems(
+              label: '队列中',
+              colorKind: 1,
+              items: queue!.pending,
+              onTap: onOpenTask,
+            ),
+          ],
+          if (queue!.waiting.isNotEmpty) ...[
+            if (queue!.running.isNotEmpty || queue!.pending.isNotEmpty)
+              const SizedBox(height: 16),
+            _QueueGroup.fromItems(
+              label: '等待中',
+              colorKind: 2,
+              items: queue!.waiting,
+              onTap: onOpenTask,
+            ),
           ],
         ],
-        InstanceTab.tasks => [
-          _SchemaPanel(
-            schema: schema,
-            loading: schemaLoading,
-            error: schemaError,
-            onReload: loadSchema,
-            onPatch: patchConfig,
-            initialTaskKey: initialTaskKey,
-          ),
-        ],
-        InstanceTab.schedule => [
-          _SchedulePanel(
-            key: ValueKey(selected),
-            loadSchedule: loadSchedule,
-            saveSchedule: saveSchedule,
-            resetSchedule: resetSchedule,
-          ),
-        ],
-        InstanceTab.liveLogs => [
-          _LiveLogPanel(
+      ],
+      InstanceTab.tasks => [
+        _SchemaPanel(
+          schema: schema,
+          loading: schemaLoading,
+          error: schemaError,
+          onReload: loadSchema,
+          onPatch: patchConfig,
+          initialTaskKey: initialTaskKey,
+        ),
+      ],
+      InstanceTab.schedule => [
+        _SchedulePanel(
+          key: ValueKey(selected),
+          loadSchedule: loadSchedule,
+          saveSchedule: saveSchedule,
+          resetSchedule: resetSchedule,
+        ),
+      ],
+      InstanceTab.liveLogs => [const SizedBox.shrink()],
+      InstanceTab.screen => [const SizedBox.shrink()],
+    };
+    if (tab == InstanceTab.liveLogs) {
+      return Padding(
+        padding: EdgeInsets.fromLTRB(inset, 8, inset, 78),
+        child: SizedBox.expand(
+          child: _LiveLogPanel(
             key: ValueKey(selected),
             running: running,
             uri: liveLogUri,
           ),
-        ],
-        InstanceTab.screen => [
-          _ScreenPanel(
+        ),
+      );
+    }
+    if (tab == InstanceTab.screen) {
+      return Padding(
+        padding: EdgeInsets.fromLTRB(inset, 8, inset, 78),
+        child: SizedBox.expand(
+          child: _ScreenPanel(
             key: ValueKey(selected),
             loadScreenshot: loadScreenshot,
             onOpenControl: onOpenControl,
           ),
-        ],
-      },
+        ),
+      );
+    }
+    return ListView(
+      padding: EdgeInsets.fromLTRB(inset, 8, inset, 88),
+      children: children,
     );
   }
 }
@@ -1655,8 +1668,7 @@ class _LiveLogPanelState extends State<_LiveLogPanel> {
               ],
             ),
           ),
-          SizedBox(
-            height: 420,
+          Expanded(
             child: Container(
               width: double.infinity,
               color: scheme.logBodyBg,
@@ -1821,81 +1833,71 @@ class _ScreenPanelState extends State<_ScreenPanel> {
     return Surface(
       padding: EdgeInsets.zero,
       color: NkasColors.screenBg,
-      child: Column(
+      child: Stack(
+        fit: StackFit.expand,
         children: [
-          AspectRatio(
-            aspectRatio: 9 / 16,
-            child: Stack(
-              children: [
-                Positioned.fill(
-                  child: frame == null
-                      ? Center(
-                          child: Text(
-                            error == null
-                                ? (loading ? '正在获取画面…' : '暂无画面')
-                                : '画面加载失败',
-                            style: const TextStyle(
-                              color: NkasColors.screenText,
-                            ),
-                          ),
-                        )
-                      : Image.memory(
-                          frame!.bytes,
-                          fit: BoxFit.contain,
-                          gaplessPlayback: true,
-                        ),
-                ),
-                Positioned(
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  child: Container(
-                    constraints: const BoxConstraints(minHeight: 58),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 11,
-                      vertical: 9,
+          Center(
+            child: AspectRatio(
+              aspectRatio: 9 / 16,
+              child: frame == null
+                  ? Center(
+                      child: Text(
+                        error == null
+                            ? (loading ? '正在获取画面…' : '暂无画面')
+                            : '画面加载失败',
+                        style: const TextStyle(color: NkasColors.screenText),
+                      ),
+                    )
+                  : Image.memory(
+                      frame!.bytes,
+                      fit: BoxFit.contain,
+                      gaplessPlayback: true,
                     ),
-                    color: const Color(0xE0101D25),
-                    child: Row(
-                      children: [
-                        Text(
-                          frame == null
-                              ? '未连接'
-                              : _captureLabel(frame!.capturedAt),
-                          style: const TextStyle(
-                            color: Color(0xFFD6E3EA),
-                            fontSize: 11,
-                          ),
-                        ),
-                        const Spacer(),
-                        TextButton(
-                          onPressed: loading
-                              ? null
-                              : frame == null
-                              ? _load
-                              : widget.onOpenControl,
-                          style: TextButton.styleFrom(
-                            minimumSize: const Size(0, 30),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 5,
-                            ),
-                            backgroundColor: const Color(0xFF2E4653),
-                            foregroundColor: const Color(0xFFD6E3EA),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(7),
-                            ),
-                          ),
-                          child: Text(
-                            controlLabel,
-                            style: const TextStyle(fontSize: 11),
-                          ),
-                        ),
-                      ],
+            ),
+          ),
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: Container(
+              constraints: const BoxConstraints(minHeight: 58),
+              padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
+              color: const Color(0xE0101D25),
+              child: Row(
+                children: [
+                  Text(
+                    frame == null ? '未连接' : _captureLabel(frame!.capturedAt),
+                    style: const TextStyle(
+                      color: Color(0xFFD6E3EA),
+                      fontSize: 11,
                     ),
                   ),
-                ),
-              ],
+                  const Spacer(),
+                  TextButton(
+                    onPressed: loading
+                        ? null
+                        : frame == null
+                        ? _load
+                        : widget.onOpenControl,
+                    style: TextButton.styleFrom(
+                      minimumSize: const Size(0, 30),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 5,
+                      ),
+                      backgroundColor: const Color(0xFF2E4653),
+                      foregroundColor: const Color(0xFFD6E3EA),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(7),
+                      ),
+                    ),
+                    child: Text(
+                      controlLabel,
+                      style: const TextStyle(fontSize: 11),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ],
