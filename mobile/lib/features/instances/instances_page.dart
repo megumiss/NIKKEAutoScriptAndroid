@@ -1528,23 +1528,23 @@ class _LiveLogPanelState extends State<_LiveLogPanel> {
 
   Iterable<_LiveLogLine> _parseFragment(String fragment) sync* {
     final lineMatch = RegExp(
-      r'<div class="log-line([^>]*)">([\\s\\S]*?)</div>(?:<div class="log-traceback">([\\s\\S]*?)</div>)?',
+      r'<div class="log-line([^>]*)">([\s\S]*?)</div>(?:<div class="log-traceback">([\s\S]*?)</div>)?',
     ).firstMatch(fragment);
     final content = lineMatch?.group(2) ?? fragment;
     final classes = lineMatch?.group(1) ?? '';
     final timestamp = _text(
       RegExp(
-        r'<span class="ts">([\\s\\S]*?)</span>',
+        r'<span class="ts">([\s\S]*?)</span>',
       ).firstMatch(content)?.group(1),
     );
     final levelText = _text(
       RegExp(
-        r'<span class="lv-chip[^>]*>([\\s\\S]*?)</span>',
+        r'<span class="lv-chip[^>]*>([\s\S]*?)</span>',
       ).firstMatch(content)?.group(1),
     );
     final message = _text(
       RegExp(
-        r'<span class="log-message[^>]*>([\\s\\S]*?)</span>',
+        r'<span class="log-message[^>]*>([\s\S]*?)</span>',
       ).firstMatch(content)?.group(1),
     ).trim();
     final fallback = _text(content).trim();
@@ -1573,7 +1573,7 @@ class _LiveLogPanelState extends State<_LiveLogPanel> {
   String _text(String? value) {
     if (value == null) return '';
     return value
-        .replaceAll(RegExp(r'<br\\s*/?>'), '\\n')
+        .replaceAll(RegExp(r'<br\s*/?>'), '\n')
         .replaceAll(RegExp(r'<[^>]+>'), '')
         .replaceAll('&amp;', '&')
         .replaceAll('&lt;', '<')
