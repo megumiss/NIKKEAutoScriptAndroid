@@ -18,6 +18,7 @@ import 'package:nkas_mobile/core/platform/runtime_platform.dart';
 import 'package:nkas_mobile/core/widgets/buttons.dart';
 import 'package:nkas_mobile/core/widgets/status.dart';
 import 'package:nkas_mobile/features/instances/instances_page.dart';
+import 'package:nkas_mobile/features/screen/screen_page.dart';
 import 'package:nkas_mobile/features/logs/logs_page.dart';
 import 'package:nkas_mobile/features/deploy/deploy_page.dart';
 import 'package:nkas_mobile/features/overview/overview_page.dart';
@@ -31,6 +32,7 @@ import 'package:nkas_mobile/theme.dart';
 enum NkasPage {
   overview,
   instances,
+  screen,
   logs,
   deploy,
   settings,
@@ -460,6 +462,7 @@ class _NkasShellState extends State<NkasShell> {
   String get _pageTitle => switch (page) {
     NkasPage.overview => '总览',
     NkasPage.instances => '实例',
+    NkasPage.screen => '画面',
     NkasPage.logs => '日志',
     NkasPage.deploy => '部署',
     NkasPage.settings => '设置',
@@ -527,8 +530,6 @@ class _NkasShellState extends State<NkasShell> {
         }
       },
       onToggle: () => unawaited(_toggleSelectedInstance()),
-      loadScreenshot: () =>
-          widget.connectionController.fetchScreenshot(instance),
       loadSchedule: () => widget.connectionController.fetchSchedule(instance),
       saveSchedule: (changes) =>
           widget.connectionController.saveSchedule(instance, changes),
@@ -539,7 +540,6 @@ class _NkasShellState extends State<NkasShell> {
       loadSchema: () => _loadSchema(instance),
       patchConfig: (key, value) =>
           widget.connectionController.patchConfig(instance, key, value),
-      onOpenControl: _openWebUi,
       liveLogUri: widget.connectionController.websocketUri(
         '/ws/${Uri.encodeComponent(instance)}/log',
       ),
@@ -551,17 +551,20 @@ class _NkasShellState extends State<NkasShell> {
         if (schema == null) unawaited(_loadSchema(instance));
       },
       initialTaskKey: taskKey,
-      onSelectInstance: (value) {
-        setState(() {
-          instance = value;
-          instanceTab = InstanceTab.overview;
-          queueError = null;
-          schema = null;
-          schemaError = null;
-          taskKey = null;
-        });
-        unawaited(_loadQueue(value));
-      },
+      onSelectInstance: _switchInstance,
+    ),
+    NkasPage.screen => ScreenPage(
+      instances: instances,
+      selected: instance,
+      selectedInstance: selectedInstance,
+      avatarUrl: _avatarUrl,
+      loading: loadingInstances,
+      error: instancesError,
+      onSelectInstance: _switchInstance,
+      loadScreenshot: () =>
+          widget.connectionController.fetchScreenshot(instance),
+      onOpenControl: _openWebUi,
+      accessGranted: _starAccessGranted,
     ),
     NkasPage.logs => LogsPage(
       connectionController: widget.connectionController,
@@ -596,6 +599,18 @@ class _NkasShellState extends State<NkasShell> {
       connectionController: widget.connectionController,
     ),
   };
+
+  void _switchInstance(String value) {
+    setState(() {
+      instance = value;
+      instanceTab = InstanceTab.overview;
+      queueError = null;
+      schema = null;
+      schemaError = null;
+      taskKey = null;
+    });
+    unawaited(_loadQueue(value));
+  }
 
   void _selectPage(NkasPage value) {
     setState(() => page = value);
@@ -745,7 +760,7 @@ class _BottomNav extends StatelessWidget {
     return Center(
       // 阴影必须在 ClipRRect 外层，否则会被圆角裁掉；BackdropFilter 只裁毛玻璃层
       child: Container(
-        width: 296,
+        width: 344,
         height: 58,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(999),
@@ -775,6 +790,12 @@ class _BottomNav extends StatelessWidget {
                     label: '实例',
                     selected: page == NkasPage.instances,
                     onTap: () => onSelect(NkasPage.instances),
+                  ),
+                  _NavItem(
+                    icon: LucideIcons.monitorPlay,
+                    label: '画面',
+                    selected: page == NkasPage.screen,
+                    onTap: () => onSelect(NkasPage.screen),
                   ),
                   _NavItem(
                     icon: LucideIcons.scrollText,

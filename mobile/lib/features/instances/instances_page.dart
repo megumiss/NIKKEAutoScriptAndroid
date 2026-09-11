@@ -5,7 +5,6 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 
 import 'package:nkas_mobile/core/api/instance_info.dart';
 import 'package:nkas_mobile/core/api/queue_info.dart';
-import 'package:nkas_mobile/core/api/screenshot_frame.dart';
 import 'package:nkas_mobile/core/api/schedule_info.dart';
 import 'package:nkas_mobile/core/api/schema_info.dart';
 import 'package:nkas_mobile/core/connection/instance_log_socket.dart';
@@ -21,7 +20,7 @@ import 'package:nkas_mobile/core/widgets/surface.dart';
 import 'package:nkas_mobile/core/widgets/tag.dart';
 import 'package:nkas_mobile/theme.dart';
 
-enum InstanceTab { overview, tasks, schedule, liveLogs, screen }
+enum InstanceTab { overview, tasks, schedule, liveLogs }
 
 class InstancesPage extends StatelessWidget {
   const InstancesPage({
@@ -39,7 +38,6 @@ class InstancesPage extends StatelessWidget {
     required this.tab,
     required this.onTabChanged,
     required this.onToggle,
-    required this.loadScreenshot,
     required this.loadSchedule,
     required this.saveSchedule,
     required this.resetSchedule,
@@ -49,7 +47,6 @@ class InstancesPage extends StatelessWidget {
     required this.loadSchema,
     required this.patchConfig,
     required this.onSelectInstance,
-    required this.onOpenControl,
     required this.liveLogUri,
     required this.onOpenTask,
     required this.initialTaskKey,
@@ -69,7 +66,6 @@ class InstancesPage extends StatelessWidget {
   final InstanceTab tab;
   final ValueChanged<InstanceTab> onTabChanged;
   final VoidCallback onToggle;
-  final Future<ScreenshotFrame?> Function() loadScreenshot;
   final Future<List<ScheduleTask>> Function() loadSchedule;
   final Future<void> Function(List<Map<String, dynamic>>) saveSchedule;
   final Future<void> Function() resetSchedule;
@@ -79,7 +75,6 @@ class InstancesPage extends StatelessWidget {
   final Future<void> Function() loadSchema;
   final Future<void> Function(String, Object?) patchConfig;
   final ValueChanged<String> onSelectInstance;
-  final VoidCallback onOpenControl;
   final Uri liveLogUri;
   final ValueChanged<String> onOpenTask;
   final String? initialTaskKey;
@@ -100,7 +95,7 @@ class InstancesPage extends StatelessWidget {
       children: [
         Padding(
           padding: EdgeInsets.fromLTRB(inset, 5, inset, 0),
-          child: const PageSubtitle('切换实例并管理任务、调度和画面'),
+          child: const PageSubtitle('切换实例并管理任务、调度和日志'),
         ),
         Padding(
           padding: EdgeInsets.symmetric(horizontal: inset),
@@ -174,8 +169,6 @@ class InstancesPage extends StatelessWidget {
             error: queueError,
             selected: selected,
             running: running,
-            loadScreenshot: loadScreenshot,
-            onOpenControl: onOpenControl,
             loadSchedule: loadSchedule,
             saveSchedule: saveSchedule,
             resetSchedule: resetSchedule,
@@ -258,7 +251,6 @@ class _InstanceTabs extends StatelessWidget {
       (InstanceTab.tasks, '任务配置'),
       (InstanceTab.schedule, '调度设置'),
       (InstanceTab.liveLogs, '实时日志'),
-      (InstanceTab.screen, '画面'),
     ];
     return Padding(
       padding: const EdgeInsets.only(top: 17),
@@ -322,8 +314,6 @@ class _InstanceBody extends StatelessWidget {
     required this.error,
     required this.selected,
     required this.running,
-    required this.loadScreenshot,
-    required this.onOpenControl,
     required this.loadSchedule,
     required this.saveSchedule,
     required this.resetSchedule,
@@ -342,8 +332,6 @@ class _InstanceBody extends StatelessWidget {
   final String? error;
   final String selected;
   final bool running;
-  final Future<ScreenshotFrame?> Function() loadScreenshot;
-  final VoidCallback onOpenControl;
   final Future<List<ScheduleTask>> Function() loadSchedule;
   final Future<void> Function(List<Map<String, dynamic>>) saveSchedule;
   final Future<void> Function() resetSchedule;
@@ -429,7 +417,6 @@ class _InstanceBody extends StatelessWidget {
         ),
       ],
       InstanceTab.liveLogs => [const SizedBox.shrink()],
-      InstanceTab.screen => [const SizedBox.shrink()],
     };
     if (tab == InstanceTab.liveLogs) {
       return Padding(
@@ -439,18 +426,6 @@ class _InstanceBody extends StatelessWidget {
             key: ValueKey(selected),
             running: running,
             uri: liveLogUri,
-          ),
-        ),
-      );
-    }
-    if (tab == InstanceTab.screen) {
-      return Padding(
-        padding: EdgeInsets.fromLTRB(inset, 8, inset, 78),
-        child: SizedBox.expand(
-          child: _ScreenPanel(
-            key: ValueKey(selected),
-            loadScreenshot: loadScreenshot,
-            onOpenControl: onOpenControl,
           ),
         ),
       );
@@ -1777,143 +1752,5 @@ class _LiveToggle extends StatelessWidget {
         ),
       ),
     );
-  }
-}
-
-class _ScreenPanel extends StatefulWidget {
-  const _ScreenPanel({
-    required this.loadScreenshot,
-    required this.onOpenControl,
-    super.key,
-  });
-
-  final Future<ScreenshotFrame?> Function() loadScreenshot;
-  final VoidCallback onOpenControl;
-
-  @override
-  State<_ScreenPanel> createState() => _ScreenPanelState();
-}
-
-class _ScreenPanelState extends State<_ScreenPanel> {
-  ScreenshotFrame? frame;
-  bool loading = false;
-  String? error;
-  Timer? timer;
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
-    timer = Timer.periodic(const Duration(seconds: 2), (_) => _load());
-  }
-
-  @override
-  void dispose() {
-    timer?.cancel();
-    super.dispose();
-  }
-
-  Future<void> _load() async {
-    if (loading) return;
-    setState(() => loading = true);
-    try {
-      final value = await widget.loadScreenshot();
-      if (!mounted) return;
-      setState(() {
-        frame = value;
-        error = null;
-      });
-    } catch (exception) {
-      if (mounted) setState(() => error = exception.toString());
-    } finally {
-      if (mounted) setState(() => loading = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final controlLabel = frame == null ? '刷新画面' : '进入控制';
-    return Surface(
-      padding: EdgeInsets.zero,
-      color: NkasColors.screenBg,
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          Center(
-            child: AspectRatio(
-              aspectRatio: 9 / 16,
-              child: frame == null
-                  ? Center(
-                      child: Text(
-                        error == null
-                            ? (loading ? '正在获取画面…' : '暂无画面')
-                            : '画面加载失败',
-                        style: const TextStyle(color: NkasColors.screenText),
-                      ),
-                    )
-                  : Image.memory(
-                      frame!.bytes,
-                      fit: BoxFit.contain,
-                      gaplessPlayback: true,
-                    ),
-            ),
-          ),
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: Container(
-              constraints: const BoxConstraints(minHeight: 58),
-              padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
-              color: const Color(0xE0101D25),
-              child: Row(
-                children: [
-                  Text(
-                    frame == null ? '未连接' : _captureLabel(frame!.capturedAt),
-                    style: const TextStyle(
-                      color: Color(0xFFD6E3EA),
-                      fontSize: 11,
-                    ),
-                  ),
-                  const Spacer(),
-                  TextButton(
-                    onPressed: loading
-                        ? null
-                        : frame == null
-                        ? _load
-                        : widget.onOpenControl,
-                    style: TextButton.styleFrom(
-                      minimumSize: const Size(0, 30),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 5,
-                      ),
-                      backgroundColor: const Color(0xFF2E4653),
-                      foregroundColor: const Color(0xFFD6E3EA),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(7),
-                      ),
-                    ),
-                    child: Text(
-                      controlLabel,
-                      style: const TextStyle(fontSize: 11),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  static String _captureLabel(double? timestamp) {
-    if (timestamp == null) return '实时 · 2s';
-    final date = DateTime.fromMillisecondsSinceEpoch(
-      (timestamp * 1000).round(),
-    ).toLocal();
-    String two(int value) => value.toString().padLeft(2, '0');
-    return '捕获于 ${two(date.hour)}:${two(date.minute)}:${two(date.second)}';
   }
 }

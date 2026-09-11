@@ -422,7 +422,7 @@ void main() {
   ) async {
     await _pumpTestApp(tester);
 
-    for (final label in ['总览', '实例', '日志', '部署', '设置']) {
+    for (final label in ['总览', '实例', '画面', '日志', '部署', '设置']) {
       expect(find.byTooltip(label), findsOneWidget);
     }
 
@@ -469,6 +469,23 @@ void main() {
     expect(find.text('每日任务：开始执行前哨基地'), findsNothing);
   });
 
+  testWidgets('screen page shows the instance bar and empty state', (
+    tester,
+  ) async {
+    await _pumpTestApp(tester);
+
+    await tester.tap(find.byTooltip('画面'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('查看实例实时画面，每 2 秒自动刷新'), findsOneWidget);
+    expect(find.text('nkas'), findsOneWidget);
+    expect(find.text('切换'), findsOneWidget);
+    // Mock 后端对 /screenshot 返回 404：无画面帧，显示空态
+    expect(find.text('未连接'), findsOneWidget);
+    expect(find.text('暂无画面'), findsOneWidget);
+    expect(find.text('刷新画面'), findsOneWidget);
+  });
+
   testWidgets('backend address is tested and persisted from settings', (
     tester,
   ) async {
@@ -512,16 +529,25 @@ void main() {
 
         await tester.tap(find.byTooltip('实例'));
         await tester.pumpAndSettle();
-        expect(find.text('切换实例并管理任务、调度和画面'), findsOneWidget);
+        expect(find.text('切换实例并管理任务、调度和日志'), findsOneWidget);
 
-        for (final tab in ['任务配置', '调度设置', '实时日志', '画面', '概览']) {
+        for (final tab in ['任务配置', '调度设置', '实时日志', '概览']) {
           await tester.ensureVisible(find.text(tab));
           await tester.pumpAndSettle();
           await tester.tap(find.text(tab));
           await tester.pumpAndSettle();
         }
-        expect(find.text('暂无画面'), findsNothing);
         expect(find.text('概览'), findsOneWidget);
+      });
+
+      testWidgets('screen page', (tester) async {
+        await pumpAtSize(tester);
+
+        await tester.tap(find.byTooltip('画面'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('未连接'), findsOneWidget);
+        expect(find.text('暂无画面'), findsOneWidget);
       });
 
       testWidgets('logs page', (tester) async {

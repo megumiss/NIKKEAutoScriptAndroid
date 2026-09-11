@@ -100,7 +100,7 @@ Flutter 至少要支持：`checkbox`、`select`、`multiselect`、`number`、`te
 
 实时日志先标记为待定，不纳入第一阶段后端对接验收。现有 HTML payload 不应在 Flutter 中通过正则解析；如果后续保留原生日志页，需要先确定结构化协议，否则使用原始 WebUI/WebView 作为过渡。
 
-#### 画面 Tab
+#### 画面（一级页面，原「画面 Tab」已拆出实例页）
 
 | 原型元素 | 真实实现 |
 | --- | --- |
@@ -214,11 +214,11 @@ App 语言同样存在契约问题：schema、queue 和 schedule 的 `name/help/
 - `NkasPage.about` 独立页面；
 - 顶栏右上角 Overflow 菜单，菜单项包含部署、关于、更新；
 - 总览和实例使用本地 `serviceRunning`/`instance` 状态；
-- 页面结构与 HTML 原型最终确定的“总览、实例、日志、部署、设置”五项导航不一致。
+- 页面结构与 HTML 原型最终确定的“总览、实例、画面、日志、部署、设置”六项导航不一致。
 
 接入前应以 `mobile/design/nkas-mobile-interactive.html` 和本文件为准，先删除旧的页面/菜单模型：
 
-1. 保留五项一级导航：总览、实例、日志、部署、设置。
+1. 保留六项一级导航：总览、实例、画面、日志、部署、设置（画面页轮询 `/api/{name}/screenshot`）。
 2. 更新、STAR 验证、初始化、后端地址和原始 WebUI 都从设置进入。
 3. 不在顶栏保留没有实际用途的菜单按钮。
 4. `deploy` 是一级“部署”页面，消费 `GET/PATCH /api/system/deploy` 与 `POST /api/system/deploy/reset`，复刻 WebUI 部署页；设置里的“初始化 NKAS”仍是 Android 本机 Termux 流程，与部署页互不影响。
