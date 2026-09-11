@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'dart:typed_data';
+import 'package:share_plus/share_plus.dart';
 
 import 'package:nkas_mobile_preview/core/api/log_info.dart';
 import 'package:nkas_mobile_preview/core/connection/connection_controller.dart';
@@ -239,15 +240,28 @@ class _LogsPageState extends State<LogsPage> {
   }
 
   Future<void> _export() async {
-    final uri = widget.connectionController.logDownloadUri(
-      date: date,
-      source: source,
-    );
-    final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
-    if (!opened && mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('无法打开日志下载地址')));
+    try {
+      final bytes = await widget.connectionController.downloadLog(
+        date: date,
+        source: source,
+      );
+      final safeDate = date.replaceAll(RegExp(r'[^0-9-]'), '');
+      final safeSource = source.replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '_');
+      final filename =
+          'nkas-$safeDate${safeSource.isEmpty ? '' : '-$safeSource'}.log';
+      await Share.shareXFiles([
+        XFile.fromData(
+          Uint8List.fromList(bytes),
+          mimeType: 'text/plain',
+          name: filename,
+        ),
+      ], subject: filename);
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('导出日志失败：$error')));
+      }
     }
   }
 

@@ -216,6 +216,20 @@ class ApiClient {
     '/api/system/logs/download',
   ).replace(queryParameters: {'date': date, 'source': source});
 
+  Future<List<int>> downloadLog(
+    String baseUrl, {
+    required String date,
+    required String source,
+  }) async {
+    final response = await _client
+        .get(logDownloadUri(baseUrl, date: date, source: source))
+        .timeout(timeout);
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw ApiException('后端返回 HTTP ${response.statusCode}');
+    }
+    return response.bodyBytes;
+  }
+
   Future<UpdateInfo> fetchUpdateInfo(String baseUrl) async {
     final response = await _client
         .get(endpoint(baseUrl, '/api/system/update'))

@@ -176,6 +176,16 @@ class ConnectionController extends ChangeNotifier {
   Uri logDownloadUri({required String date, required String source}) =>
       _api.logDownloadUri(_state.baseUrl, date: date, source: source);
 
+  Future<List<int>> downloadLog({
+    required String date,
+    required String source,
+  }) {
+    if (_state.phase != ConnectionPhase.connected) {
+      return Future.error(const ApiException('后端未连接'));
+    }
+    return _api.downloadLog(_state.baseUrl, date: date, source: source);
+  }
+
   Future<UpdateInfo> fetchUpdateInfo() {
     if (_state.phase != ConnectionPhase.connected) {
       return Future.error(const ApiException('后端未连接'));
