@@ -786,8 +786,8 @@ class _NavItem extends StatelessWidget {
           onTap: enabled ? onTap : null,
           customBorder: const CircleBorder(),
           child: SizedBox(
-            width: 46,
-            height: 46,
+            width: 48,
+            height: 48,
             child: Stack(
               alignment: Alignment.center,
               children: [

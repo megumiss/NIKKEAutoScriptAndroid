@@ -460,14 +460,16 @@ class _LogAction extends StatelessWidget {
         onTap: onTap == null ? null : () => onTap!(),
         borderRadius: BorderRadius.circular(9),
         child: SizedBox(
-          width: 34,
-          height: 34,
-          child: Icon(
-            icon,
-            size: 17,
-            color: onTap == null
-                ? scheme.mutedForeground.withValues(alpha: .4)
-                : scheme.mutedForeground,
+          width: 48,
+          height: 48,
+          child: Center(
+            child: Icon(
+              icon,
+              size: 17,
+              color: onTap == null
+                  ? scheme.mutedForeground.withValues(alpha: .4)
+                  : scheme.mutedForeground,
+            ),
           ),
         ),
       ),

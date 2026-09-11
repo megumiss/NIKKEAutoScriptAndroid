@@ -260,7 +260,7 @@ class _InstanceTabs extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(top: 17),
       child: SizedBox(
-        height: 36,
+        height: 48,
         child: SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           padding: EdgeInsets.symmetric(horizontal: nkasPageInset(context)),
@@ -270,7 +270,7 @@ class _InstanceTabs extends StatelessWidget {
                 InkWell(
                   onTap: () => onChanged(item.$1),
                   child: Container(
-                    height: 36,
+                    height: 48,
                     padding: const EdgeInsets.symmetric(horizontal: 10),
                     child: Column(
                       children: [
@@ -1680,26 +1680,34 @@ class _LiveToggle extends StatelessWidget {
         label: '自动滚动',
         child: GestureDetector(
           onTap: () => onChanged(!value),
-          child: Container(
-            width: 42,
-            height: 24,
-            padding: const EdgeInsets.all(3),
-            decoration: BoxDecoration(
-              color: value ? scheme.primary : scheme.border,
-              borderRadius: BorderRadius.circular(999),
-            ),
-            child: AnimatedAlign(
-              duration: const Duration(milliseconds: 150),
-              alignment: value ? Alignment.centerRight : Alignment.centerLeft,
+          child: SizedBox(
+            width: 48,
+            height: 48,
+            child: Center(
               child: Container(
-                width: 18,
-                height: 18,
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(color: Color(0x24000000), blurRadius: 3),
-                  ],
+                width: 42,
+                height: 24,
+                padding: const EdgeInsets.all(3),
+                decoration: BoxDecoration(
+                  color: value ? scheme.primary : scheme.border,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: AnimatedAlign(
+                  duration: const Duration(milliseconds: 150),
+                  alignment: value
+                      ? Alignment.centerRight
+                      : Alignment.centerLeft,
+                  child: Container(
+                    width: 18,
+                    height: 18,
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(color: Color(0x24000000), blurRadius: 3),
+                      ],
+                    ),
+                  ),
                 ),
               ),
             ),

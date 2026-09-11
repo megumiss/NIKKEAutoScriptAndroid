@@ -31,27 +31,32 @@ class FieldSelect extends StatelessWidget {
             for (final option in options)
               PopupMenuItem(value: option.value, child: Text(option.label)),
           ],
-          child: InkWell(
-            onTap: onTap,
-            borderRadius: BorderRadius.circular(9),
-            child: Container(
-              height: 34,
-              padding: const EdgeInsets.symmetric(horizontal: 9),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.secondary,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 48),
+            child: Center(
+              child: InkWell(
+                onTap: onTap,
                 borderRadius: BorderRadius.circular(9),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      value,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 12),
-                    ),
+                child: Container(
+                  height: 34,
+                  padding: const EdgeInsets.symmetric(horizontal: 9),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.secondary,
+                    borderRadius: BorderRadius.circular(9),
                   ),
-                  const Icon(LucideIcons.chevronDown, size: 16),
-                ],
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          value,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                      ),
+                      const Icon(LucideIcons.chevronDown, size: 16),
+                    ],
+                  ),
+                ),
               ),
             ),
           ),
