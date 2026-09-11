@@ -169,6 +169,7 @@ class _LogsPageState extends State<LogsPage> {
                   Expanded(
                     flex: 10,
                     child: FieldSelect(
+                      dense: true,
                       label: '日期',
                       value: date.isEmpty ? '暂无' : date,
                       options: [
@@ -187,6 +188,7 @@ class _LogsPageState extends State<LogsPage> {
                   Expanded(
                     flex: 7,
                     child: FieldSelect(
+                      dense: true,
                       label: '类型',
                       value: source.isEmpty ? '全部' : source,
                       options: [
@@ -204,6 +206,7 @@ class _LogsPageState extends State<LogsPage> {
                   Expanded(
                     flex: 7,
                     child: FieldSelect(
+                      dense: true,
                       label: '级别',
                       value: _levelLabel(level),
                       options: const [
@@ -369,7 +372,10 @@ class LogCard extends StatelessWidget {
           ),
           if (filters != null) ...[
             const Divider(height: 1),
-            Padding(padding: const EdgeInsets.all(12), child: filters),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
+              child: filters,
+            ),
           ],
           const Divider(height: 1),
           if (fill)

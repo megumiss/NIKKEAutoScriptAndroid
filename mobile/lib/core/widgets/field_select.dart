@@ -9,6 +9,7 @@ class FieldSelect extends StatelessWidget {
     this.options = const [],
     this.onChanged,
     this.onTap,
+    this.dense = false,
   });
   final String label;
   final String value;
@@ -16,14 +17,22 @@ class FieldSelect extends StatelessWidget {
   final ValueChanged<String>? onChanged;
   final VoidCallback? onTap;
 
+  /// Compresses the visual control while retaining a comfortable hit target.
+  final bool dense;
+
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: theme.textTheme.muted),
-        const SizedBox(height: 5),
+        Text(
+          label,
+          style: dense
+              ? theme.textTheme.muted.copyWith(fontSize: 11)
+              : theme.textTheme.muted,
+        ),
+        SizedBox(height: dense ? 1 : 5),
         PopupMenuButton<String>(
           enabled: onTap == null && onChanged != null && options.isNotEmpty,
           onSelected: onChanged,
@@ -32,7 +41,7 @@ class FieldSelect extends StatelessWidget {
               PopupMenuItem(value: option.value, child: Text(option.label)),
           ],
           child: ConstrainedBox(
-            constraints: const BoxConstraints(minHeight: 48),
+            constraints: BoxConstraints(minHeight: dense ? 44 : 48),
             child: Center(
               child: InkWell(
                 onTap: onTap,

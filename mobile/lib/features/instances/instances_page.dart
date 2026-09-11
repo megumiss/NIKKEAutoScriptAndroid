@@ -375,27 +375,41 @@ class _InstanceBody extends StatelessWidget {
               padding: const EdgeInsets.only(top: 28),
               child: Text(error == null ? '暂无队列数据' : '队列加载失败'),
             )
+          else if (queue!.running.isEmpty &&
+              queue!.pending.isEmpty &&
+              queue!.waiting.isEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 28),
+              child: Text('暂无任务', style: ShadTheme.of(context).textTheme.muted),
+            )
           else ...[
-            _QueueGroup.fromItems(
-              label: '运行中',
-              colorKind: 0,
-              items: queue!.running,
-              onTap: onOpenTask,
-            ),
-            const SizedBox(height: 16),
-            _QueueGroup.fromItems(
-              label: '队列中',
-              colorKind: 1,
-              items: queue!.pending,
-              onTap: onOpenTask,
-            ),
-            const SizedBox(height: 16),
-            _QueueGroup.fromItems(
-              label: '等待中',
-              colorKind: 2,
-              items: queue!.waiting,
-              onTap: onOpenTask,
-            ),
+            if (queue!.running.isNotEmpty) ...[
+              _QueueGroup.fromItems(
+                label: '运行中',
+                colorKind: 0,
+                items: queue!.running,
+                onTap: onOpenTask,
+              ),
+            ],
+            if (queue!.pending.isNotEmpty) ...[
+              if (queue!.running.isNotEmpty) const SizedBox(height: 16),
+              _QueueGroup.fromItems(
+                label: '队列中',
+                colorKind: 1,
+                items: queue!.pending,
+                onTap: onOpenTask,
+              ),
+            ],
+            if (queue!.waiting.isNotEmpty) ...[
+              if (queue!.running.isNotEmpty || queue!.pending.isNotEmpty)
+                const SizedBox(height: 16),
+              _QueueGroup.fromItems(
+                label: '等待中',
+                colorKind: 2,
+                items: queue!.waiting,
+                onTap: onOpenTask,
+              ),
+            ],
           ],
         ],
         InstanceTab.tasks => [
@@ -1307,6 +1321,7 @@ class _ScheduleRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
     return Surface(
+      padding: const EdgeInsets.all(10),
       child: Column(
         children: [
           Row(
@@ -1338,11 +1353,12 @@ class _ScheduleRow extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 5),
           Row(
             children: [
               Expanded(
                 child: FieldSelect(
+                  dense: true,
                   label: '周期',
                   value: _cadenceLabel(task.cadence),
                   options: const [
@@ -1361,7 +1377,14 @@ class _ScheduleRow extends StatelessWidget {
                   key: ValueKey('${task.command}-${task.cadence}'),
                   initialValue: task.activeTime,
                   enabled: !disabled && !task.locked,
-                  decoration: const InputDecoration(labelText: '时间'),
+                  decoration: const InputDecoration(
+                    labelText: '时间',
+                    isDense: true,
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 8,
+                    ),
+                  ),
                   onChanged: (value) {
                     final key = switch (task.cadence) {
                       'weekly' => 'weekly_time',
