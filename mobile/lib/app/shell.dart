@@ -53,7 +53,6 @@ class _NkasShellState extends State<NkasShell> {
   InstanceTab instanceTab = InstanceTab.overview;
   String instance = '主账号';
   bool notifications = true;
-  bool autoScroll = true;
   final instanceStates = <String, bool>{
     '主账号': true,
     '小号': false,
@@ -550,10 +549,8 @@ class _NkasShellState extends State<NkasShell> {
       starAuthorized: _starAccessGranted,
       themeMode: widget.themeMode,
       notifications: notifications,
-      autoScroll: autoScroll,
       onThemeModeChanged: widget.onThemeModeChanged,
       onNotificationsChanged: (value) => setState(() => notifications = value),
-      onAutoScrollChanged: (value) => setState(() => autoScroll = value),
       onOpenStarVerify: () => _selectPage(NkasPage.starVerify),
       onOpenSetup: () => unawaited(_openSetup()),
     ),

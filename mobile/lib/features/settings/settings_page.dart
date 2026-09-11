@@ -21,10 +21,8 @@ class SettingsPage extends StatefulWidget {
     required this.connectionController,
     required this.starAuthorized,
     required this.notifications,
-    required this.autoScroll,
     required this.onThemeModeChanged,
     required this.onNotificationsChanged,
-    required this.onAutoScrollChanged,
     required this.onOpenStarVerify,
     required this.onOpenSetup,
     super.key,
@@ -33,10 +31,8 @@ class SettingsPage extends StatefulWidget {
   final ConnectionController connectionController;
   final bool starAuthorized;
   final bool notifications;
-  final bool autoScroll;
   final ValueChanged<ThemeMode> onThemeModeChanged;
   final ValueChanged<bool> onNotificationsChanged;
-  final ValueChanged<bool> onAutoScrollChanged;
   final VoidCallback onOpenStarVerify;
   final VoidCallback onOpenSetup;
 
@@ -170,23 +166,6 @@ class _SettingsPageState extends State<SettingsPage> {
                     label: '后台通知',
                     value: widget.notifications,
                     onChanged: widget.onNotificationsChanged,
-                  ),
-                ),
-              ),
-            ),
-            _SettingRow(
-              icon: LucideIcons.scrollText,
-              title: '日志自动滚动',
-              subtitle: '新日志到达时滚动到底部',
-              enabled: widget.starAuthorized,
-              customTrailing: IgnorePointer(
-                ignoring: !widget.starAuthorized,
-                child: Opacity(
-                  opacity: widget.starAuthorized ? 1 : .45,
-                  child: _SettingsSwitch(
-                    label: '日志自动滚动',
-                    value: widget.autoScroll,
-                    onChanged: widget.onAutoScrollChanged,
                   ),
                 ),
               ),
