@@ -465,6 +465,17 @@ class _NkasShellState extends State<NkasShell> {
         widget.connectionController.state.baseUrl,
       ),
       onOpenInstances: () => _selectPage(NkasPage.instances),
+      onSelectInstance: (value) {
+        setState(() {
+          instance = value;
+          instanceTab = InstanceTab.overview;
+          page = NkasPage.instances;
+          queueError = null;
+          schema = null;
+          schemaError = null;
+        });
+        unawaited(_loadQueue(value));
+      },
       calendarItems: calendarItems,
       calendarUpdatedAt: calendarUpdatedAt,
       calendarLoading: loadingCalendar,
@@ -507,6 +518,10 @@ class _NkasShellState extends State<NkasShell> {
       liveLogUri: widget.connectionController.websocketUri(
         '/ws/${Uri.encodeComponent(instance)}/log',
       ),
+      onOpenTask: (value) {
+        setState(() => instanceTab = InstanceTab.tasks);
+        if (schema == null) unawaited(_loadSchema(instance));
+      },
       onSelectInstance: (value) {
         setState(() {
           instance = value;

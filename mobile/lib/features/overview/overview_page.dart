@@ -19,6 +19,7 @@ class OverviewPage extends StatelessWidget {
     required this.serviceRunning,
     required this.onRefreshStatus,
     required this.onOpenInstances,
+    required this.onSelectInstance,
     required this.instances,
     required this.loadingInstances,
     required this.instancesError,
@@ -33,6 +34,7 @@ class OverviewPage extends StatelessWidget {
   final bool serviceRunning;
   final Future<void> Function() onRefreshStatus;
   final VoidCallback onOpenInstances;
+  final ValueChanged<String> onSelectInstance;
   final List<InstanceInfo> instances;
   final bool loadingInstances;
   final String? instancesError;
@@ -195,6 +197,7 @@ class OverviewPage extends StatelessWidget {
                         detail: instances[i].detail,
                         status: instances[i].status,
                         imageUrl: avatarUrl(instances[i]),
+                        onTap: () => onSelectInstance(instances[i].name),
                       ),
                     ],
                   ],
@@ -450,49 +453,57 @@ class _InstanceRow extends StatelessWidget {
     required this.detail,
     required this.status,
     this.imageUrl,
+    required this.onTap,
   });
   final String initial;
   final String name;
   final String detail;
   final InstanceStatus status;
   final String? imageUrl;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
-    return ConstrainedBox(
-      constraints: const BoxConstraints(minHeight: 68),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        child: Row(
-          children: [
-            Avatar(text: initial, imageUrl: imageUrl),
-            const SizedBox(width: 11),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    name,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 68),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            child: Row(
+              children: [
+                Avatar(text: initial, imageUrl: imageUrl),
+                const SizedBox(width: 11),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        name,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(detail, style: theme.textTheme.muted),
+                    ],
                   ),
-                  const SizedBox(height: 3),
-                  Text(detail, style: theme.textTheme.muted),
-                ],
-              ),
+                ),
+                Status(status: status),
+                const SizedBox(width: 5),
+                Icon(
+                  LucideIcons.chevronRight,
+                  size: 15,
+                  color: theme.colorScheme.mutedForeground,
+                ),
+              ],
             ),
-            Status(status: status),
-            const SizedBox(width: 5),
-            Icon(
-              LucideIcons.chevronRight,
-              size: 15,
-              color: theme.colorScheme.mutedForeground,
-            ),
-          ],
+          ),
         ),
       ),
     );

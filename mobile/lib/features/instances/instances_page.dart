@@ -51,6 +51,7 @@ class InstancesPage extends StatelessWidget {
     required this.onSelectInstance,
     required this.onOpenControl,
     required this.liveLogUri,
+    required this.onOpenTask,
     super.key,
   });
   final String selected;
@@ -79,6 +80,7 @@ class InstancesPage extends StatelessWidget {
   final ValueChanged<String> onSelectInstance;
   final VoidCallback onOpenControl;
   final Uri liveLogUri;
+  final ValueChanged<String> onOpenTask;
 
   @override
   Widget build(BuildContext context) {
@@ -181,6 +183,7 @@ class InstancesPage extends StatelessWidget {
             loadSchema: loadSchema,
             patchConfig: patchConfig,
             liveLogUri: liveLogUri,
+            onOpenTask: onOpenTask,
           ),
         ),
       ],
@@ -327,6 +330,7 @@ class _InstanceBody extends StatelessWidget {
     required this.loadSchema,
     required this.patchConfig,
     required this.liveLogUri,
+    required this.onOpenTask,
   });
   final InstanceTab tab;
   final QueueInfo? queue;
@@ -345,6 +349,7 @@ class _InstanceBody extends StatelessWidget {
   final Future<void> Function() loadSchema;
   final Future<void> Function(String, Object?) patchConfig;
   final Uri liveLogUri;
+  final ValueChanged<String> onOpenTask;
 
   @override
   Widget build(BuildContext context) {
@@ -370,18 +375,21 @@ class _InstanceBody extends StatelessWidget {
               label: '运行中',
               colorKind: 0,
               items: queue!.running,
+              onTap: onOpenTask,
             ),
             const SizedBox(height: 16),
             _QueueGroup.fromItems(
               label: '队列中',
               colorKind: 1,
               items: queue!.pending,
+              onTap: onOpenTask,
             ),
             const SizedBox(height: 16),
             _QueueGroup.fromItems(
               label: '等待中',
               colorKind: 2,
               items: queue!.waiting,
+              onTap: onOpenTask,
             ),
           ],
         ],
@@ -426,20 +434,24 @@ class _QueueGroup extends StatelessWidget {
     required String label,
     required int colorKind,
     required List<QueueItem> items,
+    required ValueChanged<String> onTap,
   }) => _QueueGroup(
     label: label,
     colorKind: colorKind,
     rows: [for (final item in items) (item.name, item.command, item.nextRun)],
+    onTap: onTap,
   );
 
   const _QueueGroup({
     required this.label,
     required this.colorKind,
     required this.rows,
+    required this.onTap,
   });
   final String label;
   final int colorKind;
   final List<(String, String, String)> rows;
+  final ValueChanged<String> onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -487,6 +499,7 @@ class _QueueGroup extends StatelessWidget {
                   time: rows[i].$3,
                   color: color,
                   icon: icon,
+                  onTap: () => onTap(rows[i].$1),
                 ),
               ],
             ],
@@ -504,46 +517,54 @@ class _QueueRow extends StatelessWidget {
     required this.time,
     required this.color,
     required this.icon,
+    required this.onTap,
   });
   final String name;
   final String detail;
   final String time;
   final Color color;
   final IconData icon;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      child: Row(
-        children: [
-          IconBox(icon: icon, color: color),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  name,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          child: Row(
+            children: [
+              IconBox(icon: icon, color: color),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(detail, style: theme.textTheme.muted),
+                  ],
                 ),
-                const SizedBox(height: 3),
-                Text(detail, style: theme.textTheme.muted),
-              ],
-            ),
+              ),
+              Tag(label: time, color: color),
+              const SizedBox(width: 5),
+              Icon(
+                LucideIcons.chevronRight,
+                size: 15,
+                color: theme.colorScheme.mutedForeground,
+              ),
+            ],
           ),
-          Tag(label: time, color: color),
-          const SizedBox(width: 5),
-          Icon(
-            LucideIcons.chevronRight,
-            size: 15,
-            color: theme.colorScheme.mutedForeground,
-          ),
-        ],
+        ),
       ),
     );
   }
