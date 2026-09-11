@@ -345,25 +345,25 @@ class _EventCard extends StatelessWidget {
       padding: EdgeInsets.zero,
       child: Column(
         children: [
-          SizedBox(
+          Container(
             height: 66,
             width: double.infinity,
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                ColoredBox(color: scheme.eventBannerDefault),
-                if (item.bannerUrl != null && item.bannerUrl!.isNotEmpty)
-                  Positioned.fill(
-                    child: Image.network(
-                      resolveAssetUrl(item.bannerUrl!),
+            decoration: BoxDecoration(
+              color: scheme.eventBannerDefault,
+              image: item.bannerUrl != null && item.bannerUrl!.isNotEmpty
+                  ? DecorationImage(
+                      image: NetworkImage(resolveAssetUrl(item.bannerUrl!)),
                       fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) => _bannerLabel(context),
-                    ),
-                  )
-                else
-                  Positioned(left: 11, bottom: 9, child: _bannerLabel(context)),
-              ],
+                      onError: (_, _) {},
+                    )
+                  : null,
             ),
+            child: item.bannerUrl == null || item.bannerUrl!.isEmpty
+                ? Padding(
+                    padding: const EdgeInsets.fromLTRB(11, 9, 11, 9),
+                    child: _bannerLabel(context),
+                  )
+                : null,
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 11, 12, 12),

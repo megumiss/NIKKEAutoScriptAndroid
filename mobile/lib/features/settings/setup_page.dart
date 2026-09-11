@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import 'package:nkas_mobile_preview/core/platform/nkas_platform.dart';
+import 'package:nkas_mobile_preview/core/platform/runtime_platform.dart';
 import 'package:nkas_mobile_preview/core/widgets/buttons.dart';
 import 'package:nkas_mobile_preview/core/widgets/page_inset.dart';
 import 'package:nkas_mobile_preview/core/widgets/page_subtitle.dart';
@@ -169,6 +170,7 @@ class _NkasSetupPageState extends State<NkasSetupPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (isIOS) return _buildIos(context);
     final inset = nkasPageInset(context);
     return Column(
       children: [
@@ -213,6 +215,73 @@ class _NkasSetupPageState extends State<NkasSetupPage> {
           icon: _actionIcon,
           enabled: !_actionDisabled,
           onPressed: _handleAction,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildIos(BuildContext context) {
+    final scheme = ShadTheme.of(context).colorScheme;
+    final inset = nkasPageInset(context);
+    final authorized = status.authorized;
+    return ListView(
+      padding: EdgeInsets.fromLTRB(inset, 5, inset, 28),
+      children: [
+        const PageSubtitle('iOS 通过远程后端控制 NKAS，无需安装 Termux 或配置无线调试。'),
+        Surface(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    authorized ? LucideIcons.circleCheck : LucideIcons.shield,
+                    color: authorized ? scheme.success : scheme.mutedForeground,
+                    size: 22,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      authorized ? 'STAR 验证已完成' : '请先完成 STAR 验证',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Text(
+                authorized
+                    ? '当前设备可以连接后端并控制实例。后端地址可在设置中修改。'
+                    : '完成验证后即可返回实例页面使用控制功能。',
+                style: ShadTheme.of(context).textTheme.muted,
+              ),
+              const SizedBox(height: 16),
+              _IosSetupStep(
+                icon: LucideIcons.shieldCheck,
+                title: '项目授权',
+                detail: authorized ? '已完成' : '待验证',
+                complete: authorized,
+              ),
+              const Divider(height: 20),
+              _IosSetupStep(
+                icon: LucideIcons.server,
+                title: '连接后端服务',
+                detail: '在设置中配置后端地址',
+                complete: false,
+              ),
+              const Divider(height: 20),
+              _IosSetupStep(
+                icon: LucideIcons.smartphone,
+                title: '开始控制实例',
+                detail: '从实例页面进入任务、日志和画面',
+                complete: false,
+              ),
+            ],
+          ),
         ),
       ],
     );
@@ -587,6 +656,42 @@ class _ExtraPanel extends StatelessWidget {
           if (child != null) ...[const SizedBox(height: 8), child!],
         ],
       ),
+    );
+  }
+}
+
+class _IosSetupStep extends StatelessWidget {
+  const _IosSetupStep({
+    required this.icon,
+    required this.title,
+    required this.detail,
+    required this.complete,
+  });
+
+  final IconData icon;
+  final String title;
+  final String detail;
+  final bool complete;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = ShadTheme.of(context).colorScheme;
+    return Row(
+      children: [
+        Icon(icon, size: 20, color: complete ? scheme.success : scheme.primary),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+              const SizedBox(height: 2),
+              Text(detail, style: ShadTheme.of(context).textTheme.muted),
+            ],
+          ),
+        ),
+        if (complete) Icon(LucideIcons.check, size: 18, color: scheme.success),
+      ],
     );
   }
 }
