@@ -254,6 +254,8 @@ class ConnectionController extends ChangeNotifier {
     '/avatars/${Uri.encodeComponent(filename)}',
   );
 
+  Uri assetUri(String path) => _api.endpoint(_state.baseUrl, path);
+
   Uri websocketUri(String path) => _api.websocketUri(_state.baseUrl, path);
 
   Uri get webUiUri => _api.endpoint(_state.baseUrl, '/app/');

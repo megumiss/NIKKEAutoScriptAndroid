@@ -460,6 +460,8 @@ class _NkasShellState extends State<NkasShell> {
       loadingInstances: loadingInstances,
       instancesError: instancesError,
       avatarUrl: _avatarUrl,
+      resolveAssetUrl: (value) =>
+          widget.connectionController.assetUri(value).toString(),
       serviceRunning:
           widget.connectionController.state.phase == ConnectionPhase.connected,
       onRefreshStatus: () => widget.connectionController.connect(

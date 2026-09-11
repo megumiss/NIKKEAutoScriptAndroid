@@ -24,6 +24,7 @@ class OverviewPage extends StatelessWidget {
     required this.loadingInstances,
     required this.instancesError,
     required this.avatarUrl,
+    required this.resolveAssetUrl,
     required this.calendarItems,
     required this.calendarUpdatedAt,
     required this.calendarLoading,
@@ -39,6 +40,7 @@ class OverviewPage extends StatelessWidget {
   final bool loadingInstances;
   final String? instancesError;
   final String? Function(InstanceInfo item) avatarUrl;
+  final String Function(String value) resolveAssetUrl;
   final List<CalendarItem> calendarItems;
   final int calendarUpdatedAt;
   final bool calendarLoading;
@@ -210,6 +212,7 @@ class OverviewPage extends StatelessWidget {
           loading: calendarLoading,
           error: calendarError,
           onRefresh: onRefreshCalendar,
+          resolveAssetUrl: resolveAssetUrl,
         ),
       ],
     );
@@ -232,6 +235,7 @@ class _CalendarSection extends StatefulWidget {
     required this.loading,
     required this.error,
     required this.onRefresh,
+    required this.resolveAssetUrl,
   });
 
   final List<CalendarItem> items;
@@ -239,6 +243,7 @@ class _CalendarSection extends StatefulWidget {
   final bool loading;
   final String? error;
   final Future<void> Function() onRefresh;
+  final String Function(String value) resolveAssetUrl;
 
   @override
   State<_CalendarSection> createState() => _CalendarSectionState();
@@ -316,7 +321,10 @@ class _CalendarSectionState extends State<_CalendarSection> {
         else
           for (var i = 0; i < visibleItems.length; i++) ...[
             if (i > 0) const SizedBox(height: 10),
-            _EventCard(item: visibleItems[i]),
+            _EventCard(
+              item: visibleItems[i],
+              resolveAssetUrl: widget.resolveAssetUrl,
+            ),
           ],
       ],
     );
@@ -324,9 +332,10 @@ class _CalendarSectionState extends State<_CalendarSection> {
 }
 
 class _EventCard extends StatelessWidget {
-  const _EventCard({required this.item});
+  const _EventCard({required this.item, required this.resolveAssetUrl});
 
   final CalendarItem item;
+  final String Function(String value) resolveAssetUrl;
 
   @override
   Widget build(BuildContext context) {
@@ -344,7 +353,7 @@ class _EventCard extends StatelessWidget {
             color: scheme.eventBannerDefault,
             child: item.bannerUrl != null && item.bannerUrl!.isNotEmpty
                 ? Image.network(
-                    item.bannerUrl!,
+                    resolveAssetUrl(item.bannerUrl!),
                     fit: BoxFit.cover,
                     errorBuilder: (_, _, _) => _bannerLabel(context),
                   )
