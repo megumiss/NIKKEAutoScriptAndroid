@@ -259,8 +259,7 @@ class _NkasSetupPageState extends State<NkasSetupPage> {
     return LucideIcons.rocket;
   }
 
-  bool get _actionDisabled =>
-      running || (status.initialized && status.wirelessDebug);
+  bool get _actionDisabled => running;
 
   Future<void> _handleAction() async {
     if (!status.authorized) {

@@ -13,6 +13,8 @@ import 'package:nkas_mobile_preview/core/connection/instance_queue_socket.dart';
 import 'package:nkas_mobile_preview/core/api/queue_info.dart';
 import 'package:nkas_mobile_preview/core/api/calendar_info.dart';
 import 'package:nkas_mobile_preview/core/api/schema_info.dart';
+import 'package:nkas_mobile_preview/core/platform/nkas_platform.dart';
+import 'package:nkas_mobile_preview/core/platform/runtime_platform.dart';
 import 'package:nkas_mobile_preview/core/widgets/status.dart';
 import 'package:nkas_mobile_preview/features/instances/instances_page.dart';
 import 'package:nkas_mobile_preview/features/logs/logs_page.dart';
@@ -50,7 +52,6 @@ class _NkasShellState extends State<NkasShell> {
       : NkasPage.overview;
   InstanceTab instanceTab = InstanceTab.overview;
   String instance = '主账号';
-  bool serviceRunning = true;
   bool notifications = true;
   bool autoScroll = true;
   final instanceStates = <String, bool>{
@@ -58,6 +59,8 @@ class _NkasShellState extends State<NkasShell> {
     '小号': false,
     '测试账号': false,
   };
+  StarAuthorization star = const StarAuthorization(authorized: false);
+  StreamSubscription<NkasPlatformEvent>? starSubscription;
   List<InstanceInfo> instances = const [];
   bool loadingInstances = false;
   bool togglingInstance = false;
@@ -80,11 +83,20 @@ class _NkasShellState extends State<NkasShell> {
   SchemaInfo? schema;
   bool loadingSchema = false;
   String? schemaError;
+  String? taskKey;
 
   @override
   void initState() {
     super.initState();
     widget.connectionController.addListener(_connectionChanged);
+    unawaited(_loadStar());
+    if (NkasPlatform.instance.supported) {
+      starSubscription = NkasPlatform.instance.events.listen((event) {
+        if (event case StarAuthorizationEvent(:final status)) {
+          _applyStarStatus(status);
+        }
+      });
+    }
     _connectionChanged();
   }
 
@@ -100,16 +112,39 @@ class _NkasShellState extends State<NkasShell> {
   @override
   void dispose() {
     widget.connectionController.removeListener(_connectionChanged);
+    unawaited(starSubscription?.cancel());
     unawaited(_closeStateSocket());
     unawaited(_closeQueueSocket());
     super.dispose();
   }
 
+  Future<void> _loadStar() async {
+    final status = await NkasPlatform.instance.starStatus();
+    if (mounted) _applyStarStatus(status);
+  }
+
+  void _applyStarStatus(StarAuthorization status) {
+    if (!mounted) return;
+    setState(() {
+      star = status;
+      if (!_starAccessGranted &&
+          page != NkasPage.settings &&
+          page != NkasPage.starVerify) {
+        page = NkasPage.settings;
+      }
+    });
+    _connectionChanged();
+  }
+
+  bool get _starAccessGranted =>
+      kIsWeb || (!isAndroid && !isIOS) || star.authorized;
+
   void _connectionChanged() {
     if (!mounted) return;
     final connection = widget.connectionController.state;
     setState(() {
-      if (connection.phase != ConnectionPhase.connected) {
+      if (!_starAccessGranted ||
+          connection.phase != ConnectionPhase.connected) {
         instances = const [];
         instancesError = null;
         loadedInstancesBaseUrl = null;
@@ -125,17 +160,20 @@ class _NkasShellState extends State<NkasShell> {
         schemaError = null;
       }
     });
-    if (connection.phase == ConnectionPhase.connected &&
+    if (_starAccessGranted &&
+        connection.phase == ConnectionPhase.connected &&
         loadedInstancesBaseUrl != connection.baseUrl &&
         !loadingInstances) {
       unawaited(_loadInstances());
     }
-    if (connection.phase == ConnectionPhase.connected &&
+    if (_starAccessGranted &&
+        connection.phase == ConnectionPhase.connected &&
         calendarBaseUrl != connection.baseUrl &&
         !loadingCalendar) {
       unawaited(_loadCalendar());
     }
-    if (widget.enableRealtime &&
+    if (_starAccessGranted &&
+        widget.enableRealtime &&
         connection.phase == ConnectionPhase.connected &&
         stateSocketBaseUrl != connection.baseUrl) {
       unawaited(_openStateSocket(connection.baseUrl));
@@ -150,6 +188,7 @@ class _NkasShellState extends State<NkasShell> {
     await _closeStateSocket();
     final connection = widget.connectionController.state;
     if (!mounted ||
+        !_starAccessGranted ||
         connection.phase != ConnectionPhase.connected ||
         connection.baseUrl != baseUrl) {
       return;
@@ -172,6 +211,7 @@ class _NkasShellState extends State<NkasShell> {
   ) {
     if (!mounted ||
         stateSocket != socket ||
+        !_starAccessGranted ||
         widget.connectionController.state.phase != ConnectionPhase.connected ||
         widget.connectionController.state.baseUrl != baseUrl) {
       return;
@@ -184,7 +224,7 @@ class _NkasShellState extends State<NkasShell> {
   }
 
   void _applyStateEvent(InstanceStateEvent event) {
-    if (!mounted) return;
+    if (!mounted || !_starAccessGranted) return;
     final index = instances.indexWhere((item) => item.name == event.name);
     if (index < 0) return;
     setState(() {
@@ -214,7 +254,9 @@ class _NkasShellState extends State<NkasShell> {
     });
     try {
       final result = await widget.connectionController.fetchInstances();
-      if (!mounted || widget.connectionController.state.baseUrl != baseUrl) {
+      if (!mounted ||
+          !_starAccessGranted ||
+          widget.connectionController.state.baseUrl != baseUrl) {
         return;
       }
       setState(() {
@@ -233,7 +275,7 @@ class _NkasShellState extends State<NkasShell> {
         );
       }
     } catch (error) {
-      if (!mounted) return;
+      if (!mounted || !_starAccessGranted) return;
       setState(() {
         instances = const [];
         instancesError = error.toString();
@@ -257,17 +299,18 @@ class _NkasShellState extends State<NkasShell> {
   }
 
   Future<void> _loadQueue(String name) async {
+    if (!_starAccessGranted) return;
     setState(() {
       loadingQueue = true;
       queueError = null;
     });
     try {
       final result = await widget.connectionController.fetchQueue(name);
-      if (!mounted) return;
+      if (!mounted || !_starAccessGranted) return;
       setState(() => queues[name] = result);
       unawaited(_openQueueSocket(name));
     } catch (error) {
-      if (!mounted) return;
+      if (!mounted || !_starAccessGranted) return;
       setState(() => queueError = error.toString());
     } finally {
       if (mounted) setState(() => loadingQueue = false);
@@ -275,6 +318,7 @@ class _NkasShellState extends State<NkasShell> {
   }
 
   Future<void> _loadCalendar({bool refresh = false}) async {
+    if (!_starAccessGranted) return;
     setState(() {
       loadingCalendar = true;
       if (refresh) calendarError = null;
@@ -283,7 +327,7 @@ class _NkasShellState extends State<NkasShell> {
       final result = await widget.connectionController.fetchCalendar(
         refresh: refresh,
       );
-      if (!mounted) return;
+      if (!mounted || !_starAccessGranted) return;
       setState(() {
         calendarItems = result.items;
         calendarUpdatedAt = result.updatedAt;
@@ -291,7 +335,7 @@ class _NkasShellState extends State<NkasShell> {
         calendarError = null;
       });
     } catch (error) {
-      if (!mounted) return;
+      if (!mounted || !_starAccessGranted) return;
       setState(() => calendarError = error.toString());
     } finally {
       if (mounted) setState(() => loadingCalendar = false);
@@ -302,7 +346,11 @@ class _NkasShellState extends State<NkasShell> {
     queueSocketReconnectTimer?.cancel();
     await _closeQueueSocket();
     final connection = widget.connectionController.state;
-    if (!mounted || connection.phase != ConnectionPhase.connected) return;
+    if (!mounted ||
+        !_starAccessGranted ||
+        connection.phase != ConnectionPhase.connected) {
+      return;
+    }
     final socket = InstanceQueueSocket(
       uri: widget.connectionController.websocketUri(
         '/ws/${Uri.encodeComponent(name)}/queue',
@@ -324,6 +372,7 @@ class _NkasShellState extends State<NkasShell> {
     if (!mounted ||
         queueSocket != socket ||
         queueSocketInstance != name ||
+        !_starAccessGranted ||
         widget.connectionController.state.phase != ConnectionPhase.connected) {
       return;
     }
@@ -342,9 +391,6 @@ class _NkasShellState extends State<NkasShell> {
     queueSocketInstance = null;
     await socket?.close();
   }
-
-  bool get canControlLocalService =>
-      kIsWeb || defaultTargetPlatform == TargetPlatform.android;
 
   @override
   Widget build(BuildContext context) {
@@ -380,6 +426,7 @@ class _NkasShellState extends State<NkasShell> {
                             bottom: 14,
                             child: _BottomNav(
                               page: page,
+                              accessEnabled: _starAccessGranted,
                               onSelect: _selectPage,
                             ),
                           ),
@@ -413,10 +460,26 @@ class _NkasShellState extends State<NkasShell> {
       loadingInstances: loadingInstances,
       instancesError: instancesError,
       avatarUrl: _avatarUrl,
-      serviceRunning: serviceRunning,
-      canControlService: canControlLocalService,
-      onToggleService: () => setState(() => serviceRunning = !serviceRunning),
+      resolveAssetUrl: (value) =>
+          widget.connectionController.assetUri(value).toString(),
+      serviceRunning:
+          widget.connectionController.state.phase == ConnectionPhase.connected,
+      onRefreshStatus: () => widget.connectionController.connect(
+        widget.connectionController.state.baseUrl,
+      ),
       onOpenInstances: () => _selectPage(NkasPage.instances),
+      onSelectInstance: (value) {
+        setState(() {
+          instance = value;
+          instanceTab = InstanceTab.overview;
+          page = NkasPage.instances;
+          taskKey = null;
+          queueError = null;
+          schema = null;
+          schemaError = null;
+        });
+        unawaited(_loadQueue(value));
+      },
       calendarItems: calendarItems,
       calendarUpdatedAt: calendarUpdatedAt,
       calendarLoading: loadingCalendar,
@@ -456,6 +519,17 @@ class _NkasShellState extends State<NkasShell> {
       patchConfig: (key, value) =>
           widget.connectionController.patchConfig(instance, key, value),
       onOpenControl: _openWebUi,
+      liveLogUri: widget.connectionController.websocketUri(
+        '/ws/${Uri.encodeComponent(instance)}/log',
+      ),
+      onOpenTask: (value) {
+        setState(() {
+          instanceTab = InstanceTab.tasks;
+          taskKey = value;
+        });
+        if (schema == null) unawaited(_loadSchema(instance));
+      },
+      initialTaskKey: taskKey,
       onSelectInstance: (value) {
         setState(() {
           instance = value;
@@ -463,6 +537,7 @@ class _NkasShellState extends State<NkasShell> {
           queueError = null;
           schema = null;
           schemaError = null;
+          taskKey = null;
         });
         unawaited(_loadQueue(value));
       },
@@ -472,6 +547,7 @@ class _NkasShellState extends State<NkasShell> {
     ),
     NkasPage.settings => SettingsPage(
       connectionController: widget.connectionController,
+      starAuthorized: _starAccessGranted,
       themeMode: widget.themeMode,
       notifications: notifications,
       autoScroll: autoScroll,
@@ -489,9 +565,18 @@ class _NkasShellState extends State<NkasShell> {
     ),
   };
 
-  void _selectPage(NkasPage value) => setState(() => page = value);
+  void _selectPage(NkasPage value) {
+    if (!_starAccessGranted &&
+        value != NkasPage.settings &&
+        value != NkasPage.starVerify) {
+      setState(() => page = NkasPage.settings);
+      return;
+    }
+    setState(() => page = value);
+  }
 
   Future<void> _openWebUi() async {
+    if (!_starAccessGranted) return;
     final opened = await launchUrl(
       widget.connectionController.webUiUri,
       mode: LaunchMode.externalApplication,
@@ -504,14 +589,14 @@ class _NkasShellState extends State<NkasShell> {
   }
 
   Future<void> _loadSchema(String name) async {
-    if (loadingSchema) return;
+    if (!_starAccessGranted || loadingSchema) return;
     setState(() {
       loadingSchema = true;
       schemaError = null;
     });
     try {
       final value = await widget.connectionController.fetchSchema(name);
-      if (mounted) setState(() => schema = value);
+      if (mounted && _starAccessGranted) setState(() => schema = value);
     } catch (exception) {
       if (mounted) setState(() => schemaError = exception.toString());
     } finally {
@@ -521,7 +606,7 @@ class _NkasShellState extends State<NkasShell> {
 
   Future<void> _toggleSelectedInstance() async {
     final selected = selectedInstance;
-    if (selected == null || togglingInstance) return;
+    if (!_starAccessGranted || selected == null || togglingInstance) return;
     final nextRunning = selected.state != 1;
     setState(() => togglingInstance = true);
     try {
@@ -612,8 +697,13 @@ class _AppHeader extends StatelessWidget {
 }
 
 class _BottomNav extends StatelessWidget {
-  const _BottomNav({required this.page, required this.onSelect});
+  const _BottomNav({
+    required this.page,
+    required this.accessEnabled,
+    required this.onSelect,
+  });
   final NkasPage page;
+  final bool accessEnabled;
   final ValueChanged<NkasPage> onSelect;
 
   @override
@@ -646,24 +736,28 @@ class _BottomNav extends StatelessWidget {
                     icon: LucideIcons.layoutDashboard,
                     label: '总览',
                     selected: page == NkasPage.overview,
+                    enabled: accessEnabled,
                     onTap: () => onSelect(NkasPage.overview),
                   ),
                   _NavItem(
                     icon: LucideIcons.layers3,
                     label: '实例',
                     selected: page == NkasPage.instances,
+                    enabled: accessEnabled,
                     onTap: () => onSelect(NkasPage.instances),
                   ),
                   _NavItem(
                     icon: LucideIcons.scrollText,
                     label: '日志',
                     selected: page == NkasPage.logs,
+                    enabled: accessEnabled,
                     onTap: () => onSelect(NkasPage.logs),
                   ),
                   _NavItem(
                     icon: LucideIcons.settings2,
                     label: '设置',
                     selected: page == NkasPage.settings,
+                    enabled: true,
                     onTap: () => onSelect(NkasPage.settings),
                   ),
                 ],
@@ -681,53 +775,58 @@ class _NavItem extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.selected,
+    required this.enabled,
     required this.onTap,
   });
   final IconData icon;
   final String label;
   final bool selected;
+  final bool enabled;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final scheme = ShadTheme.of(context).colorScheme;
     return Tooltip(
-      message: label,
-      child: InkWell(
-        onTap: onTap,
-        customBorder: const CircleBorder(),
-        child: SizedBox(
-          width: 46,
-          height: 46,
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              Container(
-                width: 46,
-                height: 46,
-                decoration: BoxDecoration(
-                  color: selected ? scheme.accentSoft : Colors.transparent,
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  icon,
-                  size: 20,
-                  color: selected ? scheme.primary : scheme.mutedForeground,
-                ),
-              ),
-              if (selected)
-                Positioned(
-                  bottom: 4,
-                  child: Container(
-                    width: 4,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: scheme.primary,
-                      shape: BoxShape.circle,
-                    ),
+      message: enabled ? label : '$label（需 STAR 验证）',
+      child: Opacity(
+        opacity: enabled ? 1 : .38,
+        child: InkWell(
+          onTap: enabled ? onTap : null,
+          customBorder: const CircleBorder(),
+          child: SizedBox(
+            width: 48,
+            height: 48,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                Container(
+                  width: 46,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    color: selected ? scheme.accentSoft : Colors.transparent,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    icon,
+                    size: 20,
+                    color: selected ? scheme.primary : scheme.mutedForeground,
                   ),
                 ),
-            ],
+                if (selected)
+                  Positioned(
+                    bottom: 4,
+                    child: Container(
+                      width: 4,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: scheme.primary,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
       ),

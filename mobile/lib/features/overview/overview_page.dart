@@ -17,13 +17,14 @@ import 'package:nkas_mobile_preview/theme.dart';
 class OverviewPage extends StatelessWidget {
   const OverviewPage({
     required this.serviceRunning,
-    required this.canControlService,
-    required this.onToggleService,
+    required this.onRefreshStatus,
     required this.onOpenInstances,
+    required this.onSelectInstance,
     required this.instances,
     required this.loadingInstances,
     required this.instancesError,
     required this.avatarUrl,
+    required this.resolveAssetUrl,
     required this.calendarItems,
     required this.calendarUpdatedAt,
     required this.calendarLoading,
@@ -32,13 +33,14 @@ class OverviewPage extends StatelessWidget {
     super.key,
   });
   final bool serviceRunning;
-  final bool canControlService;
-  final VoidCallback onToggleService;
+  final Future<void> Function() onRefreshStatus;
   final VoidCallback onOpenInstances;
+  final ValueChanged<String> onSelectInstance;
   final List<InstanceInfo> instances;
   final bool loadingInstances;
   final String? instancesError;
   final String? Function(InstanceInfo item) avatarUrl;
+  final String Function(String value) resolveAssetUrl;
   final List<CalendarItem> calendarItems;
   final int calendarUpdatedAt;
   final bool calendarLoading;
@@ -130,7 +132,7 @@ class OverviewPage extends StatelessWidget {
                       ),
                       const SizedBox(width: 5),
                       Text(
-                        'Android 本机',
+                        '移动端控制',
                         style: theme.textTheme.muted.copyWith(
                           color: scheme.heroMeta,
                         ),
@@ -141,13 +143,13 @@ class OverviewPage extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(
-                        LucideIcons.clock3,
+                        LucideIcons.server,
                         size: 14,
                         color: scheme.heroMetaIcon,
                       ),
                       const SizedBox(width: 5),
                       Text(
-                        serviceRunning ? '运行 2 小时 18 分' : '等待启动',
+                        serviceRunning ? '后端已连接' : '等待后端连接',
                         style: theme.textTheme.muted.copyWith(
                           color: scheme.heroMeta,
                         ),
@@ -159,20 +161,10 @@ class OverviewPage extends StatelessWidget {
               const SizedBox(height: 17),
               Row(
                 children: [
-                  if (canControlService) ...[
-                    PrimaryButton(
-                      icon: serviceRunning
-                          ? LucideIcons.square
-                          : LucideIcons.play,
-                      label: serviceRunning ? '停止服务' : '启动服务',
-                      onPressed: onToggleService,
-                    ),
-                    const SizedBox(width: 8),
-                  ],
                   SecondaryButton(
                     icon: LucideIcons.refreshCw,
                     label: '刷新状态',
-                    onPressed: () {},
+                    onPressed: () => onRefreshStatus(),
                   ),
                 ],
               ),
@@ -207,6 +199,7 @@ class OverviewPage extends StatelessWidget {
                         detail: instances[i].detail,
                         status: instances[i].status,
                         imageUrl: avatarUrl(instances[i]),
+                        onTap: () => onSelectInstance(instances[i].name),
                       ),
                     ],
                   ],
@@ -219,6 +212,7 @@ class OverviewPage extends StatelessWidget {
           loading: calendarLoading,
           error: calendarError,
           onRefresh: onRefreshCalendar,
+          resolveAssetUrl: resolveAssetUrl,
         ),
       ],
     );
@@ -241,6 +235,7 @@ class _CalendarSection extends StatefulWidget {
     required this.loading,
     required this.error,
     required this.onRefresh,
+    required this.resolveAssetUrl,
   });
 
   final List<CalendarItem> items;
@@ -248,6 +243,7 @@ class _CalendarSection extends StatefulWidget {
   final bool loading;
   final String? error;
   final Future<void> Function() onRefresh;
+  final String Function(String value) resolveAssetUrl;
 
   @override
   State<_CalendarSection> createState() => _CalendarSectionState();
@@ -269,9 +265,18 @@ class _CalendarSectionState extends State<_CalendarSection> {
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
-    final visibleItems = category.isEmpty
-        ? widget.items
-        : widget.items.where((item) => item.category == category).toList();
+    final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    final visibleItems =
+        (category.isEmpty
+                ? widget.items
+                : widget.items.where((item) => item.category == category))
+            .where((item) => item.endTime > now)
+            .toList()
+          ..sort(
+            (left, right) => left.endTime.compareTo(right.endTime) != 0
+                ? left.endTime.compareTo(right.endTime)
+                : left.sourceOrder.compareTo(right.sourceOrder),
+          );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -314,16 +319,23 @@ class _CalendarSectionState extends State<_CalendarSection> {
             ),
           )
         else
-          _EventCard(item: visibleItems.first),
+          for (var i = 0; i < visibleItems.length; i++) ...[
+            if (i > 0) const SizedBox(height: 10),
+            _EventCard(
+              item: visibleItems[i],
+              resolveAssetUrl: widget.resolveAssetUrl,
+            ),
+          ],
       ],
     );
   }
 }
 
 class _EventCard extends StatelessWidget {
-  const _EventCard({required this.item});
+  const _EventCard({required this.item, required this.resolveAssetUrl});
 
   final CalendarItem item;
+  final String Function(String value) resolveAssetUrl;
 
   @override
   Widget build(BuildContext context) {
@@ -341,7 +353,7 @@ class _EventCard extends StatelessWidget {
             color: scheme.eventBannerDefault,
             child: item.bannerUrl != null && item.bannerUrl!.isNotEmpty
                 ? Image.network(
-                    item.bannerUrl!,
+                    resolveAssetUrl(item.bannerUrl!),
                     fit: BoxFit.cover,
                     errorBuilder: (_, _, _) => _bannerLabel(context),
                   )
@@ -383,6 +395,12 @@ class _EventCard extends StatelessWidget {
                   value: _remainingText(item.endTime),
                   active: true,
                 ),
+                if (item.stageEndTime != null && item.stageEndTime! > 0)
+                  _EventTime(
+                    label: '距离Buff重置',
+                    value: _remainingText(item.stageEndTime!),
+                    active: true,
+                  ),
               ],
             ),
           ),
@@ -444,49 +462,57 @@ class _InstanceRow extends StatelessWidget {
     required this.detail,
     required this.status,
     this.imageUrl,
+    required this.onTap,
   });
   final String initial;
   final String name;
   final String detail;
   final InstanceStatus status;
   final String? imageUrl;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
-    return ConstrainedBox(
-      constraints: const BoxConstraints(minHeight: 68),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        child: Row(
-          children: [
-            Avatar(text: initial, imageUrl: imageUrl),
-            const SizedBox(width: 11),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    name,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 68),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            child: Row(
+              children: [
+                Avatar(text: initial, imageUrl: imageUrl),
+                const SizedBox(width: 11),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        name,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(detail, style: theme.textTheme.muted),
+                    ],
                   ),
-                  const SizedBox(height: 3),
-                  Text(detail, style: theme.textTheme.muted),
-                ],
-              ),
+                ),
+                Status(status: status),
+                const SizedBox(width: 5),
+                Icon(
+                  LucideIcons.chevronRight,
+                  size: 15,
+                  color: theme.colorScheme.mutedForeground,
+                ),
+              ],
             ),
-            Status(status: status),
-            const SizedBox(width: 5),
-            Icon(
-              LucideIcons.chevronRight,
-              size: 15,
-              color: theme.colorScheme.mutedForeground,
-            ),
-          ],
+          ),
         ),
       ),
     );

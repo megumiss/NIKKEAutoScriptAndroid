@@ -201,6 +201,28 @@ void main() {
     expect(requests, ['POST /api/nkas/start', 'POST /api/nkas/stop']);
   });
 
+  test('encodes instance names in action and queue URLs', () async {
+    final requests = <Uri>[];
+    final api = ApiClient(
+      client: MockClient((request) async {
+        requests.add(request.url);
+        if (request.url.path.endsWith('/queue')) {
+          return http.Response('{}', 200);
+        }
+        return http.Response('{}', 200);
+      }),
+    );
+    addTearDown(api.close);
+
+    await api.setInstanceRunning('http://nkas.example:12271', '主账号/测试', true);
+    await api.fetchQueue('http://nkas.example:12271', '主账号/测试');
+
+    expect(requests.map((uri) => uri.toString()), [
+      'http://nkas.example:12271/api/%E4%B8%BB%E8%B4%A6%E5%8F%B7%2F%E6%B5%8B%E8%AF%95/start',
+      'http://nkas.example:12271/api/%E4%B8%BB%E8%B4%A6%E5%8F%B7%2F%E6%B5%8B%E8%AF%95/queue',
+    ]);
+  });
+
   test('parses queue snapshots and queue websocket events', () async {
     final api = ApiClient(
       client: MockClient(

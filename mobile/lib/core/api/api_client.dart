@@ -107,7 +107,12 @@ class ApiClient {
     bool running,
   ) async {
     final response = await _client
-        .post(endpoint(baseUrl, '/api/$name/${running ? 'start' : 'stop'}'))
+        .post(
+          endpoint(
+            baseUrl,
+            '/api/${Uri.encodeComponent(name)}/${running ? 'start' : 'stop'}',
+          ),
+        )
         .timeout(timeout);
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw ApiException('后端返回 HTTP ${response.statusCode}');
@@ -116,7 +121,7 @@ class ApiClient {
 
   Future<QueueInfo> fetchQueue(String baseUrl, String name) async {
     final response = await _client
-        .get(endpoint(baseUrl, '/api/$name/queue'))
+        .get(endpoint(baseUrl, '/api/${Uri.encodeComponent(name)}/queue'))
         .timeout(timeout);
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw ApiException('后端返回 HTTP ${response.statusCode}');
@@ -210,6 +215,20 @@ class ApiClient {
     baseUrl,
     '/api/system/logs/download',
   ).replace(queryParameters: {'date': date, 'source': source});
+
+  Future<List<int>> downloadLog(
+    String baseUrl, {
+    required String date,
+    required String source,
+  }) async {
+    final response = await _client
+        .get(logDownloadUri(baseUrl, date: date, source: source))
+        .timeout(timeout);
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw ApiException('后端返回 HTTP ${response.statusCode}');
+    }
+    return response.bodyBytes;
+  }
 
   Future<UpdateInfo> fetchUpdateInfo(String baseUrl) async {
     final response = await _client

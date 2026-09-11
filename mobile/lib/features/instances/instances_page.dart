@@ -8,10 +8,12 @@ import 'package:nkas_mobile_preview/core/api/queue_info.dart';
 import 'package:nkas_mobile_preview/core/api/screenshot_frame.dart';
 import 'package:nkas_mobile_preview/core/api/schedule_info.dart';
 import 'package:nkas_mobile_preview/core/api/schema_info.dart';
+import 'package:nkas_mobile_preview/core/connection/instance_log_socket.dart';
 import 'package:nkas_mobile_preview/core/widgets/avatar.dart';
 import 'package:nkas_mobile_preview/core/widgets/buttons.dart';
 import 'package:nkas_mobile_preview/core/widgets/icon_box.dart';
 import 'package:nkas_mobile_preview/core/widgets/field_select.dart';
+import 'package:nkas_mobile_preview/core/widgets/log_line.dart';
 import 'package:nkas_mobile_preview/core/widgets/page_inset.dart';
 import 'package:nkas_mobile_preview/core/widgets/page_subtitle.dart';
 import 'package:nkas_mobile_preview/core/widgets/status.dart';
@@ -48,6 +50,9 @@ class InstancesPage extends StatelessWidget {
     required this.patchConfig,
     required this.onSelectInstance,
     required this.onOpenControl,
+    required this.liveLogUri,
+    required this.onOpenTask,
+    required this.initialTaskKey,
     super.key,
   });
   final String selected;
@@ -75,6 +80,9 @@ class InstancesPage extends StatelessWidget {
   final Future<void> Function(String, Object?) patchConfig;
   final ValueChanged<String> onSelectInstance;
   final VoidCallback onOpenControl;
+  final Uri liveLogUri;
+  final ValueChanged<String> onOpenTask;
+  final String? initialTaskKey;
 
   @override
   Widget build(BuildContext context) {
@@ -176,6 +184,9 @@ class InstancesPage extends StatelessWidget {
             schemaError: schemaError,
             loadSchema: loadSchema,
             patchConfig: patchConfig,
+            liveLogUri: liveLogUri,
+            onOpenTask: onOpenTask,
+            initialTaskKey: initialTaskKey,
           ),
         ),
       ],
@@ -252,7 +263,7 @@ class _InstanceTabs extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(top: 17),
       child: SizedBox(
-        height: 36,
+        height: 48,
         child: SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           padding: EdgeInsets.symmetric(horizontal: nkasPageInset(context)),
@@ -262,7 +273,7 @@ class _InstanceTabs extends StatelessWidget {
                 InkWell(
                   onTap: () => onChanged(item.$1),
                   child: Container(
-                    height: 36,
+                    height: 48,
                     padding: const EdgeInsets.symmetric(horizontal: 10),
                     child: Column(
                       children: [
@@ -321,6 +332,9 @@ class _InstanceBody extends StatelessWidget {
     required this.schemaError,
     required this.loadSchema,
     required this.patchConfig,
+    required this.liveLogUri,
+    required this.onOpenTask,
+    required this.initialTaskKey,
   });
   final InstanceTab tab;
   final QueueInfo? queue;
@@ -338,6 +352,9 @@ class _InstanceBody extends StatelessWidget {
   final String? schemaError;
   final Future<void> Function() loadSchema;
   final Future<void> Function(String, Object?) patchConfig;
+  final Uri liveLogUri;
+  final ValueChanged<String> onOpenTask;
+  final String? initialTaskKey;
 
   @override
   Widget build(BuildContext context) {
@@ -363,18 +380,21 @@ class _InstanceBody extends StatelessWidget {
               label: '运行中',
               colorKind: 0,
               items: queue!.running,
+              onTap: onOpenTask,
             ),
             const SizedBox(height: 16),
             _QueueGroup.fromItems(
               label: '队列中',
               colorKind: 1,
               items: queue!.pending,
+              onTap: onOpenTask,
             ),
             const SizedBox(height: 16),
             _QueueGroup.fromItems(
               label: '等待中',
               colorKind: 2,
               items: queue!.waiting,
+              onTap: onOpenTask,
             ),
           ],
         ],
@@ -385,6 +405,7 @@ class _InstanceBody extends StatelessWidget {
             error: schemaError,
             onReload: loadSchema,
             onPatch: patchConfig,
+            initialTaskKey: initialTaskKey,
           ),
         ],
         InstanceTab.schedule => [
@@ -395,7 +416,13 @@ class _InstanceBody extends StatelessWidget {
             resetSchedule: resetSchedule,
           ),
         ],
-        InstanceTab.liveLogs => [_LiveLogPanel(running: running)],
+        InstanceTab.liveLogs => [
+          _LiveLogPanel(
+            key: ValueKey(selected),
+            running: running,
+            uri: liveLogUri,
+          ),
+        ],
         InstanceTab.screen => [
           _ScreenPanel(
             key: ValueKey(selected),
@@ -413,20 +440,24 @@ class _QueueGroup extends StatelessWidget {
     required String label,
     required int colorKind,
     required List<QueueItem> items,
+    required ValueChanged<String> onTap,
   }) => _QueueGroup(
     label: label,
     colorKind: colorKind,
     rows: [for (final item in items) (item.name, item.command, item.nextRun)],
+    onTap: onTap,
   );
 
   const _QueueGroup({
     required this.label,
     required this.colorKind,
     required this.rows,
+    required this.onTap,
   });
   final String label;
   final int colorKind;
   final List<(String, String, String)> rows;
+  final ValueChanged<String> onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -474,6 +505,7 @@ class _QueueGroup extends StatelessWidget {
                   time: rows[i].$3,
                   color: color,
                   icon: icon,
+                  onTap: () => onTap(rows[i].$1),
                 ),
               ],
             ],
@@ -491,46 +523,54 @@ class _QueueRow extends StatelessWidget {
     required this.time,
     required this.color,
     required this.icon,
+    required this.onTap,
   });
   final String name;
   final String detail;
   final String time;
   final Color color;
   final IconData icon;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      child: Row(
-        children: [
-          IconBox(icon: icon, color: color),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  name,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          child: Row(
+            children: [
+              IconBox(icon: icon, color: color),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(detail, style: theme.textTheme.muted),
+                  ],
                 ),
-                const SizedBox(height: 3),
-                Text(detail, style: theme.textTheme.muted),
-              ],
-            ),
+              ),
+              Tag(label: time, color: color),
+              const SizedBox(width: 5),
+              Icon(
+                LucideIcons.chevronRight,
+                size: 15,
+                color: theme.colorScheme.mutedForeground,
+              ),
+            ],
           ),
-          Tag(label: time, color: color),
-          const SizedBox(width: 5),
-          Icon(
-            LucideIcons.chevronRight,
-            size: 15,
-            color: theme.colorScheme.mutedForeground,
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -543,6 +583,7 @@ class _SchemaPanel extends StatefulWidget {
     required this.error,
     required this.onReload,
     required this.onPatch,
+    required this.initialTaskKey,
   });
 
   final SchemaInfo? schema;
@@ -550,6 +591,7 @@ class _SchemaPanel extends StatefulWidget {
   final String? error;
   final Future<void> Function() onReload;
   final Future<void> Function(String, Object?) onPatch;
+  final String? initialTaskKey;
 
   @override
   State<_SchemaPanel> createState() => _SchemaPanelState();
@@ -558,6 +600,20 @@ class _SchemaPanel extends StatefulWidget {
 class _SchemaPanelState extends State<_SchemaPanel> {
   String? taskKey;
   String? savingKey;
+
+  @override
+  void initState() {
+    super.initState();
+    taskKey = widget.initialTaskKey;
+  }
+
+  @override
+  void didUpdateWidget(covariant _SchemaPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.initialTaskKey != widget.initialTaskKey) {
+      taskKey = widget.initialTaskKey;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -918,21 +974,77 @@ class _SchemaFieldView extends StatelessWidget {
               for (final option in field.options)
                 FieldSelectOption(option.value.toString(), option.label),
             ],
-            onChanged: disabled
+            onChanged: disabled || isMulti
                 ? null
                 : (value) {
                     final option = field.options.firstWhere(
                       (item) => item.value.toString() == value,
                     );
-                    onPatch(field.key, isMulti ? [option.value] : option.value);
+                    onPatch(field.key, option.value);
+                  },
+            onTap: disabled || !isMulti
+                ? null
+                : () async {
+                    final values = await _showMultiSelect(
+                      context,
+                      field.title,
+                      field.options,
+                      selectedValues,
+                    );
+                    if (values != null) onPatch(field.key, values);
                   },
           ),
         ],
       );
     }
-    if (field.widget == 'input' ||
-        field.widget == 'textarea' ||
-        field.widget == 'datetime') {
+    if (field.widget == 'datetime') {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          label,
+          const SizedBox(height: 7),
+          TextFormField(
+            key: ValueKey('${field.key}:${field.value}'),
+            initialValue: field.value?.toString() ?? '',
+            enabled: !disabled,
+            readOnly: true,
+            onTap: disabled
+                ? null
+                : () async {
+                    final initial = DateTime.tryParse(
+                      field.value?.toString() ?? '',
+                    )?.toLocal();
+                    final date = await showDatePicker(
+                      context: context,
+                      firstDate: DateTime(2000),
+                      lastDate: DateTime(2100),
+                      initialDate: initial ?? DateTime.now(),
+                    );
+                    if (date == null || !context.mounted) return;
+                    final time = await showTimePicker(
+                      context: context,
+                      initialTime: initial == null
+                          ? TimeOfDay.now()
+                          : TimeOfDay.fromDateTime(initial),
+                    );
+                    if (time == null) return;
+                    final value = DateTime(
+                      date.year,
+                      date.month,
+                      date.day,
+                      time.hour,
+                      time.minute,
+                    );
+                    onPatch(field.key, _formatDateTimeLocal(value));
+                  },
+            decoration: const InputDecoration(
+              suffixIcon: Icon(LucideIcons.calendarClock, size: 18),
+            ),
+          ),
+        ],
+      );
+    }
+    if (field.widget == 'input' || field.widget == 'textarea') {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -956,6 +1068,74 @@ class _SchemaFieldView extends StatelessWidget {
         Text('该字段请通过原始 WebUI 操作', style: theme.textTheme.muted),
       ],
     );
+  }
+
+  static Future<List<Object?>?> _showMultiSelect(
+    BuildContext context,
+    String title,
+    List<SchemaOption> options,
+    Set<String> selected,
+  ) async {
+    final values = {...selected};
+    return showModalBottomSheet<List<Object?>>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: ShadTheme.of(context).textTheme.h3),
+                const SizedBox(height: 8),
+                for (final option in options)
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(option.label),
+                    value: values.contains(option.value.toString()),
+                    onChanged: (checked) {
+                      setState(() {
+                        if (checked == true) {
+                          values.add(option.value.toString());
+                        } else {
+                          values.remove(option.value.toString());
+                        }
+                      });
+                    },
+                  ),
+                const SizedBox(height: 6),
+                SizedBox(
+                  width: double.infinity,
+                  child: PrimaryButton(
+                    icon: LucideIcons.check,
+                    label: '完成',
+                    onPressed: () => Navigator.pop(
+                      context,
+                      options
+                          .where(
+                            (option) =>
+                                values.contains(option.value.toString()),
+                          )
+                          .map((option) => option.value)
+                          .toList(growable: false),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  static String _formatDateTimeLocal(DateTime value) {
+    String two(int item) => item.toString().padLeft(2, '0');
+    return '${value.year}-${two(value.month)}-${two(value.day)}'
+        'T${two(value.hour)}:${two(value.minute)}';
   }
 }
 
@@ -1207,9 +1387,10 @@ class _ScheduleRow extends StatelessWidget {
 }
 
 class _LiveLogPanel extends StatefulWidget {
-  const _LiveLogPanel({required this.running});
+  const _LiveLogPanel({required this.running, required this.uri, super.key});
 
   final bool running;
+  final Uri uri;
 
   @override
   State<_LiveLogPanel> createState() => _LiveLogPanelState();
@@ -1218,6 +1399,163 @@ class _LiveLogPanel extends StatefulWidget {
 class _LiveLogPanelState extends State<_LiveLogPanel> {
   String level = 'INFO';
   bool autoScroll = true;
+  final scrollController = ScrollController();
+  final lines = <_LiveLogLine>[];
+  InstanceLogSocket? socket;
+  Timer? reconnectTimer;
+  bool connected = false;
+  String? error;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_connect());
+  }
+
+  @override
+  void didUpdateWidget(covariant _LiveLogPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.uri != widget.uri) unawaited(_connect());
+  }
+
+  @override
+  void dispose() {
+    reconnectTimer?.cancel();
+    unawaited(socket?.close());
+    scrollController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _connect() async {
+    reconnectTimer?.cancel();
+    final previous = socket;
+    socket = null;
+    await previous?.close();
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      connected = false;
+      error = null;
+      lines.clear();
+    });
+    final next = InstanceLogSocket(uri: widget.uri);
+    socket = next;
+    final connectedNow = await next.connect(
+      onLog: _receive,
+      onError: (_) {
+        if (mounted) {
+          setState(() {
+            connected = false;
+            error = '日志连接中断';
+          });
+        }
+        _scheduleReconnect(next);
+      },
+      onClosed: () {
+        if (mounted) setState(() => connected = false);
+        _scheduleReconnect(next);
+      },
+    );
+    if (mounted && socket == next && connectedNow) {
+      setState(() => connected = true);
+    }
+  }
+
+  void _scheduleReconnect(InstanceLogSocket source) {
+    if (!mounted || socket != source) return;
+    reconnectTimer?.cancel();
+    reconnectTimer = Timer(
+      const Duration(seconds: 3),
+      () => unawaited(_connect()),
+    );
+  }
+
+  void _receive(InstanceLogEvent event) {
+    if (!mounted) return;
+    final parsed = event.html.expand(_parseFragment).toList(growable: false);
+    if (parsed.isEmpty) return;
+    setState(() {
+      lines.addAll(parsed);
+      if (lines.length > 500) lines.removeRange(0, lines.length - 500);
+    });
+    if (autoScroll) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && scrollController.hasClients) {
+          scrollController.jumpTo(scrollController.position.maxScrollExtent);
+        }
+      });
+    }
+  }
+
+  Iterable<_LiveLogLine> _parseFragment(String fragment) sync* {
+    final lineMatch = RegExp(
+      r'<div class="log-line([^>]*)">([\\s\\S]*?)</div>(?:<div class="log-traceback">([\\s\\S]*?)</div>)?',
+    ).firstMatch(fragment);
+    final content = lineMatch?.group(2) ?? fragment;
+    final classes = lineMatch?.group(1) ?? '';
+    final timestamp = _text(
+      RegExp(
+        r'<span class="ts">([\\s\\S]*?)</span>',
+      ).firstMatch(content)?.group(1),
+    );
+    final levelText = _text(
+      RegExp(
+        r'<span class="lv-chip[^>]*>([\\s\\S]*?)</span>',
+      ).firstMatch(content)?.group(1),
+    );
+    final message = _text(
+      RegExp(
+        r'<span class="log-message[^>]*>([\\s\\S]*?)</span>',
+      ).firstMatch(content)?.group(1),
+    ).trim();
+    final fallback = _text(content).trim();
+    final traceback = _text(lineMatch?.group(3)).trim();
+    final value = message.isEmpty ? fallback : message;
+    if (value.isEmpty) return;
+    final kind =
+        classes.contains('lv-err') ||
+            levelText == 'ERROR' ||
+            levelText == 'CRITICAL'
+        ? LogKind.error
+        : classes.contains('lv-warn') || levelText == 'WARNING'
+        ? LogKind.warn
+        : LogKind.info;
+    yield _LiveLogLine(
+      time: timestamp,
+      level: levelText.isEmpty
+          ? (classes.contains('section') ? 'INFO' : 'INFO')
+          : levelText,
+      message: value,
+      kind: kind,
+      traceback: traceback.isEmpty ? null : traceback,
+    );
+  }
+
+  String _text(String? value) {
+    if (value == null) return '';
+    return value
+        .replaceAll(RegExp(r'<br\\s*/?>'), '\\n')
+        .replaceAll(RegExp(r'<[^>]+>'), '')
+        .replaceAll('&amp;', '&')
+        .replaceAll('&lt;', '<')
+        .replaceAll('&gt;', '>')
+        .replaceAll('&quot;', '"')
+        .replaceAll('&#39;', "'");
+  }
+
+  bool _visible(_LiveLogLine line) {
+    const ranks = {
+      'DEBUG': 0,
+      'INFO': 1,
+      'WARNING': 2,
+      'WARN': 2,
+      'ERROR': 3,
+      'CRITICAL': 3,
+    };
+    final selected = ranks[level] ?? 1;
+    return (ranks[line.level] ?? 1) >= selected;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1282,40 +1620,71 @@ class _LiveLogPanelState extends State<_LiveLogPanel> {
                   value: autoScroll,
                   onChanged: (value) => setState(() => autoScroll = value),
                 ),
+                const SizedBox(width: 6),
+                Semantics(
+                  label: connected ? '日志已连接' : '日志未连接',
+                  child: Icon(
+                    connected ? LucideIcons.wifi : LucideIcons.wifiOff,
+                    size: 15,
+                    color: connected ? scheme.success : scheme.mutedForeground,
+                  ),
+                ),
               ],
             ),
           ),
-          Container(
-            width: double.infinity,
-            constraints: const BoxConstraints(minHeight: 280),
-            color: scheme.logBodyBg,
-            padding: const EdgeInsets.all(18),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  LucideIcons.radio,
-                  size: 22,
-                  color: scheme.mutedForeground,
-                ),
-                const SizedBox(height: 10),
-                const Text(
-                  '实时日志暂未接入',
-                  style: TextStyle(fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '请在原始 WebUI 查看当前实例的实时输出',
-                  style: theme.textTheme.muted,
-                  textAlign: TextAlign.center,
-                ),
-              ],
+          SizedBox(
+            height: 420,
+            child: Container(
+              width: double.infinity,
+              color: scheme.logBodyBg,
+              padding: const EdgeInsets.all(8),
+              child: !connected && lines.isEmpty
+                  ? Center(
+                      child: Text(
+                        error ?? '正在连接实时日志…',
+                        style: theme.textTheme.muted,
+                      ),
+                    )
+                  : ListView.builder(
+                      controller: scrollController,
+                      padding: EdgeInsets.zero,
+                      itemCount: lines.where(_visible).length,
+                      itemBuilder: (context, index) {
+                        final visible = lines
+                            .where(_visible)
+                            .toList(growable: false);
+                        final line = visible[index];
+                        return LogLine(
+                          time: line.time,
+                          level: line.level,
+                          message: line.message,
+                          kind: line.kind,
+                          traceback: line.traceback,
+                        );
+                      },
+                    ),
             ),
           ),
         ],
       ),
     );
   }
+}
+
+class _LiveLogLine {
+  const _LiveLogLine({
+    required this.time,
+    required this.level,
+    required this.message,
+    required this.kind,
+    this.traceback,
+  });
+
+  final String time;
+  final String level;
+  final String message;
+  final LogKind kind;
+  final String? traceback;
 }
 
 class _LiveToggle extends StatelessWidget {
@@ -1335,26 +1704,34 @@ class _LiveToggle extends StatelessWidget {
         label: '自动滚动',
         child: GestureDetector(
           onTap: () => onChanged(!value),
-          child: Container(
-            width: 42,
-            height: 24,
-            padding: const EdgeInsets.all(3),
-            decoration: BoxDecoration(
-              color: value ? scheme.primary : scheme.border,
-              borderRadius: BorderRadius.circular(999),
-            ),
-            child: AnimatedAlign(
-              duration: const Duration(milliseconds: 150),
-              alignment: value ? Alignment.centerRight : Alignment.centerLeft,
+          child: SizedBox(
+            width: 48,
+            height: 48,
+            child: Center(
               child: Container(
-                width: 18,
-                height: 18,
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(color: Color(0x24000000), blurRadius: 3),
-                  ],
+                width: 42,
+                height: 24,
+                padding: const EdgeInsets.all(3),
+                decoration: BoxDecoration(
+                  color: value ? scheme.primary : scheme.border,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: AnimatedAlign(
+                  duration: const Duration(milliseconds: 150),
+                  alignment: value
+                      ? Alignment.centerRight
+                      : Alignment.centerLeft,
+                  child: Container(
+                    width: 18,
+                    height: 18,
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(color: Color(0x24000000), blurRadius: 3),
+                      ],
+                    ),
+                  ),
                 ),
               ),
             ),

@@ -18,7 +18,7 @@ Android Release 使用仓库现有的 release keystore。将以下内容添加�
 | Secret | 内容 |
 | --- | --- |
 | `ANDROID_KEYSTORE_BASE64` | `release.jks` 的 Base64 内容 |
-| `ANDROID_STORE_PASSWORD` | keystore 密码 |
+| `ANDROID_KEYSTORE_PASSWORD` | keystore 密码 |
 | `ANDROID_KEY_ALIAS` | key alias |
 | `ANDROID_KEY_PASSWORD` | key 密码 |
 
