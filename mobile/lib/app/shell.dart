@@ -150,9 +150,10 @@ class _NkasShellState extends State<NkasShell> {
   void _connectionChanged() {
     if (!mounted) return;
     final connection = widget.connectionController.state;
+    final accessGranted = _starAccessGranted;
+    final connected = connection.phase == ConnectionPhase.connected;
     setState(() {
-      if (!_starAccessGranted ||
-          connection.phase != ConnectionPhase.connected) {
+      if (!accessGranted || !connected) {
         instances = const [];
         instancesError = null;
         loadedInstancesBaseUrl = null;
@@ -168,27 +169,27 @@ class _NkasShellState extends State<NkasShell> {
         schemaError = null;
       }
     });
-    if (_starAccessGranted &&
-        connection.phase == ConnectionPhase.connected &&
+    if (accessGranted &&
+        connected &&
         loadedInstancesBaseUrl != connection.baseUrl &&
         !loadingInstances) {
       unawaited(_loadInstances());
     }
-    if (_starAccessGranted &&
-        connection.phase == ConnectionPhase.connected &&
+    if (accessGranted &&
+        connected &&
         calendarBaseUrl != connection.baseUrl &&
         !loadingCalendar) {
       unawaited(_loadCalendar());
     }
-    if (_starAccessGranted &&
+    if (accessGranted &&
         widget.enableRealtime &&
-        connection.phase == ConnectionPhase.connected &&
+        connected &&
         stateSocketBaseUrl != connection.baseUrl) {
       unawaited(_openStateSocket(connection.baseUrl));
-    } else if (!widget.enableRealtime ||
-        connection.phase != ConnectionPhase.connected) {
+    } else if (!accessGranted || !widget.enableRealtime || !connected) {
       unawaited(_closeStateSocket());
     }
+    if (!accessGranted || !connected) unawaited(_closeQueueSocket());
   }
 
   Future<void> _openStateSocket(String baseUrl) async {
@@ -380,7 +381,7 @@ class _NkasShellState extends State<NkasShell> {
     queueSocketInstance = name;
     await socket.connect(
       onQueue: (event) {
-        if (!mounted) return;
+        if (!mounted || !_starAccessGranted) return;
         setState(() => queues[event.name] = event.queue);
       },
       onError: (_) => _scheduleQueueSocketReconnect(socket, name),
@@ -568,6 +569,7 @@ class _NkasShellState extends State<NkasShell> {
         if (schema == null) unawaited(_loadSchema(instance));
       },
       initialTaskKey: taskKey,
+      accessGranted: _starAccessGranted,
       onSelectInstance: _switchInstance,
     ),
     NkasPage.screen => ScreenPage(
@@ -630,6 +632,18 @@ class _NkasShellState extends State<NkasShell> {
   }
 
   void _selectPage(NkasPage value) {
+    if (value == NkasPage.instances) {
+      setState(() {
+        page = value;
+        // The page decides whether a single instance skips the list. Keeping
+        // the list layer here also handles instances arriving asynchronously.
+        instanceLayer = InstanceLayer.list;
+        taskKey = null;
+        schema = null;
+        schemaError = null;
+      });
+      return;
+    }
     setState(() => page = value);
   }
 

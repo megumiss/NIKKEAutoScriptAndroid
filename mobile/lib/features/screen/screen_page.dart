@@ -198,8 +198,26 @@ class _ScreenPanelState extends State<ScreenPanel> {
     super.initState();
     if (widget.accessGranted) {
       _load();
-      timer = Timer.periodic(const Duration(seconds: 2), (_) => _load());
+      _startPolling();
     }
+  }
+
+  @override
+  void didUpdateWidget(covariant ScreenPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.accessGranted == widget.accessGranted) return;
+    if (widget.accessGranted) {
+      _startPolling();
+      _load();
+    } else {
+      timer?.cancel();
+      timer = null;
+    }
+  }
+
+  void _startPolling() {
+    if (!widget.accessGranted || timer != null) return;
+    timer = Timer.periodic(const Duration(seconds: 2), (_) => _load());
   }
 
   @override

@@ -9,10 +9,16 @@ import 'package:nkas_mobile/core/widgets/surface.dart';
 import 'package:nkas_mobile/theme.dart';
 
 class LiveLogPanel extends StatefulWidget {
-  const LiveLogPanel({required this.running, required this.uri, super.key});
+  const LiveLogPanel({
+    required this.running,
+    required this.uri,
+    required this.accessGranted,
+    super.key,
+  });
 
   final bool running;
   final Uri uri;
+  final bool accessGranted;
 
   @override
   State<LiveLogPanel> createState() => _LiveLogPanelState();
@@ -37,7 +43,15 @@ class _LiveLogPanelState extends State<LiveLogPanel> {
   @override
   void didUpdateWidget(covariant LiveLogPanel oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.uri != widget.uri) unawaited(_connect());
+    if (oldWidget.accessGranted != widget.accessGranted) {
+      if (widget.accessGranted) {
+        unawaited(_connect());
+      } else {
+        unawaited(_disconnect());
+      }
+    } else if (widget.accessGranted && oldWidget.uri != widget.uri) {
+      unawaited(_connect());
+    }
   }
 
   @override
@@ -49,11 +63,12 @@ class _LiveLogPanelState extends State<LiveLogPanel> {
   }
 
   Future<void> _connect() async {
+    if (!mounted || !widget.accessGranted) return;
     reconnectTimer?.cancel();
     final previous = socket;
     socket = null;
     await previous?.close();
-    if (!mounted) {
+    if (!mounted || !widget.accessGranted) {
       return;
     }
     setState(() {
@@ -79,13 +94,27 @@ class _LiveLogPanelState extends State<LiveLogPanel> {
         _scheduleReconnect(next);
       },
     );
-    if (mounted && socket == next && connectedNow) {
+    if (mounted && widget.accessGranted && socket == next && connectedNow) {
       setState(() => connected = true);
     }
   }
 
+  Future<void> _disconnect() async {
+    reconnectTimer?.cancel();
+    reconnectTimer = null;
+    final previous = socket;
+    socket = null;
+    await previous?.close();
+    if (!mounted) return;
+    setState(() {
+      connected = false;
+      error = null;
+      lines.clear();
+    });
+  }
+
   void _scheduleReconnect(InstanceLogSocket source) {
-    if (!mounted || socket != source) return;
+    if (!mounted || !widget.accessGranted || socket != source) return;
     reconnectTimer?.cancel();
     reconnectTimer = Timer(
       const Duration(seconds: 3),
@@ -94,7 +123,7 @@ class _LiveLogPanelState extends State<LiveLogPanel> {
   }
 
   void _receive(InstanceLogEvent event) {
-    if (!mounted) return;
+    if (!mounted || !widget.accessGranted) return;
     final parsed = event.html.expand(_parseFragment).toList(growable: false);
     if (parsed.isEmpty) return;
     setState(() {
@@ -111,11 +140,30 @@ class _LiveLogPanelState extends State<LiveLogPanel> {
   }
 
   Iterable<_LiveLogLine> _parseFragment(String fragment) sync* {
-    final lineMatch = RegExp(
+    final pattern = RegExp(
       r'<div class="log-line([^>]*)">([\s\S]*?)</div>(?:<div class="log-traceback">([\s\S]*?)</div>)?',
-    ).firstMatch(fragment);
-    final content = lineMatch?.group(2) ?? fragment;
-    final classes = lineMatch?.group(1) ?? '';
+    );
+    final matches = pattern.allMatches(fragment).toList(growable: false);
+    if (matches.isEmpty) {
+      final line = _parseLine(fragment, '', null);
+      if (line != null) yield line;
+      return;
+    }
+    for (final lineMatch in matches) {
+      final line = _parseLine(
+        lineMatch.group(2) ?? '',
+        lineMatch.group(1) ?? '',
+        lineMatch.group(3),
+      );
+      if (line != null) yield line;
+    }
+  }
+
+  _LiveLogLine? _parseLine(
+    String content,
+    String classes,
+    String? rawTraceback,
+  ) {
     final timestamp = _text(
       RegExp(
         r'<span class="ts">([\s\S]*?)</span>',
@@ -132,9 +180,9 @@ class _LiveLogPanelState extends State<LiveLogPanel> {
       ).firstMatch(content)?.group(1),
     ).trim();
     final fallback = _text(content).trim();
-    final traceback = _text(lineMatch?.group(3)).trim();
+    final traceback = _text(rawTraceback).trim();
     final value = message.isEmpty ? fallback : message;
-    if (value.isEmpty) return;
+    if (value.isEmpty) return null;
     final kind =
         classes.contains('lv-err') ||
             levelText == 'ERROR' ||
@@ -143,7 +191,7 @@ class _LiveLogPanelState extends State<LiveLogPanel> {
         : classes.contains('lv-warn') || levelText == 'WARNING'
         ? LogKind.warn
         : LogKind.info;
-    yield _LiveLogLine(
+    return _LiveLogLine(
       time: timestamp,
       level: levelText.isEmpty ? 'INFO' : levelText,
       message: value,

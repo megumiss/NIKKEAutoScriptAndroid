@@ -3,6 +3,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 
 import 'package:nkas_mobile/core/api/schedule_info.dart';
 import 'package:nkas_mobile/core/widgets/buttons.dart';
+import 'package:nkas_mobile/core/widgets/filter_chip.dart';
 import 'package:nkas_mobile/core/widgets/field_select.dart';
 import 'package:nkas_mobile/core/widgets/surface.dart';
 
@@ -106,10 +107,12 @@ class _SchedulePanelState extends State<SchedulePanel> {
                       nextRun: next.nextRun,
                       dailyTimes:
                           change['daily_times']?.toString() ?? next.dailyTimes,
-                      weeklyDays: next.weeklyDays,
+                      weeklyDays:
+                          change['weekly_days']?.toString() ?? next.weeklyDays,
                       weeklyTime:
                           change['weekly_time']?.toString() ?? next.weeklyTime,
-                      monthlyDay: next.monthlyDay,
+                      monthlyDay:
+                          change['monthly_day']?.toString() ?? next.monthlyDay,
                       monthlyTime:
                           change['monthly_time']?.toString() ??
                           next.monthlyTime,
@@ -208,6 +211,7 @@ class _ScheduleRow extends StatelessWidget {
           ),
           const SizedBox(height: 5),
           Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Expanded(
                 child: FieldSelect(
@@ -225,7 +229,8 @@ class _ScheduleRow extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 7),
-              Expanded(
+              SizedBox(
+                width: 112,
                 child: TextFormField(
                   key: ValueKey('${task.command}-${task.cadence}'),
                   initialValue: task.activeTime,
@@ -250,6 +255,42 @@ class _ScheduleRow extends StatelessWidget {
               ),
             ],
           ),
+          if (task.cadence == 'weekly') ...[
+            const SizedBox(height: 6),
+            _WeekdayPicker(
+              value: task.weeklyDays,
+              disabled: disabled || task.locked,
+              onChanged: (value) => onChanged({'weekly_days': value}),
+            ),
+          ],
+          if (task.cadence == 'monthly') ...[
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Text('每月第', style: theme.textTheme.muted),
+                const SizedBox(width: 6),
+                SizedBox(
+                  width: 64,
+                  child: TextFormField(
+                    key: ValueKey('${task.command}-monthly-day'),
+                    initialValue: task.monthlyDay,
+                    enabled: !disabled && !task.locked,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      isDense: true,
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 8,
+                      ),
+                    ),
+                    onChanged: (value) => onChanged({'monthly_day': value}),
+                  ),
+                ),
+                const SizedBox(width: 5),
+                Text('日', style: theme.textTheme.muted),
+              ],
+            ),
+          ],
         ],
       ),
     );
@@ -260,4 +301,59 @@ class _ScheduleRow extends StatelessWidget {
     'monthly' => '每月',
     _ => '每天',
   };
+}
+
+class _WeekdayPicker extends StatelessWidget {
+  const _WeekdayPicker({
+    required this.value,
+    required this.disabled,
+    required this.onChanged,
+  });
+
+  final String value;
+  final bool disabled;
+  final ValueChanged<String> onChanged;
+
+  static const days = ['一', '二', '三', '四', '五', '六', '日'];
+
+  @override
+  Widget build(BuildContext context) {
+    final selected = value
+        .split(',')
+        .map((item) => int.tryParse(item.trim()))
+        .whereType<int>()
+        .where((item) => item >= 1 && item <= 7)
+        .toSet();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('执行日', style: ShadTheme.of(context).textTheme.muted),
+        const SizedBox(height: 3),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              for (var index = 0; index < days.length; index++)
+                NkasFilterChip(
+                  label: '周${days[index]}',
+                  active: selected.contains(index + 1),
+                  onTap: disabled ? null : () => _toggle(selected, index + 1),
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _toggle(Set<int> selected, int day) {
+    final next = {...selected};
+    if (next.contains(day)) {
+      if (next.length <= 1) return;
+      next.remove(day);
+    } else {
+      next.add(day);
+    }
+    onChanged((next.toList()..sort()).join(', '));
+  }
 }

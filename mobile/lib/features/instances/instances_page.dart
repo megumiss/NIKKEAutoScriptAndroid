@@ -56,6 +56,7 @@ class InstancesPage extends StatelessWidget {
     required this.liveLogUri,
     required this.onOpenTask,
     required this.initialTaskKey,
+    required this.accessGranted,
     super.key,
   });
   final String selected;
@@ -88,6 +89,7 @@ class InstancesPage extends StatelessWidget {
   final Uri liveLogUri;
   final ValueChanged<String> onOpenTask;
   final String? initialTaskKey;
+  final bool accessGranted;
 
   @override
   Widget build(BuildContext context) {
@@ -157,6 +159,7 @@ class InstancesPage extends StatelessWidget {
               key: ValueKey(selected),
               running: running,
               uri: liveLogUri,
+              accessGranted: accessGranted,
             ),
           ),
         ),
@@ -332,6 +335,8 @@ class _InstanceList extends StatefulWidget {
 }
 
 class _InstanceListState extends State<_InstanceList> {
+  final pendingQueueNames = <String>{};
+
   @override
   void initState() {
     super.initState();
@@ -346,10 +351,15 @@ class _InstanceListState extends State<_InstanceList> {
 
   void _ensureQueues() {
     for (final item in widget.instances) {
-      if (!widget.queues.containsKey(item.name)) {
-        widget.loadQueueSnapshot(item.name);
-      }
+      if (!widget.queues.containsKey(item.name)) _loadQueue(item.name);
     }
+  }
+
+  void _loadQueue(String name) {
+    if (!pendingQueueNames.add(name)) return;
+    widget.loadQueueSnapshot(name).whenComplete(() {
+      pendingQueueNames.remove(name);
+    });
   }
 
   @override
