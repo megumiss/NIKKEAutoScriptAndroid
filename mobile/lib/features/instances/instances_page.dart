@@ -1577,7 +1577,8 @@ class _LiveLogPanelState extends State<_LiveLogPanel> {
         .replaceAll('&lt;', '<')
         .replaceAll('&gt;', '>')
         .replaceAll('&quot;', '"')
-        .replaceAll('&#39;', "'");
+        .replaceAll('&#39;', "'")
+        .replaceAll('&#x27;', "'");
   }
 
   bool _visible(_LiveLogLine line) {
