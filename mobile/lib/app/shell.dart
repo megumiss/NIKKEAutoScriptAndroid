@@ -555,10 +555,10 @@ class _NkasShellState extends State<NkasShell> {
       onNotificationsChanged: (value) => setState(() => notifications = value),
       onAutoScrollChanged: (value) => setState(() => autoScroll = value),
       onOpenStarVerify: () => _selectPage(NkasPage.starVerify),
-      onOpenSetup: () => _selectPage(NkasPage.setup),
+      onOpenSetup: () => unawaited(_openSetup()),
     ),
     NkasPage.starVerify => StarVerifyPage(
-      onOpenSetup: () => _selectPage(NkasPage.setup),
+      onOpenSetup: () => unawaited(_openSetup()),
     ),
     NkasPage.setup => NkasSetupPage(
       onOpenStar: () => _selectPage(NkasPage.starVerify),
@@ -573,6 +573,17 @@ class _NkasShellState extends State<NkasShell> {
       return;
     }
     setState(() => page = value);
+  }
+
+  Future<void> _openSetup() async {
+    if (!isAndroid && !isIOS) {
+      _selectPage(NkasPage.setup);
+      return;
+    }
+    final latest = await NkasPlatform.instance.starStatus();
+    if (!mounted) return;
+    _applyStarStatus(latest);
+    if (latest.authorized) _selectPage(NkasPage.setup);
   }
 
   Future<void> _openWebUi() async {

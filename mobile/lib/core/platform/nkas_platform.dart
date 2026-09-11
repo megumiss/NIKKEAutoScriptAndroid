@@ -139,6 +139,16 @@ class NkasPlatform {
   }
 
   Future<SetupStatus> setupStatus() async {
+    if (isIOS) {
+      final star = await starStatus();
+      return SetupStatus(
+        authorized: star.authorized,
+        termuxInstalled: false,
+        runCommandPermission: false,
+        wirelessDebug: false,
+        serial: '',
+      );
+    }
     if (!_androidSupported) {
       return const SetupStatus(
         authorized: false,
@@ -174,10 +184,10 @@ class NkasPlatform {
 
   Future<void> pairDevice({String code = '', String serial = ''}) async {
     if (!_androidSupported) throw UnsupportedError('无线调试配对仅支持 Android');
-    await _channel.invokeMethod<void>(
-      'pairDevice',
-      <String, Object?>{'code': code, 'serial': serial},
-    );
+    await _channel.invokeMethod<void>('pairDevice', <String, Object?>{
+      'code': code,
+      'serial': serial,
+    });
   }
 
   Future<void> openWirelessSettings() async {
@@ -197,10 +207,9 @@ class NkasPlatform {
 
   Future<void> setSerial(String serial) async {
     if (!_androidSupported) return;
-    await _channel.invokeMethod<void>(
-      'setSerial',
-      <String, Object?>{'serial': serial},
-    );
+    await _channel.invokeMethod<void>('setSerial', <String, Object?>{
+      'serial': serial,
+    });
   }
 
   NkasPlatformEvent _parseEvent(Map<Object?, Object?> value) {

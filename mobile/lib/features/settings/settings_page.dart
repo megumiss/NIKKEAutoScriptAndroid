@@ -89,12 +89,18 @@ class _SettingsPageState extends State<SettingsPage> {
               subtitle: '设备身份与授权状态 · ${star.authorized ? '已验证' : '待验证'}',
               onTap: widget.onOpenStarVerify,
             ),
-            if (isAndroid || (!NkasPlatform.instance.supported && !isIOS))
+            if (isAndroid ||
+                isIOS ||
+                (!NkasPlatform.instance.supported && !isIOS))
               _SettingRow(
                 icon: LucideIcons.sparkles,
                 iconColor: warning,
                 title: '初始化 NKAS',
-                subtitle: widget.starAuthorized && star.authorized
+                subtitle: isIOS
+                    ? (widget.starAuthorized && star.authorized
+                          ? '连接远程后端并开始控制实例'
+                          : '请先完成 STAR 验证')
+                    : widget.starAuthorized && star.authorized
                     ? '准备 Termux、设备连接和 NKAS 服务'
                     : '请先完成 STAR 验证',
                 enabled: widget.starAuthorized,
