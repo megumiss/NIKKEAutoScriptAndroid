@@ -19,13 +19,14 @@ import 'package:nkas_mobile/core/widgets/buttons.dart';
 import 'package:nkas_mobile/core/widgets/status.dart';
 import 'package:nkas_mobile/features/instances/instances_page.dart';
 import 'package:nkas_mobile/features/logs/logs_page.dart';
+import 'package:nkas_mobile/features/deploy/deploy_page.dart';
 import 'package:nkas_mobile/features/overview/overview_page.dart';
 import 'package:nkas_mobile/features/settings/settings_page.dart';
 import 'package:nkas_mobile/features/settings/setup_page.dart';
 import 'package:nkas_mobile/features/settings/star_verify_page.dart';
 import 'package:nkas_mobile/theme.dart';
 
-enum NkasPage { overview, instances, logs, settings, starVerify, setup }
+enum NkasPage { overview, instances, logs, deploy, settings, starVerify, setup }
 
 class NkasShell extends StatefulWidget {
   const NkasShell({
@@ -46,7 +47,7 @@ class NkasShell extends StatefulWidget {
 }
 
 class _NkasShellState extends State<NkasShell> {
-  // 预览工程支持 ?page=overview|instances|logs|settings 指定初始页，便于逐页截图验收
+  // 预览工程支持 ?page=overview|instances|logs|deploy|settings 指定初始页，便于逐页截图验收
   NkasPage page = kIsWeb
       ? NkasPage.values.asNameMap()[Uri.base.queryParameters['page']] ??
             NkasPage.overview
@@ -448,6 +449,7 @@ class _NkasShellState extends State<NkasShell> {
     NkasPage.overview => '总览',
     NkasPage.instances => '实例',
     NkasPage.logs => '日志',
+    NkasPage.deploy => '部署',
     NkasPage.settings => '设置',
     NkasPage.starVerify => 'STAR 验证',
     NkasPage.setup => '初始化 NKAS',
@@ -546,6 +548,10 @@ class _NkasShellState extends State<NkasShell> {
     ),
     NkasPage.logs => LogsPage(
       connectionController: widget.connectionController,
+    ),
+    NkasPage.deploy => DeployPage(
+      connectionController: widget.connectionController,
+      accessGranted: _starAccessGranted,
     ),
     NkasPage.settings => SettingsPage(
       connectionController: widget.connectionController,
@@ -713,7 +719,7 @@ class _BottomNav extends StatelessWidget {
     return Center(
       // 阴影必须在 ClipRRect 外层，否则会被圆角裁掉；BackdropFilter 只裁毛玻璃层
       child: Container(
-        width: 244,
+        width: 296,
         height: 58,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(999),
@@ -749,6 +755,12 @@ class _BottomNav extends StatelessWidget {
                     label: '日志',
                     selected: page == NkasPage.logs,
                     onTap: () => onSelect(NkasPage.logs),
+                  ),
+                  _NavItem(
+                    icon: LucideIcons.rocket,
+                    label: '部署',
+                    selected: page == NkasPage.deploy,
+                    onTap: () => onSelect(NkasPage.deploy),
                   ),
                   _NavItem(
                     icon: LucideIcons.settings2,

@@ -22,15 +22,15 @@ module/webui/  Starlette REST/WebSocket 服务
 
 ### 2.1 一级导航
 
-手机竖屏使用 4 项浮动底部导航：
+手机竖屏使用 5 项浮动底部导航：
 
 ```text
-总览    实例    日志    设置
+总览    实例    日志    部署    设置
 ```
 
 - 底部导航只用于页面切换，不放服务启停等业务操作；
 - 当前项使用品牌蓝选中态，点击区域不小于 44×44px；
-- 更新、STAR 验证、初始化、后端地址和原始 WebUI 从设置进入；不保留独立顶栏更多菜单；
+- 部署页消费 `/api/system/deploy` 系列接口，复刻 WebUI 部署页；更新、STAR 验证、初始化、后端地址和原始 WebUI 从设置进入；不保留独立顶栏更多菜单；
 - 服务状态展示在总览主状态区，所有后端模式均可用 `/api/system/status`；服务启停只在 Android 本机模式显示，由 Termux 执行 `nkas-service.sh start|stop|restart`，与具体 NKAS 实例无关。
 
 ### 2.2 页面标题
@@ -73,7 +73,7 @@ iOS 不显示 Termux、ADB、依赖安装和本地服务启停等 Android 专属
 ### 手机竖屏（<600px）
 
 - 单列滚动，水平边距 16px；
-- AppBar + 4 项底部导航；
+- AppBar + 5 项底部导航；
 - 操作按钮整行或二等分；
 - 表格转为列表、分组行或详情 Sheet；
 - 键盘弹出时保证字段和保存操作可见。
@@ -154,7 +154,7 @@ NkasLogEntry / NkasConfirmDialog / NkasToast
 
 - Android 本机部署属于初始化流程，由现有 Android/Termux 原生层负责；Flutter 只展示状态、入口和结果；
 - 远程后端模式不展示 Termux、ADB、容器安装等本机步骤，只做连接检查；
-- 如果未来需要编辑 `deploy.yaml`，使用 `/api/system/deploy` 的 schema 驱动设置，不恢复为一级“部署”页面；
+- `deploy.yaml` 编辑由一级“部署”页面承担，使用 `/api/system/deploy` 的 schema 驱动渲染与保存（复刻 WebUI 部署页）；
 - 执行时显示步骤、进度、实时输出和取消能力；离开页面后仍需能恢复状态。
 
 ### 设置
@@ -276,7 +276,7 @@ flutter build ipa --release
 
 ### Widget
 
-- 4 项导航切换和选中态；
+- 5 项导航切换和选中态；
 - 总览 Android 本地服务启停确认、loading 和错误；
 - 实例选择和空状态；
 - 日志日期/来源/级别筛选和错误详情；自动滚动待定；
@@ -304,7 +304,7 @@ flutter build ipa --release
 
 | 阶段 | 交付 | 验收 |
 | --- | --- | --- |
-| M0 | 视觉预览、`DESIGN.md`、4 项导航 | Web 可运行，检查和测试通过 |
+| M0 | 视觉预览、`DESIGN.md`、5 项导航 | Web 可运行，检查和测试通过 |
 | M1 | 工程拆分、主题、路由、通用状态 | 页面行为不回归，360px–平板稳定 |
 | M2 | REST、连接状态机 | 可配置服务端，断线可恢复；token 暂不纳入 |
 | M3 | 真实总览与实例 | 状态实时更新，实例操作闭环 |
@@ -316,7 +316,7 @@ flutter build ipa --release
 
 ## 12. 当前执行顺序
 
-1. 固化当前预览的 4 项底部导航和 `DESIGN.md` token；
+1. 固化当前预览的 5 项底部导航和 `DESIGN.md` token；
 2. 拆分 `main.dart` 为 app/core/features，保持假数据行为；
 3. 增加 loading、empty、error、disconnected 预览状态；
 4. 对照 Starlette API 建立接口清单和连接状态模型；

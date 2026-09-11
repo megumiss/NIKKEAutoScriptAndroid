@@ -211,17 +211,17 @@ App 语言同样存在契约问题：schema、queue 和 schedule 的 `name/help/
 
 当前 `mobile/lib/main.dart` 仍然包含旧模型：
 
-- `NkasPage.deploy` 和 `NkasPage.about` 两个独立页面；
+- `NkasPage.about` 独立页面；
 - 顶栏右上角 Overflow 菜单，菜单项包含部署、关于、更新；
 - 总览和实例使用本地 `serviceRunning`/`instance` 状态；
-- 页面结构与 HTML 原型最终确定的“总览、实例、日志、设置”四项导航不一致。
+- 页面结构与 HTML 原型最终确定的“总览、实例、日志、部署、设置”五项导航不一致。
 
 接入前应以 `mobile/design/nkas-mobile-interactive.html` 和本文件为准，先删除旧的页面/菜单模型：
 
-1. 保留四项一级导航：总览、实例、日志、设置。
+1. 保留五项一级导航：总览、实例、日志、部署、设置。
 2. 更新、STAR 验证、初始化、后端地址和原始 WebUI 都从设置进入。
 3. 不在顶栏保留没有实际用途的菜单按钮。
-4. `deploy` 能力如果未来需要原生配置，作为设置或 Android 初始化流程的一部分，不能重新恢复为独立一级页面。
+4. `deploy` 是一级“部署”页面，消费 `GET/PATCH /api/system/deploy` 与 `POST /api/system/deploy/reset`，复刻 WebUI 部署页；设置里的“初始化 NKAS”仍是 Android 本机 Termux 流程，与部署页互不影响。
 
 这样可以避免 Flutter 接 API 时同时维护旧页面和新原型两套状态。
 

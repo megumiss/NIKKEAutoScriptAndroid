@@ -401,9 +401,19 @@ ShadTextTheme _nkasTextTheme(ShadColorScheme scheme) {
         color: muted,
       ),
       // Stat value 24/28 w600
-      'statValue': _t(size: 24, height: 28, weight: FontWeight.w600, color: ink),
+      'statValue': _t(
+        size: 24,
+        height: 28,
+        weight: FontWeight.w600,
+        color: ink,
+      ),
       // Hero 状态标题 21/25 w700（原型 .np-state）
-      'heroState': _t(size: 21, height: 25, weight: FontWeight.w700, color: ink),
+      'heroState': _t(
+        size: 21,
+        height: 25,
+        weight: FontWeight.w700,
+        color: ink,
+      ),
     },
   );
 }

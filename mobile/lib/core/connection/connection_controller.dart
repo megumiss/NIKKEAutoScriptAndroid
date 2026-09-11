@@ -11,6 +11,7 @@ import 'package:nkas_mobile/core/api/update_info.dart';
 import 'package:nkas_mobile/core/api/screenshot_frame.dart';
 import 'package:nkas_mobile/core/api/schedule_info.dart';
 import 'package:nkas_mobile/core/api/schema_info.dart';
+import 'package:nkas_mobile/core/api/deploy_info.dart';
 import 'package:nkas_mobile/core/api/system_status.dart';
 import 'package:nkas_mobile/core/settings/backend_settings.dart';
 
@@ -247,6 +248,27 @@ class ConnectionController extends ChangeNotifier {
       return Future.error(const ApiException('后端未连接'));
     }
     return _api.patchConfig(_state.baseUrl, name, key, value);
+  }
+
+  Future<DeployInfo> fetchDeploy() {
+    if (_state.phase != ConnectionPhase.connected) {
+      return Future.error(const ApiException('后端未连接'));
+    }
+    return _api.fetchDeployInfo(_state.baseUrl);
+  }
+
+  Future<Object?> patchDeploy(String key, Object? value) {
+    if (_state.phase != ConnectionPhase.connected) {
+      return Future.error(const ApiException('后端未连接'));
+    }
+    return _api.patchDeploy(_state.baseUrl, key, value);
+  }
+
+  Future<void> resetDeploy({String template = 'intl'}) {
+    if (_state.phase != ConnectionPhase.connected) {
+      return Future.error(const ApiException('后端未连接'));
+    }
+    return _api.resetDeploy(_state.baseUrl, template: template);
   }
 
   Uri avatarUri(String filename) => _api.endpoint(

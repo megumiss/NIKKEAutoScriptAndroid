@@ -11,6 +11,7 @@ import 'package:nkas_mobile/core/api/update_info.dart';
 import 'package:nkas_mobile/core/api/screenshot_frame.dart';
 import 'package:nkas_mobile/core/api/schedule_info.dart';
 import 'package:nkas_mobile/core/api/schema_info.dart';
+import 'package:nkas_mobile/core/api/deploy_info.dart';
 
 class ApiClient {
   ApiClient({http.Client? client, this.timeout = const Duration(seconds: 5)})
@@ -353,6 +354,68 @@ class ApiClient {
         .patch(
           endpoint(baseUrl, '/api/${Uri.encodeComponent(name)}/config'),
           body: jsonEncode({'key': key, 'value': value}),
+          headers: {'content-type': 'application/json'},
+        )
+        .timeout(timeout);
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw ApiException('后端返回 HTTP ${response.statusCode}');
+    }
+  }
+
+  Future<DeployInfo> fetchDeployInfo(String baseUrl) async {
+    final response = await _client
+        .get(endpoint(baseUrl, '/api/system/deploy'))
+        .timeout(timeout);
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw ApiException('后端返回 HTTP ${response.statusCode}');
+    }
+    try {
+      final decoded = jsonDecode(utf8.decode(response.bodyBytes));
+      if (decoded is! Map<String, dynamic>) throw const FormatException();
+      return DeployInfo.fromJson(decoded);
+    } on FormatException {
+      throw const ApiException('后端返回了无效部署配置');
+    }
+  }
+
+  Future<Object?> patchDeploy(String baseUrl, String key, Object? value) async {
+    final response = await _client
+        .patch(
+          endpoint(baseUrl, '/api/system/deploy'),
+          body: jsonEncode({'key': key, 'value': value}),
+          headers: {'content-type': 'application/json'},
+        )
+        .timeout(timeout);
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      Object? decoded;
+      try {
+        decoded = jsonDecode(utf8.decode(response.bodyBytes));
+      } on FormatException {
+        decoded = null;
+      }
+      final message = decoded is Map<String, dynamic>
+          ? decoded['message']?.toString()
+          : null;
+      throw ApiException(
+        message?.isNotEmpty == true
+            ? message!
+            : '后端返回 HTTP ${response.statusCode}',
+      );
+    }
+    try {
+      final decoded = jsonDecode(utf8.decode(response.bodyBytes));
+      if (decoded is! Map<String, dynamic>) throw const FormatException();
+      return decoded['value'];
+    } on FormatException {
+      throw const ApiException('后端返回了无效部署数据');
+    }
+  }
+
+  Future<void> resetDeploy(String baseUrl, {String template = 'intl'}) async {
+    final response = await _client
+        .post(
+          endpoint(baseUrl, '/api/system/deploy/reset'),
+          body: jsonEncode({'template': template}),
           headers: {'content-type': 'application/json'},
         )
         .timeout(timeout);

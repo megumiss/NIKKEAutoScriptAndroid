@@ -165,6 +165,98 @@ ConnectionController _connectedController({_MemoryBackendSettings? settings}) {
         headers: {'content-type': 'application/json; charset=utf-8'},
       );
     }
+    if (request.url.path.endsWith('/api/system/deploy/reset')) {
+      return http.Response(
+        jsonEncode({'status': 'success'}),
+        200,
+        headers: {'content-type': 'application/json; charset=utf-8'},
+      );
+    }
+    if (request.url.path.endsWith('/api/system/deploy')) {
+      if (request.method == 'PATCH') {
+        final body = jsonDecode(request.body);
+        return http.Response.bytes(
+          utf8.encode(
+            jsonEncode({'status': 'success', 'value': body['value']}),
+          ),
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      }
+      return http.Response.bytes(
+        utf8.encode(
+          jsonEncode({
+            'groups': [
+              {
+                'key': 'Git',
+                'name': 'Git',
+                'fields': [
+                  {
+                    'key': 'AutoUpdate',
+                    'title': '自动更新',
+                    'help': '启动时自动更新 NKAS',
+                    'hints': [
+                      {'tag': '大多数情况下', 'text': '建议打开'},
+                    ],
+                    'widget': 'checkbox',
+                    'value': true,
+                    'default': true,
+                    'options': [],
+                    'wide': false,
+                  },
+                  {
+                    'key': 'Language',
+                    'title': '界面语言',
+                    'help': 'Web UI 语言',
+                    'hints': [],
+                    'widget': 'select',
+                    'value': 'zh-CN',
+                    'default': 'zh-CN',
+                    'options': [
+                      {'value': 'zh-CN', 'label': '简体中文'},
+                      {'value': 'en-US', 'label': 'English'},
+                    ],
+                    'wide': false,
+                  },
+                ],
+              },
+              {
+                'key': 'Webui',
+                'name': 'WebUI',
+                'fields': [
+                  {
+                    'key': 'WebuiPort',
+                    'title': '监听端口',
+                    'help': '--port，监听端口',
+                    'hints': [
+                      {'tag': '大多数情况下', 'text': '默认 12271'},
+                    ],
+                    'widget': 'number',
+                    'value': 12271,
+                    'default': 12271,
+                    'options': [],
+                    'wide': false,
+                  },
+                  {
+                    'key': 'GitProxy',
+                    'title': 'Git 代理',
+                    'help': '设置 git 代理',
+                    'hints': [],
+                    'widget': 'text',
+                    'value': '',
+                    'default': '',
+                    'options': [],
+                    'wide': true,
+                  },
+                ],
+              },
+            ],
+          }),
+        ),
+        200,
+        headers: {'content-type': 'application/json; charset=utf-8'},
+      );
+    }
     if (request.url.path.endsWith('/api/system/update')) {
       return http.Response(
         jsonEncode({
@@ -265,7 +357,29 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('关于'), findsOneWidget);
-    expect(find.text('部署'), findsNothing);
+  });
+
+  testWidgets('renders deploy configuration from backend schema', (
+    tester,
+  ) async {
+    await _pumpTestApp(tester);
+
+    for (final label in ['总览', '实例', '日志', '部署', '设置']) {
+      expect(find.byTooltip(label), findsOneWidget);
+    }
+
+    await tester.tap(find.byTooltip('部署'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('修改部署配置可能导致更新失败或程序无法启动，修改需要重启后生效，请谨慎操作。'), findsOneWidget);
+    expect(find.text('还原默认'), findsOneWidget);
+    expect(find.text('Git'), findsOneWidget);
+    expect(find.text('WebUI'), findsOneWidget);
+    expect(find.text('自动更新'), findsOneWidget);
+    expect(find.text('界面语言'), findsOneWidget);
+    expect(find.text('监听端口'), findsOneWidget);
+    expect(find.text('Git 代理'), findsOneWidget);
+    expect(find.text('建议打开'), findsOneWidget);
   });
 
   testWidgets('renders task configuration from backend schema', (tester) async {
