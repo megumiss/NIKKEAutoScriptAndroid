@@ -8,6 +8,7 @@ import android.os.Looper
 import android.provider.Settings
 import androidx.annotation.Keep
 import com.megumiss.nkas.mobile.preview.platform.AccessGate
+import com.megumiss.nkas.mobile.preview.platform.AdbMdns
 import com.megumiss.nkas.mobile.preview.platform.AdbPairingService
 import com.megumiss.nkas.mobile.preview.platform.BootstrapService
 import com.megumiss.nkas.mobile.preview.platform.GateConfig
@@ -30,6 +31,7 @@ class NkasPlatformBridge(private val activity: FlutterActivity) :
     private val main = Handler(Looper.getMainLooper())
     private var events: EventChannel.EventSink? = null
     private var installer: TermuxInstaller? = null
+    private var connectMdns: AdbMdns? = null
 
     fun register(engine: FlutterEngine) {
         MethodChannel(engine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler(this)
@@ -74,6 +76,18 @@ class NkasPlatformBridge(private val activity: FlutterActivity) :
             "getSetupStatus" -> checkSetup(result)
             "startSetup" -> startSetup(result)
             "downloadTermux" -> downloadTermux(result)
+            "requestRunCommandPermission" -> {
+                activity.requestPermissions(arrayOf(TermuxBridge.RUN_COMMAND_PERMISSION), RUN_COMMAND_REQUEST)
+                result.success(true)
+            }
+            "openTermux" -> {
+                val intent = activity.packageManager.getLaunchIntentForPackage("com.termux")
+                if (intent == null) result.error("termux_missing", "未安装 Termux", null)
+                else {
+                    activity.startActivity(intent)
+                    result.success(true)
+                }
+            }
             "pairDevice" -> pairDevice(call, result)
             "getAppLog" -> result.success(LogStore.text())
             "openWirelessSettings" -> {
@@ -126,6 +140,7 @@ class NkasPlatformBridge(private val activity: FlutterActivity) :
     }
 
     private fun checkSetup(result: MethodChannel.Result) {
+        ensureConnectDiscovery()
         val bridge = TermuxBridge(activity)
         val base = linkedMapOf<String, Any?>(
             "termuxInstalled" to bridge.isInstalled(),
@@ -144,6 +159,21 @@ class NkasPlatformBridge(private val activity: FlutterActivity) :
             base["commandExitCode"] = command.exitCode
             main.post { result.success(base) }
         }
+    }
+
+    private fun ensureConnectDiscovery() {
+        if (connectMdns != null) return
+        connectMdns = AdbMdns(activity, AdbMdns.TLS_CONNECT) { port ->
+            main.post {
+                if (port <= 0) return@post
+                val serial = "127.0.0.1:$port"
+                if (SettingsStore.serial(activity) != serial) {
+                    SettingsStore.setSerial(activity, serial)
+                    LogStore.log("adb", "mDNS 自动发现连接端口：$port")
+                    emit(mapOf("type" to "setupSerial", "serial" to serial))
+                }
+            }
+        }.apply { start() }
     }
 
     private fun startSetup(result: MethodChannel.Result) {
@@ -269,5 +299,6 @@ class NkasPlatformBridge(private val activity: FlutterActivity) :
         private val ARTIFACT_KEYS = setOf(
             "termux_setting", "tools", "source", "config", "container", "service", "adb_device",
         )
+        private const val RUN_COMMAND_REQUEST = 1001
     }
 }

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import 'package:nkas_mobile_preview/core/platform/nkas_platform.dart';
@@ -91,6 +92,9 @@ class _NkasSetupPageState extends State<NkasSetupPage> {
           output = message ?? '正在下载 Termux：$progress%';
           if (error != null) this.error = error;
         });
+      case SetupSerialEvent(:final serial):
+        serialController.text = serial.split(':').last;
+        unawaited(_refresh());
       case StarAuthorizationEvent():
         unawaited(_refresh());
     }
@@ -216,6 +220,40 @@ class _NkasSetupPageState extends State<NkasSetupPage> {
               } on Object catch (exception) {
                 if (mounted) _show(exception.toString());
               }
+            },
+          ),
+        ],
+        if (status.termuxInstalled && !status.runCommandPermission && NkasPlatform.instance.supported) ...[
+          const SizedBox(height: 8),
+          SecondaryButton(
+            icon: LucideIcons.shieldCheck,
+            label: '授权 Termux 外部命令',
+            onPressed: () async {
+              await NkasPlatform.instance.requestRunCommandPermission();
+              await Future<void>.delayed(const Duration(milliseconds: 500));
+              await _refresh();
+            },
+          ),
+        ],
+        if (status.termuxInstalled &&
+            status.runCommandPermission &&
+            status.artifacts['termux_setting'] != true &&
+            NkasPlatform.instance.supported) ...[
+          const SizedBox(height: 8),
+          SecondaryButton(
+            icon: LucideIcons.terminal,
+            label: '打开 Termux',
+            onPressed: NkasPlatform.instance.openTermux,
+          ),
+          const SizedBox(height: 8),
+          SecondaryButton(
+            icon: LucideIcons.copy,
+            label: '复制 allow-external-apps 命令',
+            onPressed: () async {
+              await Clipboard.setData(const ClipboardData(
+                text: "mkdir -p ~/.termux\necho 'allow-external-apps=true' > ~/.termux/termux.properties",
+              ));
+              if (mounted) _show('命令已复制；执行后请完全退出并重新打开 Termux');
             },
           ),
         ],

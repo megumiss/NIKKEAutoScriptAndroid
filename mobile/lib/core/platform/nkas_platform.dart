@@ -100,6 +100,11 @@ class TermuxDownloadEvent extends NkasPlatformEvent {
   final String? error;
 }
 
+class SetupSerialEvent extends NkasPlatformEvent {
+  const SetupSerialEvent(this.serial);
+  final String serial;
+}
+
 class NkasPlatform {
   NkasPlatform._();
 
@@ -149,6 +154,16 @@ class NkasPlatform {
   Future<void> downloadTermux() async {
     if (!supported) throw UnsupportedError('Termux 仅支持 Android');
     await _channel.invokeMethod<void>('downloadTermux');
+  }
+
+  Future<void> requestRunCommandPermission() async {
+    if (!supported) return;
+    await _channel.invokeMethod<void>('requestRunCommandPermission');
+  }
+
+  Future<void> openTermux() async {
+    if (!supported) return;
+    await _channel.invokeMethod<void>('openTermux');
   }
 
   Future<void> pairDevice({String code = '', String serial = ''}) async {
@@ -201,6 +216,8 @@ class NkasPlatform {
           message: value['message'] as String?,
           error: value['error'] as String?,
         );
+      case 'setupSerial':
+        return SetupSerialEvent(value['serial'] as String? ?? '');
       default:
         return const SetupStateEvent('idle', null);
     }
