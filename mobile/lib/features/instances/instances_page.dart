@@ -532,7 +532,9 @@ class _QueueGroup extends StatelessWidget {
                   time: rows[i].$3,
                   color: color,
                   icon: icon,
-                  onTap: () => onTap(rows[i].$1),
+                  // The schema is keyed by the backend command, not the localized label.
+                  onTap: () =>
+                      onTap(rows[i].$2.isEmpty ? rows[i].$1 : rows[i].$2),
                 ),
               ],
             ],
