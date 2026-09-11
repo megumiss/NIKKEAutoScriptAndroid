@@ -15,6 +15,7 @@ import 'package:nkas_mobile_preview/core/api/calendar_info.dart';
 import 'package:nkas_mobile_preview/core/api/schema_info.dart';
 import 'package:nkas_mobile_preview/core/platform/nkas_platform.dart';
 import 'package:nkas_mobile_preview/core/platform/runtime_platform.dart';
+import 'package:nkas_mobile_preview/core/widgets/buttons.dart';
 import 'package:nkas_mobile_preview/core/widgets/status.dart';
 import 'package:nkas_mobile_preview/features/instances/instances_page.dart';
 import 'package:nkas_mobile_preview/features/logs/logs_page.dart';
@@ -124,14 +125,7 @@ class _NkasShellState extends State<NkasShell> {
 
   void _applyStarStatus(StarAuthorization status) {
     if (!mounted) return;
-    setState(() {
-      star = status;
-      if (!_starAccessGranted &&
-          page != NkasPage.settings &&
-          page != NkasPage.starVerify) {
-        page = NkasPage.settings;
-      }
-    });
+    setState(() => star = status);
     _connectionChanged();
   }
 
@@ -418,6 +412,16 @@ class _NkasShellState extends State<NkasShell> {
                     child: Stack(
                       children: [
                         Positioned.fill(child: _pageBody()),
+                        // 未通过 STAR 验证时，设置以外的页面盖遮罩，
+                        // 底部导航保持可用，可经遮罩按钮或导航前往验证页
+                        if (!_starAccessGranted &&
+                            page != NkasPage.settings &&
+                            !_isSettingsSubpage)
+                          Positioned.fill(
+                            child: _StarGateOverlay(
+                              onVerify: () => _selectPage(NkasPage.starVerify),
+                            ),
+                          ),
                         if (!_isSettingsSubpage)
                           Positioned(
                             left: 0,
@@ -425,7 +429,6 @@ class _NkasShellState extends State<NkasShell> {
                             bottom: 14,
                             child: _BottomNav(
                               page: page,
-                              accessEnabled: _starAccessGranted,
                               onSelect: _selectPage,
                             ),
                           ),
@@ -563,12 +566,6 @@ class _NkasShellState extends State<NkasShell> {
   };
 
   void _selectPage(NkasPage value) {
-    if (!_starAccessGranted &&
-        value != NkasPage.settings &&
-        value != NkasPage.starVerify) {
-      setState(() => page = NkasPage.settings);
-      return;
-    }
     setState(() => page = value);
   }
 
@@ -705,13 +702,8 @@ class _AppHeader extends StatelessWidget {
 }
 
 class _BottomNav extends StatelessWidget {
-  const _BottomNav({
-    required this.page,
-    required this.accessEnabled,
-    required this.onSelect,
-  });
+  const _BottomNav({required this.page, required this.onSelect});
   final NkasPage page;
-  final bool accessEnabled;
   final ValueChanged<NkasPage> onSelect;
 
   @override
@@ -744,28 +736,24 @@ class _BottomNav extends StatelessWidget {
                     icon: LucideIcons.layoutDashboard,
                     label: '总览',
                     selected: page == NkasPage.overview,
-                    enabled: accessEnabled,
                     onTap: () => onSelect(NkasPage.overview),
                   ),
                   _NavItem(
                     icon: LucideIcons.layers3,
                     label: '实例',
                     selected: page == NkasPage.instances,
-                    enabled: accessEnabled,
                     onTap: () => onSelect(NkasPage.instances),
                   ),
                   _NavItem(
                     icon: LucideIcons.scrollText,
                     label: '日志',
                     selected: page == NkasPage.logs,
-                    enabled: accessEnabled,
                     onTap: () => onSelect(NkasPage.logs),
                   ),
                   _NavItem(
                     icon: LucideIcons.settings2,
                     label: '设置',
                     selected: page == NkasPage.settings,
-                    enabled: true,
                     onTap: () => onSelect(NkasPage.settings),
                   ),
                 ],
@@ -783,58 +771,109 @@ class _NavItem extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.selected,
-    required this.enabled,
     required this.onTap,
   });
   final IconData icon;
   final String label;
   final bool selected;
-  final bool enabled;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final scheme = ShadTheme.of(context).colorScheme;
     return Tooltip(
-      message: enabled ? label : '$label（需 STAR 验证）',
-      child: Opacity(
-        opacity: enabled ? 1 : .38,
-        child: InkWell(
-          onTap: enabled ? onTap : null,
-          customBorder: const CircleBorder(),
-          child: SizedBox(
-            width: 48,
-            height: 48,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                Container(
-                  width: 46,
-                  height: 46,
-                  decoration: BoxDecoration(
-                    color: selected ? scheme.accentSoft : Colors.transparent,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    icon,
-                    size: 20,
-                    color: selected ? scheme.primary : scheme.mutedForeground,
-                  ),
+      message: label,
+      child: InkWell(
+        onTap: onTap,
+        customBorder: const CircleBorder(),
+        child: SizedBox(
+          width: 48,
+          height: 48,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: selected ? scheme.accentSoft : Colors.transparent,
+                  shape: BoxShape.circle,
                 ),
-                if (selected)
-                  Positioned(
-                    bottom: 4,
-                    child: Container(
-                      width: 4,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: scheme.primary,
-                        shape: BoxShape.circle,
-                      ),
+                child: Icon(
+                  icon,
+                  size: 20,
+                  color: selected ? scheme.primary : scheme.mutedForeground,
+                ),
+              ),
+              if (selected)
+                Positioned(
+                  bottom: 4,
+                  child: Container(
+                    width: 4,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: scheme.primary,
+                      shape: BoxShape.circle,
                     ),
                   ),
-              ],
-            ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 未通过 STAR 验证时盖在页面上的遮罩：毛玻璃 + 半透明底色拦截页面手势，
+/// 仅保留「前往 STAR 验证」入口；底部导航在 Stack 中位于其上，仍可切换页面
+class _StarGateOverlay extends StatelessWidget {
+  const _StarGateOverlay({required this.onVerify});
+
+  final VoidCallback onVerify;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ShadTheme.of(context);
+    final scheme = theme.colorScheme;
+    return ClipRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          color: scheme.background.withValues(alpha: .78),
+          alignment: Alignment.center,
+          padding: const EdgeInsets.symmetric(horizontal: 40),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 56,
+                height: 56,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: scheme.accentSoft,
+                  borderRadius: BorderRadius.circular(17),
+                ),
+                child: Icon(LucideIcons.star, color: scheme.primary, size: 26),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                '需要 STAR 验证',
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Star 本项目并完成验证后解锁全部功能',
+                textAlign: TextAlign.center,
+                style: theme.textTheme.muted,
+              ),
+              const SizedBox(height: 18),
+              PrimaryButton(
+                icon: LucideIcons.gitBranch,
+                label: '前往 STAR 验证',
+                onPressed: onVerify,
+              ),
+            ],
           ),
         ),
       ),
