@@ -45,7 +45,7 @@ Runner.app -> Payload/Runner.app -> .ipa
 | --- | --- |
 | `IOS_CERTIFICATE_BASE64` | Apple `.p12` 证书的 Base64 内容 |
 | `IOS_CERTIFICATE_PASSWORD` | `.p12` 导出密码 |
-| `IOS_PROVISIONING_PROFILE_BASE64` | 与 `com.megumiss.nkas.mobile.preview` 匹配的 profile |
+| `IOS_PROVISIONING_PROFILE_BASE64` | 与 `com.megumiss.nkas.mobile` 匹配的 profile |
 | `IOS_TEAM_ID` | Apple Developer Team ID |
 | `IOS_KEYCHAIN_PASSWORD` | 临时 CI keychain 密码，可随机生成 |
 

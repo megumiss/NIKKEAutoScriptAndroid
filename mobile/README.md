@@ -1,4 +1,4 @@
-# NKAS Mobile Flutter Preview
+# NKAS Mobile (Flutter)
 
 这是 NKAS 移动端的视觉预览工程，使用 `shadcn_ui`，当前使用假数据，不连接真实 API。
 

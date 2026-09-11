@@ -6,24 +6,24 @@ import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import 'package:nkas_mobile_preview/core/api/instance_info.dart';
-import 'package:nkas_mobile_preview/core/connection/connection_controller.dart';
-import 'package:nkas_mobile_preview/core/connection/instance_state_socket.dart';
-import 'package:nkas_mobile_preview/core/connection/instance_queue_socket.dart';
-import 'package:nkas_mobile_preview/core/api/queue_info.dart';
-import 'package:nkas_mobile_preview/core/api/calendar_info.dart';
-import 'package:nkas_mobile_preview/core/api/schema_info.dart';
-import 'package:nkas_mobile_preview/core/platform/nkas_platform.dart';
-import 'package:nkas_mobile_preview/core/platform/runtime_platform.dart';
-import 'package:nkas_mobile_preview/core/widgets/buttons.dart';
-import 'package:nkas_mobile_preview/core/widgets/status.dart';
-import 'package:nkas_mobile_preview/features/instances/instances_page.dart';
-import 'package:nkas_mobile_preview/features/logs/logs_page.dart';
-import 'package:nkas_mobile_preview/features/overview/overview_page.dart';
-import 'package:nkas_mobile_preview/features/settings/settings_page.dart';
-import 'package:nkas_mobile_preview/features/settings/setup_page.dart';
-import 'package:nkas_mobile_preview/features/settings/star_verify_page.dart';
-import 'package:nkas_mobile_preview/theme.dart';
+import 'package:nkas_mobile/core/api/instance_info.dart';
+import 'package:nkas_mobile/core/connection/connection_controller.dart';
+import 'package:nkas_mobile/core/connection/instance_state_socket.dart';
+import 'package:nkas_mobile/core/connection/instance_queue_socket.dart';
+import 'package:nkas_mobile/core/api/queue_info.dart';
+import 'package:nkas_mobile/core/api/calendar_info.dart';
+import 'package:nkas_mobile/core/api/schema_info.dart';
+import 'package:nkas_mobile/core/platform/nkas_platform.dart';
+import 'package:nkas_mobile/core/platform/runtime_platform.dart';
+import 'package:nkas_mobile/core/widgets/buttons.dart';
+import 'package:nkas_mobile/core/widgets/status.dart';
+import 'package:nkas_mobile/features/instances/instances_page.dart';
+import 'package:nkas_mobile/features/logs/logs_page.dart';
+import 'package:nkas_mobile/features/overview/overview_page.dart';
+import 'package:nkas_mobile/features/settings/settings_page.dart';
+import 'package:nkas_mobile/features/settings/setup_page.dart';
+import 'package:nkas_mobile/features/settings/star_verify_page.dart';
+import 'package:nkas_mobile/theme.dart';
 
 enum NkasPage { overview, instances, logs, settings, starVerify, setup }
 

@@ -3,23 +3,23 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
-import 'package:nkas_mobile_preview/core/api/instance_info.dart';
-import 'package:nkas_mobile_preview/core/api/queue_info.dart';
-import 'package:nkas_mobile_preview/core/api/screenshot_frame.dart';
-import 'package:nkas_mobile_preview/core/api/schedule_info.dart';
-import 'package:nkas_mobile_preview/core/api/schema_info.dart';
-import 'package:nkas_mobile_preview/core/connection/instance_log_socket.dart';
-import 'package:nkas_mobile_preview/core/widgets/avatar.dart';
-import 'package:nkas_mobile_preview/core/widgets/buttons.dart';
-import 'package:nkas_mobile_preview/core/widgets/icon_box.dart';
-import 'package:nkas_mobile_preview/core/widgets/field_select.dart';
-import 'package:nkas_mobile_preview/core/widgets/log_line.dart';
-import 'package:nkas_mobile_preview/core/widgets/page_inset.dart';
-import 'package:nkas_mobile_preview/core/widgets/page_subtitle.dart';
-import 'package:nkas_mobile_preview/core/widgets/status.dart';
-import 'package:nkas_mobile_preview/core/widgets/surface.dart';
-import 'package:nkas_mobile_preview/core/widgets/tag.dart';
-import 'package:nkas_mobile_preview/theme.dart';
+import 'package:nkas_mobile/core/api/instance_info.dart';
+import 'package:nkas_mobile/core/api/queue_info.dart';
+import 'package:nkas_mobile/core/api/screenshot_frame.dart';
+import 'package:nkas_mobile/core/api/schedule_info.dart';
+import 'package:nkas_mobile/core/api/schema_info.dart';
+import 'package:nkas_mobile/core/connection/instance_log_socket.dart';
+import 'package:nkas_mobile/core/widgets/avatar.dart';
+import 'package:nkas_mobile/core/widgets/buttons.dart';
+import 'package:nkas_mobile/core/widgets/icon_box.dart';
+import 'package:nkas_mobile/core/widgets/field_select.dart';
+import 'package:nkas_mobile/core/widgets/log_line.dart';
+import 'package:nkas_mobile/core/widgets/page_inset.dart';
+import 'package:nkas_mobile/core/widgets/page_subtitle.dart';
+import 'package:nkas_mobile/core/widgets/status.dart';
+import 'package:nkas_mobile/core/widgets/surface.dart';
+import 'package:nkas_mobile/core/widgets/tag.dart';
+import 'package:nkas_mobile/theme.dart';
 
 enum InstanceTab { overview, tasks, schedule, liveLogs, screen }
 

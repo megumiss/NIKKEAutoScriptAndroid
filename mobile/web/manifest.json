@@ -1,11 +1,11 @@
 {
-    "name": "NKAS Mobile Preview",
+    "name": "NKAS Mobile",
     "short_name": "NKAS Mobile",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#f7f8fa",
     "theme_color": "#2563eb",
-    "description": "NKAS Mobile Flutter UI preview.",
+    "description": "NKAS Mobile built with Flutter and shadcn_ui.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

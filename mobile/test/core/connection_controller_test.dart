@@ -3,11 +3,11 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:nkas_mobile_preview/core/api/api_client.dart';
-import 'package:nkas_mobile_preview/core/connection/connection_controller.dart';
-import 'package:nkas_mobile_preview/core/settings/backend_settings.dart';
-import 'package:nkas_mobile_preview/core/connection/instance_state_socket.dart';
-import 'package:nkas_mobile_preview/core/connection/instance_queue_socket.dart';
+import 'package:nkas_mobile/core/api/api_client.dart';
+import 'package:nkas_mobile/core/connection/connection_controller.dart';
+import 'package:nkas_mobile/core/settings/backend_settings.dart';
+import 'package:nkas_mobile/core/connection/instance_state_socket.dart';
+import 'package:nkas_mobile/core/connection/instance_queue_socket.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class _MemoryBackendSettings implements BackendSettings {

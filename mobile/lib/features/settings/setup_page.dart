@@ -4,13 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
-import 'package:nkas_mobile_preview/core/platform/nkas_platform.dart';
-import 'package:nkas_mobile_preview/core/platform/runtime_platform.dart';
-import 'package:nkas_mobile_preview/core/widgets/buttons.dart';
-import 'package:nkas_mobile_preview/core/widgets/page_inset.dart';
-import 'package:nkas_mobile_preview/core/widgets/page_subtitle.dart';
-import 'package:nkas_mobile_preview/core/widgets/surface.dart';
-import 'package:nkas_mobile_preview/theme.dart';
+import 'package:nkas_mobile/core/platform/nkas_platform.dart';
+import 'package:nkas_mobile/core/platform/runtime_platform.dart';
+import 'package:nkas_mobile/core/widgets/buttons.dart';
+import 'package:nkas_mobile/core/widgets/page_inset.dart';
+import 'package:nkas_mobile/core/widgets/page_subtitle.dart';
+import 'package:nkas_mobile/core/widgets/surface.dart';
+import 'package:nkas_mobile/theme.dart';
 
 class NkasSetupPage extends StatefulWidget {
   const NkasSetupPage({required this.onOpenStar, super.key});

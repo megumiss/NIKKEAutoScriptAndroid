@@ -2,15 +2,15 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
-import 'package:nkas_mobile_preview/core/api/system_status.dart';
-import 'package:nkas_mobile_preview/core/api/instance_info.dart';
-import 'package:nkas_mobile_preview/core/api/queue_info.dart';
-import 'package:nkas_mobile_preview/core/api/calendar_info.dart';
-import 'package:nkas_mobile_preview/core/api/log_info.dart';
-import 'package:nkas_mobile_preview/core/api/update_info.dart';
-import 'package:nkas_mobile_preview/core/api/screenshot_frame.dart';
-import 'package:nkas_mobile_preview/core/api/schedule_info.dart';
-import 'package:nkas_mobile_preview/core/api/schema_info.dart';
+import 'package:nkas_mobile/core/api/system_status.dart';
+import 'package:nkas_mobile/core/api/instance_info.dart';
+import 'package:nkas_mobile/core/api/queue_info.dart';
+import 'package:nkas_mobile/core/api/calendar_info.dart';
+import 'package:nkas_mobile/core/api/log_info.dart';
+import 'package:nkas_mobile/core/api/update_info.dart';
+import 'package:nkas_mobile/core/api/screenshot_frame.dart';
+import 'package:nkas_mobile/core/api/schedule_info.dart';
+import 'package:nkas_mobile/core/api/schema_info.dart';
 
 class ApiClient {
   ApiClient({http.Client? client, this.timeout = const Duration(seconds: 5)})

@@ -1,4 +1,4 @@
-// Widget tests for the NKAS mobile preview.
+// Widget tests for NKAS Mobile.
 //
 // The 360x800 / 390x844 suites rely on Flutter's debug overflow errors:
 // any RenderFlex overflow throws and fails the test, so they act as layout
@@ -10,10 +10,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:nkas_mobile_preview/app/app.dart';
-import 'package:nkas_mobile_preview/core/api/api_client.dart';
-import 'package:nkas_mobile_preview/core/connection/connection_controller.dart';
-import 'package:nkas_mobile_preview/core/settings/backend_settings.dart';
+import 'package:nkas_mobile/app/app.dart';
+import 'package:nkas_mobile/core/api/api_client.dart';
+import 'package:nkas_mobile/core/connection/connection_controller.dart';
+import 'package:nkas_mobile/core/settings/backend_settings.dart';
 
 class _MemoryBackendSettings implements BackendSettings {
   String? value;
@@ -232,7 +232,7 @@ Future<ConnectionController> _pumpTestApp(
   final controller = _connectedController(settings: settings);
   addTearDown(controller.dispose);
   await tester.pumpWidget(
-    NkasPreviewApp(connectionController: controller, enableRealtime: false),
+    NkasMobileApp(connectionController: controller, enableRealtime: false),
   );
   await tester.pumpAndSettle();
   return controller;

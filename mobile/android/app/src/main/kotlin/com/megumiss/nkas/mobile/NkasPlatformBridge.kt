@@ -1,4 +1,4 @@
-package com.megumiss.nkas.mobile.preview
+package com.megumiss.nkas.mobile
 
 import android.content.Intent
 import android.net.Uri
@@ -7,15 +7,15 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
 import androidx.annotation.Keep
-import com.megumiss.nkas.mobile.preview.platform.AccessGate
-import com.megumiss.nkas.mobile.preview.platform.AdbMdns
-import com.megumiss.nkas.mobile.preview.platform.AdbPairingService
-import com.megumiss.nkas.mobile.preview.platform.BootstrapService
-import com.megumiss.nkas.mobile.preview.platform.GateConfig
-import com.megumiss.nkas.mobile.preview.platform.LogStore
-import com.megumiss.nkas.mobile.preview.platform.SettingsStore
-import com.megumiss.nkas.mobile.preview.platform.TermuxBridge
-import com.megumiss.nkas.mobile.preview.platform.TermuxInstaller
+import com.megumiss.nkas.mobile.platform.AccessGate
+import com.megumiss.nkas.mobile.platform.AdbMdns
+import com.megumiss.nkas.mobile.platform.AdbPairingService
+import com.megumiss.nkas.mobile.platform.BootstrapService
+import com.megumiss.nkas.mobile.platform.GateConfig
+import com.megumiss.nkas.mobile.platform.LogStore
+import com.megumiss.nkas.mobile.platform.SettingsStore
+import com.megumiss.nkas.mobile.platform.TermuxBridge
+import com.megumiss.nkas.mobile.platform.TermuxInstaller
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.EventChannel

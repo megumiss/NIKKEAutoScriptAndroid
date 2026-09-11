@@ -1,5 +1,5 @@
-name: nkas_mobile_preview
-description: NKAS mobile UI preview built with Flutter and shadcn_ui.
+name: nkas_mobile
+description: NKAS Mobile built with Flutter and shadcn_ui.
 publish_to: 'none'
 version: 0.1.0
 

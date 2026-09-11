@@ -4,16 +4,16 @@ import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import 'package:nkas_mobile_preview/core/api/update_info.dart';
-import 'package:nkas_mobile_preview/core/widgets/icon_box.dart';
-import 'package:nkas_mobile_preview/core/connection/connection_controller.dart';
-import 'package:nkas_mobile_preview/core/platform/nkas_platform.dart';
-import 'package:nkas_mobile_preview/core/platform/runtime_platform.dart';
-import 'package:nkas_mobile_preview/core/widgets/buttons.dart';
-import 'package:nkas_mobile_preview/core/widgets/page_inset.dart';
-import 'package:nkas_mobile_preview/core/widgets/page_subtitle.dart';
-import 'package:nkas_mobile_preview/core/widgets/surface.dart';
-import 'package:nkas_mobile_preview/theme.dart';
+import 'package:nkas_mobile/core/api/update_info.dart';
+import 'package:nkas_mobile/core/widgets/icon_box.dart';
+import 'package:nkas_mobile/core/connection/connection_controller.dart';
+import 'package:nkas_mobile/core/platform/nkas_platform.dart';
+import 'package:nkas_mobile/core/platform/runtime_platform.dart';
+import 'package:nkas_mobile/core/widgets/buttons.dart';
+import 'package:nkas_mobile/core/widgets/page_inset.dart';
+import 'package:nkas_mobile/core/widgets/page_subtitle.dart';
+import 'package:nkas_mobile/core/widgets/surface.dart';
+import 'package:nkas_mobile/theme.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({
@@ -177,8 +177,8 @@ class _SettingsPageState extends State<SettingsPage> {
           label: '关于',
           rows: [
             _SettingRow(
-              title: 'NKAS Mobile Preview',
-              subtitle: 'Flutter + shadcn_ui · 0.1.0-preview',
+              title: 'NKAS Mobile',
+              subtitle: 'Flutter + shadcn_ui · 0.1.0',
             ),
           ],
         ),
