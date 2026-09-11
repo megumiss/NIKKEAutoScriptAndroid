@@ -25,6 +25,7 @@ class SettingsPage extends StatefulWidget {
     required this.onNotificationsChanged,
     required this.onOpenStarVerify,
     required this.onOpenSetup,
+    required this.onOpenUpdate,
     super.key,
   });
   final ThemeMode themeMode;
@@ -35,6 +36,7 @@ class SettingsPage extends StatefulWidget {
   final ValueChanged<bool> onNotificationsChanged;
   final VoidCallback onOpenStarVerify;
   final VoidCallback onOpenSetup;
+  final VoidCallback onOpenUpdate;
 
   @override
   State<SettingsPage> createState() => _SettingsPageState();
@@ -129,6 +131,7 @@ class _SettingsPageState extends State<SettingsPage> {
             _UpdateSettingRow(
               connectionController: widget.connectionController,
               enabled: widget.starAuthorized,
+              onTap: widget.onOpenUpdate,
             ),
           ],
         ),
@@ -221,10 +224,12 @@ class _UpdateSettingRow extends StatefulWidget {
   const _UpdateSettingRow({
     required this.connectionController,
     required this.enabled,
+    required this.onTap,
   });
 
   final ConnectionController connectionController;
   final bool enabled;
+  final VoidCallback onTap;
 
   @override
   State<_UpdateSettingRow> createState() => _UpdateSettingRowState();
@@ -232,7 +237,6 @@ class _UpdateSettingRow extends StatefulWidget {
 
 class _UpdateSettingRowState extends State<_UpdateSettingRow> {
   UpdateInfo? info;
-  bool busy = false;
   String? error;
   String? loadedBaseUrl;
 
@@ -262,8 +266,7 @@ class _UpdateSettingRowState extends State<_UpdateSettingRow> {
     final connection = widget.connectionController.state;
     if (widget.enabled &&
         connection.phase == ConnectionPhase.connected &&
-        loadedBaseUrl != connection.baseUrl &&
-        !busy) {
+        loadedBaseUrl != connection.baseUrl) {
       unawaited(_load());
     }
   }
@@ -281,95 +284,9 @@ class _UpdateSettingRowState extends State<_UpdateSettingRow> {
         error = value.error;
         loadedBaseUrl = baseUrl;
       });
-      if (value.checking || value.running) unawaited(_poll());
     } catch (exception) {
       if (mounted) setState(() => error = exception.toString());
     }
-  }
-
-  Future<void> _handleTap() async {
-    if (busy ||
-        widget.connectionController.state.phase != ConnectionPhase.connected) {
-      return;
-    }
-    if (info?.available == true ||
-        (info?.state == 'failed' && (info?.error?.isEmpty ?? true))) {
-      final confirmed = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('更新 NKAS 源码'),
-          content: const Text('更新会等待当前任务结束，并可能短暂重启后端。确定继续？'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('取消'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('立即更新'),
-            ),
-          ],
-        ),
-      );
-      if (confirmed == true) await _apply();
-      return;
-    }
-    await _check();
-  }
-
-  Future<void> _check() async {
-    setState(() {
-      busy = true;
-      error = null;
-    });
-    try {
-      await widget.connectionController.checkForUpdate();
-      await _poll(maxRounds: 30);
-    } catch (exception) {
-      if (mounted) setState(() => error = exception.toString());
-    } finally {
-      if (mounted) setState(() => busy = false);
-    }
-  }
-
-  Future<void> _apply() async {
-    setState(() {
-      busy = true;
-      error = null;
-    });
-    try {
-      await widget.connectionController.applyUpdate();
-      await _poll(maxRounds: 300, tolerateConnectionErrors: true);
-      if (!mounted) return;
-      await widget.connectionController.connect(
-        widget.connectionController.state.baseUrl,
-      );
-    } catch (exception) {
-      if (mounted) setState(() => error = exception.toString());
-    } finally {
-      if (mounted) setState(() => busy = false);
-    }
-  }
-
-  Future<void> _poll({
-    int maxRounds = 30,
-    bool tolerateConnectionErrors = false,
-  }) async {
-    for (var round = 0; round < maxRounds && mounted; round++) {
-      await Future<void>.delayed(const Duration(seconds: 2));
-      try {
-        final value = await widget.connectionController.fetchUpdateInfo();
-        if (!mounted) return;
-        setState(() {
-          info = value;
-          error = value.error;
-        });
-        if (!value.checking && !value.running) return;
-      } catch (exception) {
-        if (!tolerateConnectionErrors) rethrow;
-      }
-    }
-    if (mounted) setState(() => error = '更新状态等待超时');
   }
 
   @override
@@ -380,17 +297,13 @@ class _UpdateSettingRowState extends State<_UpdateSettingRow> {
       icon: LucideIcons.squareArrowUp,
       title: '更新',
       subtitle: _subtitle(connected),
-      enabled: widget.enabled && connected && !busy,
-      trailing: info?.available == true
-          ? LucideIcons.download
-          : LucideIcons.refreshCw,
-      onTap: connected && !busy ? _handleTap : null,
+      enabled: widget.enabled && connected,
+      onTap: widget.enabled && connected ? widget.onTap : null,
     );
   }
 
   String _subtitle(bool connected) {
     if (!connected) return '连接后端后检查源码版本';
-    if (busy || info?.checking == true) return '正在检查或更新，请稍候…';
     if (error != null && error!.isNotEmpty) return error!;
     final current = widget.connectionController.state.status?.version;
     final state = info?.stateLabel ?? '检查源码的新版本';

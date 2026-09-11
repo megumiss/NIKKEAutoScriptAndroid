@@ -262,9 +262,13 @@ ConnectionController _connectedController({_MemoryBackendSettings? settings}) {
         jsonEncode({
           'state': 0,
           'error': null,
-          'local': ['abc123', 'tester', '2026-09-10', 'test'],
-          'upstream': ['abc123', 'tester', '2026-09-10', 'test'],
-          'history': [],
+          'local': ['abc123', 'tester', '2026-09-10 10:00:00 +0800', 'test'],
+          'upstream': ['abc123', 'tester', '2026-09-10 10:00:00 +0800', 'test'],
+          'history': [
+            ['abc123', 'tester', '2026-09-10 10:00:00 +0800', '修复调度重启问题'],
+            ['def456', 'tester', '2026-09-08 09:30:00 +0800', '新增活动日历入口'],
+            [null, null, null, null],
+          ],
         }),
         200,
         headers: {'content-type': 'application/json; charset=utf-8'},
@@ -357,6 +361,29 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('关于'), findsOneWidget);
+  });
+
+  testWidgets('update entry opens the update subpage with history', (
+    tester,
+  ) async {
+    await _pumpTestApp(tester);
+
+    await tester.tap(find.byTooltip('设置'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('更新'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('源码更新'), findsOneWidget);
+    expect(find.text('检查更新'), findsOneWidget);
+    expect(find.text('更新记录'), findsOneWidget);
+    expect(find.text('修复调度重启问题'), findsOneWidget);
+    expect(find.text('新增活动日历入口'), findsOneWidget);
+    expect(find.text('当前版本'), findsOneWidget);
+    expect(find.text('abc123 · 2026-09-10'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('返回设置'));
+    await tester.pumpAndSettle();
+    expect(find.text('后端连接'), findsOneWidget);
   });
 
   testWidgets('renders deploy configuration from backend schema', (

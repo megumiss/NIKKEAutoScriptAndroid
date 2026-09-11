@@ -133,7 +133,7 @@ Flutter 至少要支持：`checkbox`、`select`、`multiselect`、`number`、`te
 | 语言 | Flutter 本地设置 | 不调用 `/api/system/language`；需要处理后端 schema/queue/schedule 文案的语言来源 |
 | 后台通知 | 待定 | Android 已有通知服务，但 App 开关与实例通知策略尚未确定 |
 | 日志自动滚动 | 待定 | 先不承诺持久化或跨页面同步 |
-| 更新 | `/api/system/update`、`/api/update/check`、`/api/update`、`/api/restart` | 接入源码更新；轮询 `checking/start/wait/run update/failed/idle`；不做单独启动器更新 |
+| 更新 | `/api/system/update`、`/api/update/check`、`/api/update`、`/api/restart` | 接入源码更新，设置页「更新」行进入更新子页（状态卡 + `history` 更新记录列表）；轮询 `checking/start/wait/run update/failed/idle`；不做单独启动器更新 |
 
 当前 `/api/system/status` 只有 `api_version`、`spa_version` 和 `capabilities.spa/websocket`。第一阶段可以直接连接，不把 token 作为阻塞项；但应限制为可信局域网/本机地址，后续再补认证和能力项。
 
