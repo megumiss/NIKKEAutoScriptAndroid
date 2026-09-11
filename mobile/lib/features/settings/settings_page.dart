@@ -125,6 +125,7 @@ class _SettingsPageState extends State<SettingsPage> {
           label: '外观与通知',
           rows: [
             _SettingRow(
+              icon: LucideIcons.palette,
               title: '主题',
               subtitle:
                   '当前：${widget.themeMode == ThemeMode.dark ? '深色' : '浅色'}',
@@ -134,17 +135,21 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
             ),
             _SettingRow(
+              icon: LucideIcons.bell,
               title: '后台通知',
               subtitle: '任务完成或发生错误时提醒',
-              customTrailing: Switch(
+              customTrailing: _SettingsSwitch(
+                label: '后台通知',
                 value: widget.notifications,
                 onChanged: widget.onNotificationsChanged,
               ),
             ),
             _SettingRow(
+              icon: LucideIcons.scrollText,
               title: '日志自动滚动',
               subtitle: '新日志到达时滚动到底部',
-              customTrailing: Switch(
+              customTrailing: _SettingsSwitch(
+                label: '日志自动滚动',
                 value: widget.autoScroll,
                 onChanged: widget.onAutoScrollChanged,
               ),
@@ -638,6 +643,63 @@ class _ThemeChoice extends StatelessWidget {
                 : theme.colorScheme.mutedForeground,
             fontSize: 11,
             fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SettingsSwitch extends StatelessWidget {
+  const _SettingsSwitch({
+    required this.label,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final String label;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = ShadTheme.of(context).colorScheme;
+    return Semantics(
+      button: true,
+      toggled: value,
+      label: '$label，${value ? '已开启' : '已关闭'}',
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => onChanged(!value),
+        child: SizedBox(
+          width: 44,
+          height: 44,
+          child: Center(
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              width: 42,
+              height: 24,
+              padding: const EdgeInsets.all(3),
+              decoration: BoxDecoration(
+                color: value ? scheme.primary : scheme.border,
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: AnimatedAlign(
+                duration: const Duration(milliseconds: 150),
+                alignment: value ? Alignment.centerRight : Alignment.centerLeft,
+                child: Container(
+                  width: 18,
+                  height: 18,
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(color: Color(0x24000000), blurRadius: 3),
+                    ],
+                  ),
+                ),
+              ),
+            ),
           ),
         ),
       ),
