@@ -74,7 +74,9 @@ class _StarVerifyPageState extends State<StarVerifyPage> {
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -87,30 +89,43 @@ class _StarVerifyPageState extends State<StarVerifyPage> {
       children: [
         const PageSubtitle('使用 NKAS 前需要 Star 本项目，感谢你的支持。'),
         Surface(
-          padding: const EdgeInsets.all(18),
+          radius: 18,
+          padding: const EdgeInsets.all(17),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(
-                    status.authorized
-                        ? LucideIcons.shieldCheck
-                        : LucideIcons.globe2,
-                    color: status.authorized
-                        ? scheme.success
-                        : scheme.primary,
-                    size: 28,
+                  Container(
+                    width: 42,
+                    height: 42,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: scheme.accentSoft,
+                      borderRadius: BorderRadius.circular(13),
+                    ),
+                    child: Icon(
+                      status.authorized
+                          ? LucideIcons.shieldCheck
+                          : LucideIcons.gitBranch,
+                      color: status.authorized
+                          ? scheme.success
+                          : scheme.primary,
+                      size: 21,
+                    ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 11),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           status.authorized ? '授权已通过' : '完成项目授权',
-                          style: ShadTheme.of(context).textTheme.h3,
+                          style: const TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                         const SizedBox(height: 4),
                         Text(
@@ -126,53 +141,114 @@ class _StarVerifyPageState extends State<StarVerifyPage> {
                   ),
                 ],
               ),
-              const SizedBox(height: 18),
-              Text(
-                'megumiss/NIKKEAutoScript',
-                style: TextStyle(color: scheme.primary, fontWeight: FontWeight.w600),
-              ),
               const SizedBox(height: 14),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 11,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: scheme.secondary,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  'megumiss/NIKKEAutoScript',
+                  style: TextStyle(
+                    color: scheme.mutedForeground,
+                    fontFamily: 'monospace',
+                    fontSize: 11,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 13),
               if (loading)
                 const LinearProgressIndicator(minHeight: 2)
               else
-                Text(
-                  status.authorized
-                      ? '已确认 Star · ${status.username ?? 'GitHub 账号'}'
-                      : status.error ?? '尚未验证 Star',
-                  style: TextStyle(
-                    color: status.authorized ? scheme.success : scheme.mutedForeground,
+                Row(
+                  children: [
+                    Container(
+                      width: 7,
+                      height: 7,
+                      decoration: BoxDecoration(
+                        color: status.authorized
+                            ? scheme.success
+                            : scheme.mutedForeground,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 7),
+                    Expanded(
+                      child: Text(
+                        status.authorized
+                            ? '已确认 Star megumiss/NIKKEAutoScript'
+                            : status.error ?? '尚未验证 Star',
+                        style: TextStyle(
+                          color: status.authorized
+                              ? scheme.success
+                              : scheme.mutedForeground,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              if (status.authorized) ...[
+                const SizedBox(height: 13),
+                Container(
+                  padding: const EdgeInsets.only(top: 12),
+                  decoration: BoxDecoration(
+                    border: Border(top: BorderSide(color: scheme.border)),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: _AuthMeta(
+                          label: 'GitHub 账号',
+                          value: '@${status.username ?? 'nkas-user'}',
+                        ),
+                      ),
+                      Expanded(
+                        child: _AuthMeta(
+                          label: '验证有效期至',
+                          value: status.expiresAt == null
+                              ? '长期有效'
+                              : _date(status.expiresAt!),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              if (status.authorized && status.expiresAt != null) ...[
-                const SizedBox(height: 8),
-                Text(
-                  '验证有效期至 ${_date(status.expiresAt!)}',
-                  style: ShadTheme.of(context).textTheme.muted,
-                ),
               ],
-              const SizedBox(height: 18),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
+              const SizedBox(height: 16),
+              Row(
                 children: [
-                  if (status.authorized)
-                    PrimaryButton(
-                      icon: LucideIcons.sparkles,
-                      label: '打开初始化',
-                      onPressed: widget.onOpenSetup,
-                    )
-                  else
-                    PrimaryButton(
-                      icon: LucideIcons.globe2,
-                      label: opening ? '正在打开…' : '前往 GitHub 验证 Star',
-                      onPressed: unsupported || opening ? null : _authorize,
+                  Expanded(
+                    child: status.authorized
+                        ? PrimaryButton(
+                            icon: LucideIcons.sparkles,
+                            label: '打开初始化',
+                            onPressed: widget.onOpenSetup,
+                          )
+                        : PrimaryButton(
+                            icon: LucideIcons.gitBranch,
+                            label: opening ? '正在打开…' : '前往 GitHub 验证 Star',
+                            onPressed: unsupported || opening
+                                ? null
+                                : _authorize,
+                          ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: SecondaryButton(
+                      icon: status.authorized
+                          ? LucideIcons.refreshCw
+                          : LucideIcons.externalLink,
+                      label: status.authorized ? '重新验证' : '打开项目仓库',
+                      onPressed: status.authorized
+                          ? _authorize
+                          : _openRepository,
                     ),
-                  SecondaryButton(
-                    icon: status.authorized
-                        ? LucideIcons.refreshCw
-                        : LucideIcons.externalLink,
-                    label: status.authorized ? '重新验证' : '打开项目仓库',
-                    onPressed: status.authorized ? _authorize : _openRepository,
                   ),
                 ],
               ),
@@ -187,5 +263,30 @@ class _StarVerifyPageState extends State<StarVerifyPage> {
     final date = DateTime.fromMillisecondsSinceEpoch(seconds * 1000).toLocal();
     String two(int value) => value.toString().padLeft(2, '0');
     return '${date.year}-${two(date.month)}-${two(date.day)}';
+  }
+}
+
+class _AuthMeta extends StatelessWidget {
+  const _AuthMeta({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ShadTheme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: theme.textTheme.muted.copyWith(fontSize: 10)),
+        const SizedBox(height: 3),
+        Text(
+          value,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+        ),
+      ],
+    );
   }
 }

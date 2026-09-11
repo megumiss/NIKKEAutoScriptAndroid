@@ -8,6 +8,7 @@ import 'package:nkas_mobile_preview/core/api/update_info.dart';
 import 'package:nkas_mobile_preview/core/widgets/icon_box.dart';
 import 'package:nkas_mobile_preview/core/connection/connection_controller.dart';
 import 'package:nkas_mobile_preview/core/platform/nkas_platform.dart';
+import 'package:nkas_mobile_preview/core/widgets/buttons.dart';
 import 'package:nkas_mobile_preview/core/widgets/page_inset.dart';
 import 'package:nkas_mobile_preview/core/widgets/page_subtitle.dart';
 import 'package:nkas_mobile_preview/core/widgets/surface.dart';
@@ -89,7 +90,9 @@ class _SettingsPageState extends State<SettingsPage> {
               icon: LucideIcons.sparkles,
               iconColor: warning,
               title: '初始化 NKAS',
-              subtitle: star.authorized ? '准备 Termux、设备连接和 NKAS 服务' : '请先完成 STAR 验证',
+              subtitle: star.authorized
+                  ? '准备 Termux、设备连接和 NKAS 服务'
+                  : '请先完成 STAR 验证',
               onTap: widget.onOpenSetup,
             ),
           ],
@@ -112,7 +115,9 @@ class _SettingsPageState extends State<SettingsPage> {
               trailing: LucideIcons.externalLink,
               onTap: () => _openWebUi(context),
             ),
-            _UpdateSettingRow(connectionController: widget.connectionController),
+            _UpdateSettingRow(
+              connectionController: widget.connectionController,
+            ),
           ],
         ),
         const SizedBox(height: 20),
@@ -121,7 +126,8 @@ class _SettingsPageState extends State<SettingsPage> {
           rows: [
             _SettingRow(
               title: '主题',
-              subtitle: '当前：${widget.themeMode == ThemeMode.dark ? '深色' : '浅色'}',
+              subtitle:
+                  '当前：${widget.themeMode == ThemeMode.dark ? '深色' : '浅色'}',
               customTrailing: _ThemeSegment(
                 themeMode: widget.themeMode,
                 onChanged: widget.onThemeModeChanged,
@@ -160,10 +166,14 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<void> _editBackendAddress(BuildContext context) async {
-    await showDialog<void>(
+    await showModalBottomSheet<void>(
       context: context,
-      builder: (_) =>
-          _BackendAddressDialog(connectionController: widget.connectionController),
+      isScrollControlled: true,
+      showDragHandle: true,
+      useSafeArea: true,
+      builder: (_) => _BackendAddressSheet(
+        connectionController: widget.connectionController,
+      ),
     );
   }
 
@@ -351,16 +361,16 @@ class _UpdateSettingRowState extends State<_UpdateSettingRow> {
   }
 }
 
-class _BackendAddressDialog extends StatefulWidget {
-  const _BackendAddressDialog({required this.connectionController});
+class _BackendAddressSheet extends StatefulWidget {
+  const _BackendAddressSheet({required this.connectionController});
 
   final ConnectionController connectionController;
 
   @override
-  State<_BackendAddressDialog> createState() => _BackendAddressDialogState();
+  State<_BackendAddressSheet> createState() => _BackendAddressSheetState();
 }
 
-class _BackendAddressDialogState extends State<_BackendAddressDialog> {
+class _BackendAddressSheetState extends State<_BackendAddressSheet> {
   late final TextEditingController _textController;
   bool _saving = false;
 
@@ -399,45 +409,65 @@ class _BackendAddressDialogState extends State<_BackendAddressDialog> {
     final error =
         state.phase == ConnectionPhase.disconnected ||
         state.phase == ConnectionPhase.incompatible;
-    return AlertDialog(
-      title: const Text('后端地址'),
-      content: SizedBox(
-        width: 360,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            TextField(
-              controller: _textController,
-              enabled: !_saving,
-              keyboardType: TextInputType.url,
-              autocorrect: false,
-              decoration: const InputDecoration(
-                hintText: 'http://127.0.0.1:12271',
-                border: OutlineInputBorder(),
-              ),
-              onSubmitted: _saving ? null : (_) => _save(),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              state.message ?? '远程地址仅用于本机或可信网络',
-              style: ShadTheme.of(context).textTheme.muted.copyWith(
-                color: error ? scheme.destructive : null,
-              ),
-            ),
-          ],
-        ),
+    final inset = nkasPageInset(context);
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        inset,
+        0,
+        inset,
+        MediaQuery.viewInsetsOf(context).bottom + 18,
       ),
-      actions: [
-        TextButton(
-          onPressed: _saving ? null : () => Navigator.pop(context),
-          child: const Text('取消'),
-        ),
-        FilledButton(
-          onPressed: _saving ? null : _save,
-          child: Text(_saving ? '连接中…' : '保存并连接'),
-        ),
-      ],
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('修改后端地址', style: ShadTheme.of(context).textTheme.h3),
+          const SizedBox(height: 6),
+          Text(
+            '支持本机或远程 NKAS 后端，例如 http://192.168.1.20:12271。',
+            style: ShadTheme.of(context).textTheme.muted,
+          ),
+          const SizedBox(height: 14),
+          TextField(
+            controller: _textController,
+            enabled: !_saving,
+            keyboardType: TextInputType.url,
+            autocorrect: false,
+            decoration: const InputDecoration(
+              hintText: 'http://127.0.0.1:12271',
+              border: OutlineInputBorder(),
+            ),
+            onSubmitted: _saving ? null : (_) => _save(),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            state.message ?? '远程地址仅用于本机或可信网络',
+            style: ShadTheme.of(context).textTheme.muted.copyWith(
+              color: error ? scheme.destructive : null,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: SecondaryButton(
+                  icon: LucideIcons.x,
+                  label: '取消',
+                  onPressed: _saving ? null : () => Navigator.pop(context),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: PrimaryButton(
+                  icon: LucideIcons.check,
+                  label: _saving ? '连接中…' : '保存并连接',
+                  onPressed: _saving ? null : _save,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }
