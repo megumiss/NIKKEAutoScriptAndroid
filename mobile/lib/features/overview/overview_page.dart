@@ -257,9 +257,18 @@ class _CalendarSectionState extends State<_CalendarSection> {
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
-    final visibleItems = category.isEmpty
-        ? widget.items
-        : widget.items.where((item) => item.category == category).toList();
+    final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    final visibleItems =
+        (category.isEmpty
+                ? widget.items
+                : widget.items.where((item) => item.category == category))
+            .where((item) => item.endTime > now)
+            .toList()
+          ..sort(
+            (left, right) => left.endTime.compareTo(right.endTime) != 0
+                ? left.endTime.compareTo(right.endTime)
+                : left.sourceOrder.compareTo(right.sourceOrder),
+          );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -302,7 +311,10 @@ class _CalendarSectionState extends State<_CalendarSection> {
             ),
           )
         else
-          _EventCard(item: visibleItems.first),
+          for (var i = 0; i < visibleItems.length; i++) ...[
+            if (i > 0) const SizedBox(height: 10),
+            _EventCard(item: visibleItems[i]),
+          ],
       ],
     );
   }
@@ -371,6 +383,12 @@ class _EventCard extends StatelessWidget {
                   value: _remainingText(item.endTime),
                   active: true,
                 ),
+                if (item.stageEndTime != null && item.stageEndTime! > 0)
+                  _EventTime(
+                    label: '距离Buff重置',
+                    value: _remainingText(item.stageEndTime!),
+                    active: true,
+                  ),
               ],
             ),
           ),
