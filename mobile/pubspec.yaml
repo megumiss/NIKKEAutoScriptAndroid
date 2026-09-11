@@ -22,6 +22,7 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.4
 
 flutter:
   uses-material-design: true
@@ -31,3 +32,15 @@ flutter:
     - family: NotoSansSC
       fonts:
         - asset: assets/fonts/NotoSansSC-VF.ttf
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/nkas.png"
+  adaptive_icon_background: "#0D1117"
+  adaptive_icon_foreground: "assets/nkas.png"
+  web:
+    generate: true
+    image_path: "assets/nkas.png"
+    background_color: "#0D1117"
+    theme_color: "#0D1117"
