@@ -952,21 +952,77 @@ class _SchemaFieldView extends StatelessWidget {
               for (final option in field.options)
                 FieldSelectOption(option.value.toString(), option.label),
             ],
-            onChanged: disabled
+            onChanged: disabled || isMulti
                 ? null
                 : (value) {
                     final option = field.options.firstWhere(
                       (item) => item.value.toString() == value,
                     );
-                    onPatch(field.key, isMulti ? [option.value] : option.value);
+                    onPatch(field.key, option.value);
+                  },
+            onTap: disabled || !isMulti
+                ? null
+                : () async {
+                    final values = await _showMultiSelect(
+                      context,
+                      field.title,
+                      field.options,
+                      selectedValues,
+                    );
+                    if (values != null) onPatch(field.key, values);
                   },
           ),
         ],
       );
     }
-    if (field.widget == 'input' ||
-        field.widget == 'textarea' ||
-        field.widget == 'datetime') {
+    if (field.widget == 'datetime') {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          label,
+          const SizedBox(height: 7),
+          TextFormField(
+            key: ValueKey('${field.key}:${field.value}'),
+            initialValue: field.value?.toString() ?? '',
+            enabled: !disabled,
+            readOnly: true,
+            onTap: disabled
+                ? null
+                : () async {
+                    final initial = DateTime.tryParse(
+                      field.value?.toString() ?? '',
+                    )?.toLocal();
+                    final date = await showDatePicker(
+                      context: context,
+                      firstDate: DateTime(2000),
+                      lastDate: DateTime(2100),
+                      initialDate: initial ?? DateTime.now(),
+                    );
+                    if (date == null || !context.mounted) return;
+                    final time = await showTimePicker(
+                      context: context,
+                      initialTime: initial == null
+                          ? TimeOfDay.now()
+                          : TimeOfDay.fromDateTime(initial),
+                    );
+                    if (time == null) return;
+                    final value = DateTime(
+                      date.year,
+                      date.month,
+                      date.day,
+                      time.hour,
+                      time.minute,
+                    );
+                    onPatch(field.key, _formatDateTimeLocal(value));
+                  },
+            decoration: const InputDecoration(
+              suffixIcon: Icon(LucideIcons.calendarClock, size: 18),
+            ),
+          ),
+        ],
+      );
+    }
+    if (field.widget == 'input' || field.widget == 'textarea') {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -990,6 +1046,74 @@ class _SchemaFieldView extends StatelessWidget {
         Text('该字段请通过原始 WebUI 操作', style: theme.textTheme.muted),
       ],
     );
+  }
+
+  static Future<List<Object?>?> _showMultiSelect(
+    BuildContext context,
+    String title,
+    List<SchemaOption> options,
+    Set<String> selected,
+  ) async {
+    final values = {...selected};
+    return showModalBottomSheet<List<Object?>>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: ShadTheme.of(context).textTheme.h3),
+                const SizedBox(height: 8),
+                for (final option in options)
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(option.label),
+                    value: values.contains(option.value.toString()),
+                    onChanged: (checked) {
+                      setState(() {
+                        if (checked == true) {
+                          values.add(option.value.toString());
+                        } else {
+                          values.remove(option.value.toString());
+                        }
+                      });
+                    },
+                  ),
+                const SizedBox(height: 6),
+                SizedBox(
+                  width: double.infinity,
+                  child: PrimaryButton(
+                    icon: LucideIcons.check,
+                    label: '完成',
+                    onPressed: () => Navigator.pop(
+                      context,
+                      options
+                          .where(
+                            (option) =>
+                                values.contains(option.value.toString()),
+                          )
+                          .map((option) => option.value)
+                          .toList(growable: false),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  static String _formatDateTimeLocal(DateTime value) {
+    String two(int item) => item.toString().padLeft(2, '0');
+    return '${value.year}-${two(value.month)}-${two(value.day)}'
+        'T${two(value.hour)}:${two(value.minute)}';
   }
 }
 
