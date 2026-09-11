@@ -47,6 +47,7 @@ class InstancesPage extends StatelessWidget {
     required this.loadSchema,
     required this.patchConfig,
     required this.onSelectInstance,
+    required this.onOpenControl,
     super.key,
   });
   final String selected;
@@ -73,6 +74,7 @@ class InstancesPage extends StatelessWidget {
   final Future<void> Function() loadSchema;
   final Future<void> Function(String, Object?) patchConfig;
   final ValueChanged<String> onSelectInstance;
+  final VoidCallback onOpenControl;
 
   @override
   Widget build(BuildContext context) {
@@ -163,7 +165,9 @@ class InstancesPage extends StatelessWidget {
             loading: queueLoading,
             error: queueError,
             selected: selected,
+            running: running,
             loadScreenshot: loadScreenshot,
+            onOpenControl: onOpenControl,
             loadSchedule: loadSchedule,
             saveSchedule: saveSchedule,
             resetSchedule: resetSchedule,
@@ -306,7 +310,9 @@ class _InstanceBody extends StatelessWidget {
     required this.loading,
     required this.error,
     required this.selected,
+    required this.running,
     required this.loadScreenshot,
+    required this.onOpenControl,
     required this.loadSchedule,
     required this.saveSchedule,
     required this.resetSchedule,
@@ -321,7 +327,9 @@ class _InstanceBody extends StatelessWidget {
   final bool loading;
   final String? error;
   final String selected;
+  final bool running;
   final Future<ScreenshotFrame?> Function() loadScreenshot;
+  final VoidCallback onOpenControl;
   final Future<List<ScheduleTask>> Function() loadSchedule;
   final Future<void> Function(List<Map<String, dynamic>>) saveSchedule;
   final Future<void> Function() resetSchedule;
@@ -387,9 +395,13 @@ class _InstanceBody extends StatelessWidget {
             resetSchedule: resetSchedule,
           ),
         ],
-        InstanceTab.liveLogs => const [_LiveLogPanel()],
+        InstanceTab.liveLogs => [_LiveLogPanel(running: running)],
         InstanceTab.screen => [
-          _ScreenPanel(key: ValueKey(selected), loadScreenshot: loadScreenshot),
+          _ScreenPanel(
+            key: ValueKey(selected),
+            loadScreenshot: loadScreenshot,
+            onOpenControl: onOpenControl,
+          ),
         ],
       },
     );
@@ -544,7 +556,6 @@ class _SchemaPanel extends StatefulWidget {
 }
 
 class _SchemaPanelState extends State<_SchemaPanel> {
-  String? menuKey;
   String? taskKey;
   String? savingKey;
 
@@ -571,39 +582,49 @@ class _SchemaPanelState extends State<_SchemaPanel> {
       );
     }
     final schema = widget.schema!;
-    final menu = _selectedMenu(schema);
-    final task = menu == null ? null : _selectedTask(schema, menu);
-    final firstMenuName = schema.menus.isEmpty ? '暂无' : schema.menus.first.name;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _SchemaSelector(
-          label: '分组',
-          value: menu?.name ?? firstMenuName,
-          options: [
-            for (final item in schema.menus)
-              FieldSelectOption(item.key, item.name),
-          ],
-          onChanged: (value) => setState(() {
-            menuKey = value;
-            taskKey = null;
-          }),
-        ),
-        const SizedBox(height: 8),
-        if (menu != null)
-          _SchemaSelector(
-            label: '任务',
-            value:
-                task?.name ??
-                (menu.tasks.isEmpty ? '暂无' : menu.tasks.first.name),
-            options: [
-              for (final item in menu.tasks)
-                FieldSelectOption(item.key, item.name),
+    final task = taskKey == null ? null : schema.tasks[taskKey];
+    if (task != null) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              IconButton(
+                onPressed: () => setState(() => taskKey = null),
+                icon: const Icon(LucideIcons.arrowLeft, size: 19),
+                tooltip: '返回任务列表',
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints.tightFor(
+                  width: 40,
+                  height: 40,
+                ),
+              ),
+              const SizedBox(width: 5),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        task.name,
+                        style: const TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      if (task.help.isNotEmpty) ...[
+                        const SizedBox(height: 3),
+                        Text(task.help, style: theme.textTheme.muted),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
             ],
-            onChanged: (value) => setState(() => taskKey = value),
           ),
-        if (task != null) ...[
-          const SizedBox(height: 14),
+          const SizedBox(height: 12),
           for (var index = 0; index < task.groups.length; index++) ...[
             if (index > 0) const SizedBox(height: 14),
             _SchemaGroup(
@@ -613,29 +634,43 @@ class _SchemaPanelState extends State<_SchemaPanel> {
             ),
           ],
         ],
-        if (task == null)
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (
+          var menuIndex = 0;
+          menuIndex < schema.menus.length;
+          menuIndex++
+        ) ...[
+          if (menuIndex > 0) const SizedBox(height: 16),
+          _SchemaMenuGroup(
+            menu: schema.menus[menuIndex],
+            icon: _menuIcon(menuIndex, schema.menus[menuIndex].name),
+            onTask: (key) => setState(() => taskKey = key),
+          ),
+        ],
+        if (schema.menus.isEmpty)
           Padding(
             padding: const EdgeInsets.only(top: 28),
-            child: Text('请选择任务', style: theme.textTheme.muted),
+            child: Text('暂无任务配置', style: theme.textTheme.muted),
           ),
       ],
     );
   }
 
-  SchemaMenu? _selectedMenu(SchemaInfo schema) {
-    if (schema.menus.isEmpty) return null;
-    return schema.menus.firstWhere(
-      (item) => item.key == menuKey,
-      orElse: () => schema.menus.first,
-    );
-  }
-
-  SchemaTask? _selectedTask(SchemaInfo schema, SchemaMenu menu) {
-    if (menu.tasks.isEmpty) return null;
-    final key = taskKey ?? menu.tasks.first.key;
-    return schema.tasks[menu.tasks
-        .firstWhere((item) => item.key == key, orElse: () => menu.tasks.first)
-        .key];
+  static IconData _menuIcon(int index, String name) {
+    final normalized = name.toLowerCase();
+    if (normalized.contains('活动')) return LucideIcons.calendarDays;
+    if (normalized.contains('工具') || normalized.contains('设置')) {
+      return LucideIcons.wrench;
+    }
+    return switch (index) {
+      0 => LucideIcons.sun,
+      1 => LucideIcons.calendarDays,
+      _ => LucideIcons.wrench,
+    };
   }
 
   Future<void> _patch(String key, Object? value) async {
@@ -655,25 +690,113 @@ class _SchemaPanelState extends State<_SchemaPanel> {
   }
 }
 
-class _SchemaSelector extends StatelessWidget {
-  const _SchemaSelector({
-    required this.label,
-    required this.value,
-    required this.options,
-    required this.onChanged,
+class _SchemaMenuGroup extends StatelessWidget {
+  const _SchemaMenuGroup({
+    required this.menu,
+    required this.icon,
+    required this.onTask,
   });
-  final String label;
-  final String value;
-  final List<FieldSelectOption> options;
-  final ValueChanged<String> onChanged;
+  final SchemaMenu menu;
+  final IconData icon;
+  final ValueChanged<String> onTask;
 
   @override
-  Widget build(BuildContext context) => FieldSelect(
-    label: label,
-    value: value,
-    options: options,
-    onChanged: onChanged,
-  );
+  Widget build(BuildContext context) {
+    final theme = ShadTheme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(icon, size: 15, color: theme.colorScheme.primary),
+            const SizedBox(width: 7),
+            Text(
+              menu.name,
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Surface(
+          padding: EdgeInsets.zero,
+          child: Column(
+            children: [
+              for (var index = 0; index < menu.tasks.length; index++) ...[
+                if (index > 0) const Divider(height: 1),
+                _SchemaTaskRow(
+                  task: menu.tasks[index],
+                  onTap: () => onTask(menu.tasks[index].key),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SchemaTaskRow extends StatelessWidget {
+  const _SchemaTaskRow({required this.task, required this.onTap});
+  final SchemaMenuTask task;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ShadTheme.of(context);
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 58),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Row(
+              children: [
+                IconBox(
+                  icon: LucideIcons.settings2,
+                  color: theme.colorScheme.primary,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        task.name,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      if (task.help.isNotEmpty) ...[
+                        const SizedBox(height: 3),
+                        Text(
+                          task.help,
+                          style: theme.textTheme.muted,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                Tag(label: '已配置', color: theme.colorScheme.primary),
+                const SizedBox(width: 5),
+                Icon(
+                  LucideIcons.chevronRight,
+                  size: 15,
+                  color: theme.colorScheme.mutedForeground,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _SchemaGroup extends StatelessWidget {
@@ -1072,38 +1195,131 @@ class _ScheduleRow extends StatelessWidget {
   };
 }
 
-class _LiveLogPanel extends StatelessWidget {
-  const _LiveLogPanel();
+class _LiveLogPanel extends StatefulWidget {
+  const _LiveLogPanel({required this.running});
+
+  final bool running;
 
   @override
-  Widget build(BuildContext context) => Surface(
-    child: Padding(
-      padding: const EdgeInsets.symmetric(vertical: 20),
+  State<_LiveLogPanel> createState() => _LiveLogPanelState();
+}
+
+class _LiveLogPanelState extends State<_LiveLogPanel> {
+  String level = 'INFO';
+  bool autoScroll = true;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ShadTheme.of(context);
+    final scheme = theme.colorScheme;
+    return Surface(
+      padding: EdgeInsets.zero,
       child: Column(
         children: [
-          Icon(
-            LucideIcons.radio,
-            size: 22,
-            color: ShadTheme.of(context).colorScheme.mutedForeground,
+          Container(
+            constraints: const BoxConstraints(minHeight: 44),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+            decoration: BoxDecoration(
+              color: scheme.card,
+              border: Border(bottom: BorderSide(color: scheme.border)),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  widget.running ? LucideIcons.radio : LucideIcons.pauseCircle,
+                  size: 16,
+                  color: widget.running
+                      ? scheme.success
+                      : scheme.mutedForeground,
+                ),
+                const SizedBox(width: 7),
+                Text(
+                  widget.running ? '实时日志' : '日志已暂停',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const Spacer(),
+                PopupMenuButton<String>(
+                  initialValue: level,
+                  tooltip: '实时日志级别',
+                  onSelected: (value) => setState(() => level = value),
+                  itemBuilder: (context) => [
+                    for (final item in const ['DEBUG', 'INFO', 'WARN', 'ERROR'])
+                      PopupMenuItem(value: item, child: Text(item)),
+                  ],
+                  child: Container(
+                    height: 32,
+                    padding: const EdgeInsets.symmetric(horizontal: 9),
+                    decoration: BoxDecoration(
+                      color: scheme.secondary,
+                      borderRadius: BorderRadius.circular(9),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(level, style: const TextStyle(fontSize: 11)),
+                        const SizedBox(width: 4),
+                        const Icon(LucideIcons.chevronDown, size: 14),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 5),
+                Tooltip(
+                  message: '自动滚动',
+                  child: Switch(
+                    value: autoScroll,
+                    onChanged: (value) => setState(() => autoScroll = value),
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                ),
+              ],
+            ),
           ),
-          const SizedBox(height: 10),
-          const Text('实时日志暂未接入', style: TextStyle(fontWeight: FontWeight.w600)),
-          const SizedBox(height: 4),
-          Text(
-            '请在原始 WebUI 查看当前实例的实时输出',
-            style: ShadTheme.of(context).textTheme.muted,
-            textAlign: TextAlign.center,
+          Container(
+            width: double.infinity,
+            constraints: const BoxConstraints(minHeight: 280),
+            color: scheme.logBodyBg,
+            padding: const EdgeInsets.all(18),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  LucideIcons.radio,
+                  size: 22,
+                  color: scheme.mutedForeground,
+                ),
+                const SizedBox(height: 10),
+                const Text(
+                  '实时日志暂未接入',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '请在原始 WebUI 查看当前实例的实时输出',
+                  style: theme.textTheme.muted,
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
           ),
         ],
       ),
-    ),
-  );
+    );
+  }
 }
 
 class _ScreenPanel extends StatefulWidget {
-  const _ScreenPanel({required this.loadScreenshot, super.key});
+  const _ScreenPanel({
+    required this.loadScreenshot,
+    required this.onOpenControl,
+    super.key,
+  });
 
   final Future<ScreenshotFrame?> Function() loadScreenshot;
+  final VoidCallback onOpenControl;
 
   @override
   State<_ScreenPanel> createState() => _ScreenPanelState();
@@ -1147,7 +1363,7 @@ class _ScreenPanelState extends State<_ScreenPanel> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = ShadTheme.of(context);
+    final controlLabel = frame == null ? '刷新画面' : '进入控制';
     return Surface(
       padding: EdgeInsets.zero,
       color: NkasColors.screenBg,
@@ -1155,34 +1371,75 @@ class _ScreenPanelState extends State<_ScreenPanel> {
         children: [
           AspectRatio(
             aspectRatio: 9 / 16,
-            child: frame == null
-                ? Center(
-                    child: Text(
-                      error == null ? (loading ? '正在获取画面…' : '暂无画面') : '画面加载失败',
-                      style: const TextStyle(color: NkasColors.screenText),
-                    ),
-                  )
-                : Image.memory(
-                    frame!.bytes,
-                    fit: BoxFit.contain,
-                    gaplessPlayback: true,
-                  ),
-          ),
-          Container(
-            height: 44,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            color: theme.colorScheme.card,
-            child: Row(
+            child: Stack(
               children: [
-                Text(
-                  frame == null ? '未连接' : _captureLabel(frame!.capturedAt),
-                  style: theme.textTheme.muted,
+                Positioned.fill(
+                  child: frame == null
+                      ? Center(
+                          child: Text(
+                            error == null
+                                ? (loading ? '正在获取画面…' : '暂无画面')
+                                : '画面加载失败',
+                            style: const TextStyle(
+                              color: NkasColors.screenText,
+                            ),
+                          ),
+                        )
+                      : Image.memory(
+                          frame!.bytes,
+                          fit: BoxFit.contain,
+                          gaplessPlayback: true,
+                        ),
                 ),
-                const Spacer(),
-                TextButton.icon(
-                  onPressed: loading ? null : _load,
-                  icon: const Icon(LucideIcons.refreshCw, size: 14),
-                  label: const Text('刷新画面'),
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: Container(
+                    constraints: const BoxConstraints(minHeight: 58),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 11,
+                      vertical: 9,
+                    ),
+                    color: const Color(0xE0101D25),
+                    child: Row(
+                      children: [
+                        Text(
+                          frame == null
+                              ? '未连接'
+                              : _captureLabel(frame!.capturedAt),
+                          style: const TextStyle(
+                            color: Color(0xFFD6E3EA),
+                            fontSize: 11,
+                          ),
+                        ),
+                        const Spacer(),
+                        TextButton(
+                          onPressed: loading
+                              ? null
+                              : frame == null
+                              ? _load
+                              : widget.onOpenControl,
+                          style: TextButton.styleFrom(
+                            minimumSize: const Size(0, 30),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 5,
+                            ),
+                            backgroundColor: const Color(0xFF2E4653),
+                            foregroundColor: const Color(0xFFD6E3EA),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(7),
+                            ),
+                          ),
+                          child: Text(
+                            controlLabel,
+                            style: const TextStyle(fontSize: 11),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ],
             ),

@@ -4,6 +4,7 @@ import 'dart:ui' show ImageFilter;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'package:nkas_mobile_preview/core/api/instance_info.dart';
 import 'package:nkas_mobile_preview/core/connection/connection_controller.dart';
@@ -377,7 +378,10 @@ class _NkasShellState extends State<NkasShell> {
                             left: 0,
                             right: 0,
                             bottom: 14,
-                            child: _BottomNav(page: page, onSelect: _selectPage),
+                            child: _BottomNav(
+                              page: page,
+                              onSelect: _selectPage,
+                            ),
                           ),
                       ],
                     ),
@@ -451,6 +455,7 @@ class _NkasShellState extends State<NkasShell> {
       loadSchema: () => _loadSchema(instance),
       patchConfig: (key, value) =>
           widget.connectionController.patchConfig(instance, key, value),
+      onOpenControl: _openWebUi,
       onSelectInstance: (value) {
         setState(() {
           instance = value;
@@ -485,6 +490,18 @@ class _NkasShellState extends State<NkasShell> {
   };
 
   void _selectPage(NkasPage value) => setState(() => page = value);
+
+  Future<void> _openWebUi() async {
+    final opened = await launchUrl(
+      widget.connectionController.webUiUri,
+      mode: LaunchMode.externalApplication,
+    );
+    if (!opened && mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('无法打开原始 WebUI')));
+    }
+  }
 
   Future<void> _loadSchema(String name) async {
     if (loadingSchema) return;
@@ -557,7 +574,10 @@ class _AppHeader extends StatelessWidget {
                 icon: const Icon(LucideIcons.arrowLeft, size: 20),
                 tooltip: '返回设置',
                 padding: EdgeInsets.zero,
-                constraints: const BoxConstraints.tightFor(width: 36, height: 36),
+                constraints: const BoxConstraints.tightFor(
+                  width: 36,
+                  height: 36,
+                ),
               ),
               const SizedBox(width: 4),
             ],

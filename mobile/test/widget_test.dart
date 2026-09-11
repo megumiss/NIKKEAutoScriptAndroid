@@ -276,10 +276,13 @@ void main() {
     await tester.tap(find.text('任务配置'));
     await tester.pumpAndSettle();
 
+    expect(find.text('NKAS'), findsOneWidget);
+    expect(find.text('NKAS设置'), findsOneWidget);
+    await tester.tap(find.text('NKAS设置'));
+    await tester.pumpAndSettle();
     expect(find.text('客户端设置'), findsOneWidget);
     expect(find.text('客户端平台'), findsOneWidget);
     expect(find.text('自动点击红圈'), findsOneWidget);
-    expect(find.text('日常'), findsNothing);
   });
 
   testWidgets('does not present prototype rows as real-time logs', (
