@@ -17,8 +17,7 @@ import 'package:nkas_mobile_preview/theme.dart';
 class OverviewPage extends StatelessWidget {
   const OverviewPage({
     required this.serviceRunning,
-    required this.canControlService,
-    required this.onToggleService,
+    required this.onRefreshStatus,
     required this.onOpenInstances,
     required this.instances,
     required this.loadingInstances,
@@ -32,8 +31,7 @@ class OverviewPage extends StatelessWidget {
     super.key,
   });
   final bool serviceRunning;
-  final bool canControlService;
-  final VoidCallback onToggleService;
+  final Future<void> Function() onRefreshStatus;
   final VoidCallback onOpenInstances;
   final List<InstanceInfo> instances;
   final bool loadingInstances;
@@ -130,7 +128,7 @@ class OverviewPage extends StatelessWidget {
                       ),
                       const SizedBox(width: 5),
                       Text(
-                        'Android 本机',
+                        '移动端控制',
                         style: theme.textTheme.muted.copyWith(
                           color: scheme.heroMeta,
                         ),
@@ -141,13 +139,13 @@ class OverviewPage extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(
-                        LucideIcons.clock3,
+                        LucideIcons.server,
                         size: 14,
                         color: scheme.heroMetaIcon,
                       ),
                       const SizedBox(width: 5),
                       Text(
-                        serviceRunning ? '运行 2 小时 18 分' : '等待启动',
+                        serviceRunning ? '后端已连接' : '等待后端连接',
                         style: theme.textTheme.muted.copyWith(
                           color: scheme.heroMeta,
                         ),
@@ -159,20 +157,10 @@ class OverviewPage extends StatelessWidget {
               const SizedBox(height: 17),
               Row(
                 children: [
-                  if (canControlService) ...[
-                    PrimaryButton(
-                      icon: serviceRunning
-                          ? LucideIcons.square
-                          : LucideIcons.play,
-                      label: serviceRunning ? '停止服务' : '启动服务',
-                      onPressed: onToggleService,
-                    ),
-                    const SizedBox(width: 8),
-                  ],
                   SecondaryButton(
                     icon: LucideIcons.refreshCw,
                     label: '刷新状态',
-                    onPressed: () {},
+                    onPressed: () => onRefreshStatus(),
                   ),
                 ],
               ),

@@ -52,7 +52,6 @@ class _NkasShellState extends State<NkasShell> {
       : NkasPage.overview;
   InstanceTab instanceTab = InstanceTab.overview;
   String instance = '主账号';
-  bool serviceRunning = true;
   bool notifications = true;
   bool autoScroll = true;
   final instanceStates = <String, bool>{
@@ -392,9 +391,6 @@ class _NkasShellState extends State<NkasShell> {
     await socket?.close();
   }
 
-  bool get canControlLocalService =>
-      kIsWeb || defaultTargetPlatform == TargetPlatform.android;
-
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
@@ -463,9 +459,11 @@ class _NkasShellState extends State<NkasShell> {
       loadingInstances: loadingInstances,
       instancesError: instancesError,
       avatarUrl: _avatarUrl,
-      serviceRunning: serviceRunning,
-      canControlService: canControlLocalService && _starAccessGranted,
-      onToggleService: () => setState(() => serviceRunning = !serviceRunning),
+      serviceRunning:
+          widget.connectionController.state.phase == ConnectionPhase.connected,
+      onRefreshStatus: () => widget.connectionController.connect(
+        widget.connectionController.state.baseUrl,
+      ),
       onOpenInstances: () => _selectPage(NkasPage.instances),
       calendarItems: calendarItems,
       calendarUpdatedAt: calendarUpdatedAt,
