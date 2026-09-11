@@ -213,47 +213,13 @@ class OverviewPage extends StatelessWidget {
                 ),
         ),
         const SizedBox(height: 25),
-        SectionHeader(
-          title: '活动日历',
-          subtitle: calendarUpdatedAt == 0
-              ? null
-              : '更新于 ${_formatDateTime(calendarUpdatedAt)}',
-          action: '刷新',
-          actionIcon: LucideIcons.refreshCw,
-          onAction: () => onRefreshCalendar(),
+        _CalendarSection(
+          items: calendarItems,
+          updatedAt: calendarUpdatedAt,
+          loading: calendarLoading,
+          error: calendarError,
+          onRefresh: onRefreshCalendar,
         ),
-        const SizedBox(height: 9),
-        SizedBox(
-          height: 31,
-          child: ListView(
-            scrollDirection: Axis.horizontal,
-            children: const [
-              NkasFilterChip(label: '全部', active: true),
-              NkasFilterChip(label: '招募'),
-              NkasFilterChip(label: 'Raid'),
-              NkasFilterChip(label: '超频'),
-              NkasFilterChip(label: '时装'),
-              NkasFilterChip(label: '剧情活动'),
-              NkasFilterChip(label: '竞技场'),
-            ],
-          ),
-        ),
-        const SizedBox(height: 9),
-        if (calendarLoading)
-          const SizedBox(
-            height: 140,
-            child: Center(child: CircularProgressIndicator()),
-          )
-        else if (calendarItems.isEmpty)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 22),
-            child: Text(
-              calendarError == null ? '暂无进行中的活动' : '活动数据加载失败',
-              style: theme.textTheme.muted,
-            ),
-          )
-        else
-          _EventCard(item: calendarItems.first),
       ],
     );
   }
@@ -265,6 +231,92 @@ class OverviewPage extends StatelessWidget {
     String two(int value) => value.toString().padLeft(2, '0');
     return '${date.year}/${two(date.month)}/${two(date.day)} '
         '${two(date.hour)}:${two(date.minute)}';
+  }
+}
+
+class _CalendarSection extends StatefulWidget {
+  const _CalendarSection({
+    required this.items,
+    required this.updatedAt,
+    required this.loading,
+    required this.error,
+    required this.onRefresh,
+  });
+
+  final List<CalendarItem> items;
+  final int updatedAt;
+  final bool loading;
+  final String? error;
+  final Future<void> Function() onRefresh;
+
+  @override
+  State<_CalendarSection> createState() => _CalendarSectionState();
+}
+
+class _CalendarSectionState extends State<_CalendarSection> {
+  static const categories = <(String, String)>[
+    ('', '全部'),
+    ('character_gacha', '招募'),
+    ('raid', 'Raid'),
+    ('simulation_room', '超频'),
+    ('skin_gacha', '时装'),
+    ('version_event', '剧情活动'),
+    ('arena', '竞技场'),
+  ];
+
+  String category = '';
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ShadTheme.of(context);
+    final visibleItems = category.isEmpty
+        ? widget.items
+        : widget.items.where((item) => item.category == category).toList();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SectionHeader(
+          title: '活动日历',
+          subtitle: widget.updatedAt == 0
+              ? null
+              : '更新于 ${OverviewPage._formatDateTime(widget.updatedAt)}',
+          action: '刷新',
+          actionIcon: LucideIcons.refreshCw,
+          onAction: () => widget.onRefresh(),
+        ),
+        const SizedBox(height: 9),
+        SizedBox(
+          height: 31,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            children: [
+              for (final item in categories)
+                NkasFilterChip(
+                  label: item.$2,
+                  active: category == item.$1,
+                  onTap: () => setState(() => category = item.$1),
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 9),
+        if (widget.loading)
+          const SizedBox(
+            height: 140,
+            child: Center(child: CircularProgressIndicator()),
+          )
+        else if (visibleItems.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 22),
+            child: Text(
+              widget.error == null ? '暂无进行中的活动' : '活动数据加载失败',
+              style: theme.textTheme.muted,
+            ),
+          )
+        else
+          _EventCard(item: visibleItems.first),
+      ],
+    );
   }
 }
 
