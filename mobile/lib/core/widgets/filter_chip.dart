@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
-import 'package:nkas_mobile_preview/theme.dart';
+import 'package:nkas_mobile/theme.dart';
 
 class NkasFilterChip extends StatelessWidget {
   const NkasFilterChip({

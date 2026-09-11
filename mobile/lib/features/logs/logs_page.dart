@@ -3,14 +3,14 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import 'dart:typed_data';
 import 'package:share_plus/share_plus.dart';
 
-import 'package:nkas_mobile_preview/core/api/log_info.dart';
-import 'package:nkas_mobile_preview/core/connection/connection_controller.dart';
-import 'package:nkas_mobile_preview/core/widgets/field_select.dart';
-import 'package:nkas_mobile_preview/core/widgets/log_line.dart';
-import 'package:nkas_mobile_preview/core/widgets/page_inset.dart';
-import 'package:nkas_mobile_preview/core/widgets/page_subtitle.dart';
-import 'package:nkas_mobile_preview/core/widgets/surface.dart';
-import 'package:nkas_mobile_preview/theme.dart';
+import 'package:nkas_mobile/core/api/log_info.dart';
+import 'package:nkas_mobile/core/connection/connection_controller.dart';
+import 'package:nkas_mobile/core/widgets/field_select.dart';
+import 'package:nkas_mobile/core/widgets/log_line.dart';
+import 'package:nkas_mobile/core/widgets/page_inset.dart';
+import 'package:nkas_mobile/core/widgets/page_subtitle.dart';
+import 'package:nkas_mobile/core/widgets/surface.dart';
+import 'package:nkas_mobile/theme.dart';
 
 class LogsPage extends StatefulWidget {
   const LogsPage({required this.connectionController, super.key});

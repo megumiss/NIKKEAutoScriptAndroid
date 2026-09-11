@@ -4,16 +4,16 @@ import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import 'package:nkas_mobile_preview/core/api/update_info.dart';
-import 'package:nkas_mobile_preview/core/widgets/icon_box.dart';
-import 'package:nkas_mobile_preview/core/connection/connection_controller.dart';
-import 'package:nkas_mobile_preview/core/platform/nkas_platform.dart';
-import 'package:nkas_mobile_preview/core/platform/runtime_platform.dart';
-import 'package:nkas_mobile_preview/core/widgets/buttons.dart';
-import 'package:nkas_mobile_preview/core/widgets/page_inset.dart';
-import 'package:nkas_mobile_preview/core/widgets/page_subtitle.dart';
-import 'package:nkas_mobile_preview/core/widgets/surface.dart';
-import 'package:nkas_mobile_preview/theme.dart';
+import 'package:nkas_mobile/core/api/update_info.dart';
+import 'package:nkas_mobile/core/widgets/icon_box.dart';
+import 'package:nkas_mobile/core/connection/connection_controller.dart';
+import 'package:nkas_mobile/core/platform/nkas_platform.dart';
+import 'package:nkas_mobile/core/platform/runtime_platform.dart';
+import 'package:nkas_mobile/core/widgets/buttons.dart';
+import 'package:nkas_mobile/core/widgets/page_inset.dart';
+import 'package:nkas_mobile/core/widgets/page_subtitle.dart';
+import 'package:nkas_mobile/core/widgets/surface.dart';
+import 'package:nkas_mobile/theme.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({
@@ -21,24 +21,24 @@ class SettingsPage extends StatefulWidget {
     required this.connectionController,
     required this.starAuthorized,
     required this.notifications,
-    required this.autoScroll,
     required this.onThemeModeChanged,
     required this.onNotificationsChanged,
-    required this.onAutoScrollChanged,
     required this.onOpenStarVerify,
     required this.onOpenSetup,
+    required this.onOpenUpdate,
+    required this.onOpenAbout,
     super.key,
   });
   final ThemeMode themeMode;
   final ConnectionController connectionController;
   final bool starAuthorized;
   final bool notifications;
-  final bool autoScroll;
   final ValueChanged<ThemeMode> onThemeModeChanged;
   final ValueChanged<bool> onNotificationsChanged;
-  final ValueChanged<bool> onAutoScrollChanged;
   final VoidCallback onOpenStarVerify;
   final VoidCallback onOpenSetup;
+  final VoidCallback onOpenUpdate;
+  final VoidCallback onOpenAbout;
 
   @override
   State<SettingsPage> createState() => _SettingsPageState();
@@ -133,6 +133,7 @@ class _SettingsPageState extends State<SettingsPage> {
             _UpdateSettingRow(
               connectionController: widget.connectionController,
               enabled: widget.starAuthorized,
+              onTap: widget.onOpenUpdate,
             ),
           ],
         ),
@@ -174,34 +175,17 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
               ),
             ),
-            _SettingRow(
-              icon: LucideIcons.scrollText,
-              title: '日志自动滚动',
-              subtitle: '新日志到达时滚动到底部',
-              enabled: widget.starAuthorized,
-              customTrailing: IgnorePointer(
-                ignoring: !widget.starAuthorized,
-                child: Opacity(
-                  opacity: widget.starAuthorized ? 1 : .45,
-                  child: _SettingsSwitch(
-                    label: '日志自动滚动',
-                    value: widget.autoScroll,
-                    onChanged: widget.onAutoScrollChanged,
-                  ),
-                ),
-              ),
-            ),
           ],
         ),
         const SizedBox(height: 20),
-        const _SettingGroup(
-          label: '关于',
-          rows: [
-            _SettingRow(
-              title: 'NKAS Mobile Preview',
-              subtitle: 'Flutter + shadcn_ui · 0.1.0-preview',
-            ),
-          ],
+        Surface(
+          padding: EdgeInsets.zero,
+          child: _SettingRow(
+            icon: LucideIcons.info,
+            title: '关于',
+            subtitle: '版本、项目链接与运行信息',
+            onTap: widget.onOpenAbout,
+          ),
         ),
       ],
     );
@@ -242,10 +226,12 @@ class _UpdateSettingRow extends StatefulWidget {
   const _UpdateSettingRow({
     required this.connectionController,
     required this.enabled,
+    required this.onTap,
   });
 
   final ConnectionController connectionController;
   final bool enabled;
+  final VoidCallback onTap;
 
   @override
   State<_UpdateSettingRow> createState() => _UpdateSettingRowState();
@@ -253,7 +239,6 @@ class _UpdateSettingRow extends StatefulWidget {
 
 class _UpdateSettingRowState extends State<_UpdateSettingRow> {
   UpdateInfo? info;
-  bool busy = false;
   String? error;
   String? loadedBaseUrl;
 
@@ -283,8 +268,7 @@ class _UpdateSettingRowState extends State<_UpdateSettingRow> {
     final connection = widget.connectionController.state;
     if (widget.enabled &&
         connection.phase == ConnectionPhase.connected &&
-        loadedBaseUrl != connection.baseUrl &&
-        !busy) {
+        loadedBaseUrl != connection.baseUrl) {
       unawaited(_load());
     }
   }
@@ -302,95 +286,9 @@ class _UpdateSettingRowState extends State<_UpdateSettingRow> {
         error = value.error;
         loadedBaseUrl = baseUrl;
       });
-      if (value.checking || value.running) unawaited(_poll());
     } catch (exception) {
       if (mounted) setState(() => error = exception.toString());
     }
-  }
-
-  Future<void> _handleTap() async {
-    if (busy ||
-        widget.connectionController.state.phase != ConnectionPhase.connected) {
-      return;
-    }
-    if (info?.available == true ||
-        (info?.state == 'failed' && (info?.error?.isEmpty ?? true))) {
-      final confirmed = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('更新 NKAS 源码'),
-          content: const Text('更新会等待当前任务结束，并可能短暂重启后端。确定继续？'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('取消'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('立即更新'),
-            ),
-          ],
-        ),
-      );
-      if (confirmed == true) await _apply();
-      return;
-    }
-    await _check();
-  }
-
-  Future<void> _check() async {
-    setState(() {
-      busy = true;
-      error = null;
-    });
-    try {
-      await widget.connectionController.checkForUpdate();
-      await _poll(maxRounds: 30);
-    } catch (exception) {
-      if (mounted) setState(() => error = exception.toString());
-    } finally {
-      if (mounted) setState(() => busy = false);
-    }
-  }
-
-  Future<void> _apply() async {
-    setState(() {
-      busy = true;
-      error = null;
-    });
-    try {
-      await widget.connectionController.applyUpdate();
-      await _poll(maxRounds: 300, tolerateConnectionErrors: true);
-      if (!mounted) return;
-      await widget.connectionController.connect(
-        widget.connectionController.state.baseUrl,
-      );
-    } catch (exception) {
-      if (mounted) setState(() => error = exception.toString());
-    } finally {
-      if (mounted) setState(() => busy = false);
-    }
-  }
-
-  Future<void> _poll({
-    int maxRounds = 30,
-    bool tolerateConnectionErrors = false,
-  }) async {
-    for (var round = 0; round < maxRounds && mounted; round++) {
-      await Future<void>.delayed(const Duration(seconds: 2));
-      try {
-        final value = await widget.connectionController.fetchUpdateInfo();
-        if (!mounted) return;
-        setState(() {
-          info = value;
-          error = value.error;
-        });
-        if (!value.checking && !value.running) return;
-      } catch (exception) {
-        if (!tolerateConnectionErrors) rethrow;
-      }
-    }
-    if (mounted) setState(() => error = '更新状态等待超时');
   }
 
   @override
@@ -401,17 +299,13 @@ class _UpdateSettingRowState extends State<_UpdateSettingRow> {
       icon: LucideIcons.squareArrowUp,
       title: '更新',
       subtitle: _subtitle(connected),
-      enabled: widget.enabled && connected && !busy,
-      trailing: info?.available == true
-          ? LucideIcons.download
-          : LucideIcons.refreshCw,
-      onTap: connected && !busy ? _handleTap : null,
+      enabled: widget.enabled && connected,
+      onTap: widget.enabled && connected ? widget.onTap : null,
     );
   }
 
   String _subtitle(bool connected) {
     if (!connected) return '连接后端后检查源码版本';
-    if (busy || info?.checking == true) return '正在检查或更新，请稍候…';
     if (error != null && error!.isNotEmpty) return error!;
     final current = widget.connectionController.state.status?.version;
     final state = info?.stateLabel ?? '检查源码的新版本';

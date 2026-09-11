@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
-import 'package:nkas_mobile_preview/core/platform/runtime_platform.dart';
+import 'package:nkas_mobile/core/platform/runtime_platform.dart';
 
 class StarAuthorization {
   const StarAuthorization({

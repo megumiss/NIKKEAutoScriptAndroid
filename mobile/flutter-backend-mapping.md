@@ -40,6 +40,8 @@
 
 ### 2.2 实例页
 
+实例页为自适应两级结构：多实例先进列表层（卡片含启停与队列计数），点卡片进详情层（头部 + 队列摘要 + 画面缩略 + 管理入口）；任务配置、调度设置、实时日志是详情层下的整页功能层；单实例跳过列表层。原「概览/任务配置/调度设置/实时日志」Tab 已移除。
+
 #### 实例头部
 
 | 原型元素 | 真实实现 |
@@ -49,7 +51,7 @@
 | 启动/停止 | `POST /api/{name}/start`、`POST /api/{name}/stop`；处理 403 `admin_required`、409 已运行/已停止、串行失败状态 |
 | 状态实时变化 | `WS /ws/state` 每秒推送 `{type,name,state}`；本地状态只做 loading，不作为事实源 |
 
-#### 概览 Tab
+#### 详情层队列摘要（原概览 Tab）
 
 | 原型元素 | 真实实现 |
 | --- | --- |
@@ -60,7 +62,7 @@
 | 串行等待 | 额外读取 `/api/serial/state`；`waiting`、`current`、`failed`、`halted` 不能从 queue 推断 |
 | 当前“任务总数/最近运行/调度器”四格 | 后端没有同样聚合字段；删除或明确计算规则，不应继续显示虚拟数字 |
 
-#### 任务配置 Tab
+#### 任务配置层（原任务配置 Tab）
 
 | 原型元素 | 真实实现 |
 | --- | --- |
@@ -74,7 +76,7 @@
 
 Flutter 至少要支持：`checkbox`、`select`、`multiselect`、`number`、`text`、`textarea`、`priority`、`path picker`、锁定/禁用、物品表、拦截战统计和特殊导入。不能用当前原型里的“执行模式/通知”两个虚拟字段替代真实任务字段。
 
-#### 调度设置 Tab
+#### 调度设置层（原调度设置 Tab）
 
 | 原型元素 | 真实实现 |
 | --- | --- |
@@ -90,7 +92,7 @@ Flutter 至少要支持：`checkbox`、`select`、`multiselect`、`number`、`te
 
 原型只有两个固定任务和简单 time 输入，不足以承载真实调度。Flutter 应按接口动态生成任务行，并展示锁定原因和 422 `errors`。
 
-#### 实时日志 Tab
+#### 实时日志层（原实时日志 Tab）
 
 | 原型元素 | 真实实现 |
 | --- | --- |
@@ -100,7 +102,7 @@ Flutter 至少要支持：`checkbox`、`select`、`multiselect`、`number`、`te
 
 实时日志先标记为待定，不纳入第一阶段后端对接验收。现有 HTML payload 不应在 Flutter 中通过正则解析；如果后续保留原生日志页，需要先确定结构化协议，否则使用原始 WebUI/WebView 作为过渡。
 
-#### 画面 Tab
+#### 画面（一级页面，原「画面 Tab」已拆出实例页）
 
 | 原型元素 | 真实实现 |
 | --- | --- |
@@ -133,7 +135,7 @@ Flutter 至少要支持：`checkbox`、`select`、`multiselect`、`number`、`te
 | 语言 | Flutter 本地设置 | 不调用 `/api/system/language`；需要处理后端 schema/queue/schedule 文案的语言来源 |
 | 后台通知 | 待定 | Android 已有通知服务，但 App 开关与实例通知策略尚未确定 |
 | 日志自动滚动 | 待定 | 先不承诺持久化或跨页面同步 |
-| 更新 | `/api/system/update`、`/api/update/check`、`/api/update`、`/api/restart` | 接入源码更新；轮询 `checking/start/wait/run update/failed/idle`；不做单独启动器更新 |
+| 更新 | `/api/system/update`、`/api/update/check`、`/api/update`、`/api/restart` | 接入源码更新，设置页「更新」行进入更新子页（状态卡 + `history` 更新记录列表）；轮询 `checking/start/wait/run update/failed/idle`；不做单独启动器更新 |
 
 当前 `/api/system/status` 只有 `api_version`、`spa_version` 和 `capabilities.spa/websocket`。第一阶段可以直接连接，不把 token 作为阻塞项；但应限制为可信局域网/本机地址，后续再补认证和能力项。
 
@@ -211,17 +213,17 @@ App 语言同样存在契约问题：schema、queue 和 schedule 的 `name/help/
 
 当前 `mobile/lib/main.dart` 仍然包含旧模型：
 
-- `NkasPage.deploy` 和 `NkasPage.about` 两个独立页面；
+- `NkasPage.about` 独立页面；
 - 顶栏右上角 Overflow 菜单，菜单项包含部署、关于、更新；
 - 总览和实例使用本地 `serviceRunning`/`instance` 状态；
-- 页面结构与 HTML 原型最终确定的“总览、实例、日志、设置”四项导航不一致。
+- 页面结构与 HTML 原型最终确定的“总览、实例、画面、日志、部署、设置”六项导航不一致。
 
 接入前应以 `mobile/design/nkas-mobile-interactive.html` 和本文件为准，先删除旧的页面/菜单模型：
 
-1. 保留四项一级导航：总览、实例、日志、设置。
+1. 保留六项一级导航：总览、实例、画面、日志、部署、设置（画面页轮询 `/api/{name}/screenshot`）。
 2. 更新、STAR 验证、初始化、后端地址和原始 WebUI 都从设置进入。
 3. 不在顶栏保留没有实际用途的菜单按钮。
-4. `deploy` 能力如果未来需要原生配置，作为设置或 Android 初始化流程的一部分，不能重新恢复为独立一级页面。
+4. `deploy` 是一级“部署”页面，消费 `GET/PATCH /api/system/deploy` 与 `POST /api/system/deploy/reset`，复刻 WebUI 部署页；设置里的“初始化 NKAS”仍是 Android 本机 Termux 流程，与部署页互不影响。
 
 这样可以避免 Flutter 接 API 时同时维护旧页面和新原型两套状态。
 

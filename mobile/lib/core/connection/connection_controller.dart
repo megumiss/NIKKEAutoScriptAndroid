@@ -2,17 +2,18 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
-import 'package:nkas_mobile_preview/core/api/api_client.dart';
-import 'package:nkas_mobile_preview/core/api/instance_info.dart';
-import 'package:nkas_mobile_preview/core/api/queue_info.dart';
-import 'package:nkas_mobile_preview/core/api/calendar_info.dart';
-import 'package:nkas_mobile_preview/core/api/log_info.dart';
-import 'package:nkas_mobile_preview/core/api/update_info.dart';
-import 'package:nkas_mobile_preview/core/api/screenshot_frame.dart';
-import 'package:nkas_mobile_preview/core/api/schedule_info.dart';
-import 'package:nkas_mobile_preview/core/api/schema_info.dart';
-import 'package:nkas_mobile_preview/core/api/system_status.dart';
-import 'package:nkas_mobile_preview/core/settings/backend_settings.dart';
+import 'package:nkas_mobile/core/api/api_client.dart';
+import 'package:nkas_mobile/core/api/instance_info.dart';
+import 'package:nkas_mobile/core/api/queue_info.dart';
+import 'package:nkas_mobile/core/api/calendar_info.dart';
+import 'package:nkas_mobile/core/api/log_info.dart';
+import 'package:nkas_mobile/core/api/update_info.dart';
+import 'package:nkas_mobile/core/api/screenshot_frame.dart';
+import 'package:nkas_mobile/core/api/schedule_info.dart';
+import 'package:nkas_mobile/core/api/schema_info.dart';
+import 'package:nkas_mobile/core/api/deploy_info.dart';
+import 'package:nkas_mobile/core/api/system_status.dart';
+import 'package:nkas_mobile/core/settings/backend_settings.dart';
 
 const defaultBackendBaseUrl = 'http://127.0.0.1:12271';
 const supportedApiVersion = 2;
@@ -247,6 +248,27 @@ class ConnectionController extends ChangeNotifier {
       return Future.error(const ApiException('后端未连接'));
     }
     return _api.patchConfig(_state.baseUrl, name, key, value);
+  }
+
+  Future<DeployInfo> fetchDeploy() {
+    if (_state.phase != ConnectionPhase.connected) {
+      return Future.error(const ApiException('后端未连接'));
+    }
+    return _api.fetchDeployInfo(_state.baseUrl);
+  }
+
+  Future<Object?> patchDeploy(String key, Object? value) {
+    if (_state.phase != ConnectionPhase.connected) {
+      return Future.error(const ApiException('后端未连接'));
+    }
+    return _api.patchDeploy(_state.baseUrl, key, value);
+  }
+
+  Future<void> resetDeploy({String template = 'intl'}) {
+    if (_state.phase != ConnectionPhase.connected) {
+      return Future.error(const ApiException('后端未连接'));
+    }
+    return _api.resetDeploy(_state.baseUrl, template: template);
   }
 
   Uri avatarUri(String filename) => _api.endpoint(

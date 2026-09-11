@@ -1,4 +1,4 @@
-package com.megumiss.nkas.mobile.preview.platform
+package com.megumiss.nkas.mobile.platform
 
 import android.app.Notification
 import android.app.NotificationChannel

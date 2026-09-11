@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
-import 'package:nkas_mobile_preview/theme.dart';
+import 'package:nkas_mobile/theme.dart';
 
 /// 图标+文字按钮基座：单行 Row（mainAxisSize.min + 固定 5px 间距、垂直居中、
 /// 绝不换行），规格对齐原型 .np-primary/.np-secondary（min-height 38、圆角 11、

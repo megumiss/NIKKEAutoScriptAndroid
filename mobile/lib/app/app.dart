@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
-import 'package:nkas_mobile_preview/app/shell.dart';
-import 'package:nkas_mobile_preview/core/api/api_client.dart';
-import 'package:nkas_mobile_preview/core/connection/connection_controller.dart';
-import 'package:nkas_mobile_preview/core/settings/backend_settings.dart';
-import 'package:nkas_mobile_preview/theme.dart';
+import 'package:nkas_mobile/app/shell.dart';
+import 'package:nkas_mobile/core/api/api_client.dart';
+import 'package:nkas_mobile/core/connection/connection_controller.dart';
+import 'package:nkas_mobile/core/settings/backend_settings.dart';
+import 'package:nkas_mobile/theme.dart';
 
-class NkasPreviewApp extends StatefulWidget {
-  const NkasPreviewApp({
+class NkasMobileApp extends StatefulWidget {
+  const NkasMobileApp({
     this.connectionController,
     this.enableRealtime = true,
     super.key,
@@ -18,10 +18,10 @@ class NkasPreviewApp extends StatefulWidget {
   final bool enableRealtime;
 
   @override
-  State<NkasPreviewApp> createState() => _NkasPreviewAppState();
+  State<NkasMobileApp> createState() => _NkasMobileAppState();
 }
 
-class _NkasPreviewAppState extends State<NkasPreviewApp> {
+class _NkasMobileAppState extends State<NkasMobileApp> {
   ThemeMode themeMode = ThemeMode.light;
   late final ConnectionController connectionController;
   late final bool ownsConnectionController;

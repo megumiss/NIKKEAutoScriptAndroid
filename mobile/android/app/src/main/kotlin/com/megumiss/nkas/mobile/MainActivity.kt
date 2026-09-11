@@ -1,4 +1,4 @@
-package com.megumiss.nkas.mobile.preview
+package com.megumiss.nkas.mobile
 
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine

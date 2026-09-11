@@ -1,4 +1,4 @@
-import 'package:nkas_mobile_preview/core/widgets/status.dart';
+import 'package:nkas_mobile/core/widgets/status.dart';
 
 class InstanceInfo {
   const InstanceInfo({

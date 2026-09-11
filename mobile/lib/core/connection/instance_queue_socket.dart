@@ -3,7 +3,7 @@ import 'dart:convert';
 
 import 'package:web_socket_channel/web_socket_channel.dart';
 
-import 'package:nkas_mobile_preview/core/api/queue_info.dart';
+import 'package:nkas_mobile/core/api/queue_info.dart';
 
 class InstanceQueueEvent {
   const InstanceQueueEvent({required this.name, required this.queue});

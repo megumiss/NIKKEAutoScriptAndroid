@@ -1,4 +1,4 @@
-// Widget tests for the NKAS mobile preview.
+// Widget tests for NKAS Mobile.
 //
 // The 360x800 / 390x844 suites rely on Flutter's debug overflow errors:
 // any RenderFlex overflow throws and fails the test, so they act as layout
@@ -10,10 +10,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:nkas_mobile_preview/app/app.dart';
-import 'package:nkas_mobile_preview/core/api/api_client.dart';
-import 'package:nkas_mobile_preview/core/connection/connection_controller.dart';
-import 'package:nkas_mobile_preview/core/settings/backend_settings.dart';
+import 'package:nkas_mobile/app/app.dart';
+import 'package:nkas_mobile/core/api/api_client.dart';
+import 'package:nkas_mobile/core/connection/connection_controller.dart';
+import 'package:nkas_mobile/core/settings/backend_settings.dart';
 
 class _MemoryBackendSettings implements BackendSettings {
   String? value;
@@ -165,14 +165,110 @@ ConnectionController _connectedController({_MemoryBackendSettings? settings}) {
         headers: {'content-type': 'application/json; charset=utf-8'},
       );
     }
+    if (request.url.path.endsWith('/api/system/deploy/reset')) {
+      return http.Response(
+        jsonEncode({'status': 'success'}),
+        200,
+        headers: {'content-type': 'application/json; charset=utf-8'},
+      );
+    }
+    if (request.url.path.endsWith('/api/system/deploy')) {
+      if (request.method == 'PATCH') {
+        final body = jsonDecode(request.body);
+        return http.Response.bytes(
+          utf8.encode(
+            jsonEncode({'status': 'success', 'value': body['value']}),
+          ),
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      }
+      return http.Response.bytes(
+        utf8.encode(
+          jsonEncode({
+            'groups': [
+              {
+                'key': 'Git',
+                'name': 'Git',
+                'fields': [
+                  {
+                    'key': 'AutoUpdate',
+                    'title': '自动更新',
+                    'help': '启动时自动更新 NKAS',
+                    'hints': [
+                      {'tag': '大多数情况下', 'text': '建议打开'},
+                    ],
+                    'widget': 'checkbox',
+                    'value': true,
+                    'default': true,
+                    'options': [],
+                    'wide': false,
+                  },
+                  {
+                    'key': 'Language',
+                    'title': '界面语言',
+                    'help': 'Web UI 语言',
+                    'hints': [],
+                    'widget': 'select',
+                    'value': 'zh-CN',
+                    'default': 'zh-CN',
+                    'options': [
+                      {'value': 'zh-CN', 'label': '简体中文'},
+                      {'value': 'en-US', 'label': 'English'},
+                    ],
+                    'wide': false,
+                  },
+                ],
+              },
+              {
+                'key': 'Webui',
+                'name': 'WebUI',
+                'fields': [
+                  {
+                    'key': 'WebuiPort',
+                    'title': '监听端口',
+                    'help': '--port，监听端口',
+                    'hints': [
+                      {'tag': '大多数情况下', 'text': '默认 12271'},
+                    ],
+                    'widget': 'number',
+                    'value': 12271,
+                    'default': 12271,
+                    'options': [],
+                    'wide': false,
+                  },
+                  {
+                    'key': 'GitProxy',
+                    'title': 'Git 代理',
+                    'help': '设置 git 代理',
+                    'hints': [],
+                    'widget': 'text',
+                    'value': '',
+                    'default': '',
+                    'options': [],
+                    'wide': true,
+                  },
+                ],
+              },
+            ],
+          }),
+        ),
+        200,
+        headers: {'content-type': 'application/json; charset=utf-8'},
+      );
+    }
     if (request.url.path.endsWith('/api/system/update')) {
       return http.Response(
         jsonEncode({
           'state': 0,
           'error': null,
-          'local': ['abc123', 'tester', '2026-09-10', 'test'],
-          'upstream': ['abc123', 'tester', '2026-09-10', 'test'],
-          'history': [],
+          'local': ['abc123', 'tester', '2026-09-10 10:00:00 +0800', 'test'],
+          'upstream': ['abc123', 'tester', '2026-09-10 10:00:00 +0800', 'test'],
+          'history': [
+            ['abc123', 'tester', '2026-09-10 10:00:00 +0800', '修复调度重启问题'],
+            ['def456', 'tester', '2026-09-08 09:30:00 +0800', '新增活动日历入口'],
+            [null, null, null, null],
+          ],
         }),
         200,
         headers: {'content-type': 'application/json; charset=utf-8'},
@@ -180,6 +276,27 @@ ConnectionController _connectedController({_MemoryBackendSettings? settings}) {
     }
     if (request.url.path.endsWith('/screenshot')) {
       return http.Response('{}', 404);
+    }
+    if (request.url.path.endsWith('/queue')) {
+      return http.Response.bytes(
+        utf8.encode(
+          jsonEncode({
+            'running': [
+              {'command': 'Harvest', 'name_i18n': '收获', 'next_run': ''},
+            ],
+            'pending': [
+              {
+                'command': 'Daily',
+                'name_i18n': '每日任务',
+                'next_run': '2026-09-12 04:00:00',
+              },
+            ],
+            'waiting': [],
+          }),
+        ),
+        200,
+        headers: {'content-type': 'application/json; charset=utf-8'},
+      );
     }
     if (request.url.path.endsWith('/schedule')) {
       return http.Response.bytes(
@@ -232,7 +349,7 @@ Future<ConnectionController> _pumpTestApp(
   final controller = _connectedController(settings: settings);
   addTearDown(controller.dispose);
   await tester.pumpWidget(
-    NkasPreviewApp(connectionController: controller, enableRealtime: false),
+    NkasMobileApp(connectionController: controller, enableRealtime: false),
   );
   await tester.pumpAndSettle();
   return controller;
@@ -265,13 +382,93 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('关于'), findsOneWidget);
-    expect(find.text('部署'), findsNothing);
+  });
+
+  testWidgets('update entry opens the update subpage with history', (
+    tester,
+  ) async {
+    await _pumpTestApp(tester);
+
+    await tester.tap(find.byTooltip('设置'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('更新'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('源码更新'), findsOneWidget);
+    expect(find.text('检查更新'), findsOneWidget);
+    expect(find.text('更新记录'), findsOneWidget);
+    expect(find.text('修复调度重启问题'), findsOneWidget);
+    expect(find.text('新增活动日历入口'), findsOneWidget);
+    expect(find.text('当前版本'), findsOneWidget);
+    expect(find.text('abc123 · 2026-09-10'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('返回设置'));
+    await tester.pumpAndSettle();
+    expect(find.text('后端连接'), findsOneWidget);
+  });
+
+  testWidgets('about entry opens the about subpage with runtime info', (
+    tester,
+  ) async {
+    await _pumpTestApp(tester);
+
+    await tester.tap(find.byTooltip('设置'));
+    await tester.pumpAndSettle();
+    await tester.drag(find.byType(Scrollable).first, const Offset(0, -600));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('关于'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('NKAS Mobile'), findsOneWidget);
+    expect(find.text('0.1.0'), findsWidgets);
+    expect(find.text('NIKKEAutoScript 移动控制端'), findsOneWidget);
+    expect(find.text('项目仓库'), findsOneWidget);
+    expect(find.text('问题反馈'), findsOneWidget);
+    expect(find.text('应用版本'), findsOneWidget);
+    expect(find.text('后端版本'), findsOneWidget);
+    expect(find.text('后端地址'), findsOneWidget);
+    expect(find.text('http://127.0.0.1:12271'), findsOneWidget);
+    expect(find.text('API 版本'), findsOneWidget);
+    expect(find.text('v2'), findsOneWidget);
+    expect(find.text('技术栈'), findsOneWidget);
+    expect(find.text('Flutter + shadcn_ui'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('返回设置'));
+    await tester.pumpAndSettle();
+    expect(find.text('后端连接'), findsOneWidget);
+  });
+
+  testWidgets('renders deploy configuration from backend schema', (
+    tester,
+  ) async {
+    await _pumpTestApp(tester);
+
+    for (final label in ['总览', '实例', '画面', '日志', '部署', '设置']) {
+      expect(find.byTooltip(label), findsOneWidget);
+    }
+
+    await tester.tap(find.byTooltip('部署'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('修改部署配置可能导致更新失败或程序无法启动，修改需要重启后生效，请谨慎操作。'), findsOneWidget);
+    expect(find.text('还原默认'), findsOneWidget);
+    expect(find.text('Git'), findsOneWidget);
+    expect(find.text('WebUI'), findsOneWidget);
+    expect(find.text('自动更新'), findsOneWidget);
+    expect(find.text('界面语言'), findsOneWidget);
+    expect(find.text('监听端口'), findsOneWidget);
+    expect(find.text('Git 代理'), findsOneWidget);
+    expect(find.text('建议打开'), findsOneWidget);
   });
 
   testWidgets('renders task configuration from backend schema', (tester) async {
     await _pumpTestApp(tester);
 
     await tester.tap(find.byTooltip('实例'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('nkas'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('任务配置'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('任务配置'));
     await tester.pumpAndSettle();
@@ -290,11 +487,75 @@ void main() {
 
     await tester.tap(find.byTooltip('实例'));
     await tester.pumpAndSettle();
+    await tester.tap(find.text('nkas'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('实时日志'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('实时日志'));
     await tester.pumpAndSettle();
 
-    expect(find.text('实时日志'), findsOneWidget);
+    // 返回条标题 + 面板头部各一处
+    expect(find.text('实时日志'), findsWidgets);
     expect(find.text('每日任务：开始执行前哨基地'), findsNothing);
+  });
+
+  testWidgets('instances list layer opens the dashboard layer', (tester) async {
+    await _pumpTestApp(tester);
+
+    await tester.tap(find.byTooltip('实例'));
+    await tester.pumpAndSettle();
+
+    // 列表层：两张实例卡 + 任务摘要 + 队列计数
+    expect(find.text('选择实例查看详情'), findsOneWidget);
+    expect(find.text('nkas'), findsOneWidget);
+    expect(find.text('nkas2'), findsOneWidget);
+    expect(find.text('下一任务 · 重启设置'), findsOneWidget);
+    expect(find.text('正在执行 · 收获'), findsOneWidget);
+    expect(find.text('运行 1'), findsNWidgets(2));
+    expect(find.text('队列 1'), findsNWidgets(2));
+    expect(find.text('等待 0'), findsNWidgets(2));
+
+    await tester.tap(find.text('nkas'));
+    await tester.pumpAndSettle();
+
+    // 详情层：头部 + 队列摘要 + 画面缩略 + 管理入口
+    expect(find.text('管理实例任务、调度、画面和日志'), findsOneWidget);
+    expect(find.text('运行中 1'), findsOneWidget);
+    expect(find.text('队列中 1'), findsOneWidget);
+    expect(find.text('等待中 0'), findsOneWidget);
+    expect(find.text('收获'), findsOneWidget);
+    expect(find.text('每日任务'), findsOneWidget);
+    expect(find.text('实时画面'), findsOneWidget);
+    expect(find.text('暂无画面'), findsOneWidget);
+    expect(find.text('任务配置'), findsOneWidget);
+    expect(find.text('调度设置'), findsOneWidget);
+    expect(find.text('实时日志'), findsOneWidget);
+
+    // 队列行点击跳任务配置层
+    await tester.tap(find.text('每日任务'));
+    await tester.pumpAndSettle();
+    expect(find.text('NKAS设置'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('返回实例'));
+    await tester.pumpAndSettle();
+    expect(find.text('实时画面'), findsOneWidget);
+  });
+
+  testWidgets('screen page shows the instance bar and empty state', (
+    tester,
+  ) async {
+    await _pumpTestApp(tester);
+
+    await tester.tap(find.byTooltip('画面'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('查看实例实时画面，每 2 秒自动刷新'), findsOneWidget);
+    expect(find.text('nkas'), findsOneWidget);
+    expect(find.text('切换'), findsOneWidget);
+    // Mock 后端对 /screenshot 返回 404：无画面帧，显示空态
+    expect(find.text('未连接'), findsOneWidget);
+    expect(find.text('暂无画面'), findsOneWidget);
+    expect(find.text('刷新画面'), findsOneWidget);
   });
 
   testWidgets('backend address is tested and persisted from settings', (
@@ -335,21 +596,38 @@ void main() {
         expect(find.text('活动日历'), findsOneWidget);
       });
 
-      testWidgets('instances page, every tab', (tester) async {
+      testWidgets('instances list and detail layers', (tester) async {
         await pumpAtSize(tester);
 
         await tester.tap(find.byTooltip('实例'));
         await tester.pumpAndSettle();
-        expect(find.text('切换实例并管理任务、调度和画面'), findsOneWidget);
+        expect(find.text('选择实例查看详情'), findsOneWidget);
+        expect(find.text('nkas'), findsOneWidget);
+        expect(find.text('nkas2'), findsOneWidget);
 
-        for (final tab in ['任务配置', '调度设置', '实时日志', '画面', '概览']) {
-          await tester.ensureVisible(find.text(tab));
+        await tester.tap(find.text('nkas'));
+        await tester.pumpAndSettle();
+        expect(find.text('管理实例任务、调度、画面和日志'), findsOneWidget);
+
+        for (final entry in ['任务配置', '调度设置', '实时日志']) {
+          await tester.ensureVisible(find.text(entry));
           await tester.pumpAndSettle();
-          await tester.tap(find.text(tab));
+          await tester.tap(find.text(entry));
+          await tester.pumpAndSettle();
+          await tester.tap(find.byTooltip('返回实例'));
           await tester.pumpAndSettle();
         }
-        expect(find.text('暂无画面'), findsNothing);
-        expect(find.text('概览'), findsOneWidget);
+        expect(find.text('实时画面'), findsOneWidget);
+      });
+
+      testWidgets('screen page', (tester) async {
+        await pumpAtSize(tester);
+
+        await tester.tap(find.byTooltip('画面'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('未连接'), findsOneWidget);
+        expect(find.text('暂无画面'), findsOneWidget);
       });
 
       testWidgets('logs page', (tester) async {

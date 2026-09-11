@@ -7,7 +7,7 @@ plugins {
 }
 
 android {
-    namespace = "com.megumiss.nkas.mobile.preview"
+    namespace = "com.megumiss.nkas.mobile"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -17,7 +17,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.megumiss.nkas.mobile.preview"
+        applicationId = "com.megumiss.nkas.mobile"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
