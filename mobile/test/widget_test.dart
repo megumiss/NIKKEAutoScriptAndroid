@@ -285,9 +285,7 @@ void main() {
     expect(find.text('自动点击红圈'), findsOneWidget);
   });
 
-  testWidgets('does not present prototype rows as real-time logs', (
-    tester,
-  ) async {
+  testWidgets('renders real-time logs without prototype rows', (tester) async {
     await _pumpTestApp(tester);
 
     await tester.tap(find.byTooltip('实例'));
@@ -295,7 +293,7 @@ void main() {
     await tester.tap(find.text('实时日志'));
     await tester.pumpAndSettle();
 
-    expect(find.text('实时日志暂未接入'), findsOneWidget);
+    expect(find.text('实时日志'), findsOneWidget);
     expect(find.text('每日任务：开始执行前哨基地'), findsNothing);
   });
 

@@ -89,7 +89,7 @@ class _SettingsPageState extends State<SettingsPage> {
               subtitle: '设备身份与授权状态 · ${star.authorized ? '已验证' : '待验证'}',
               onTap: widget.onOpenStarVerify,
             ),
-            if (isAndroid)
+            if (isAndroid || (!NkasPlatform.instance.supported && !isIOS))
               _SettingRow(
                 icon: LucideIcons.sparkles,
                 iconColor: warning,
