@@ -744,6 +744,7 @@ class _SchemaTaskRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
+    final icon = _taskIcon(task.name);
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -754,10 +755,7 @@ class _SchemaTaskRow extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 12),
             child: Row(
               children: [
-                IconBox(
-                  icon: LucideIcons.settings2,
-                  color: theme.colorScheme.primary,
-                ),
+                IconBox(icon: icon, color: theme.colorScheme.primary),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Column(
@@ -796,6 +794,19 @@ class _SchemaTaskRow extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  static IconData _taskIcon(String name) {
+    if (name.contains('前哨')) return LucideIcons.home;
+    if (name.contains('咨询')) return LucideIcons.messageCircle;
+    if (name.contains('剧情') || name.contains('活动')) {
+      return LucideIcons.scrollText;
+    }
+    if (name.contains('协同')) return LucideIcons.swords;
+    if (name.contains('设备') || name.contains('通知')) {
+      return LucideIcons.settings2;
+    }
+    return LucideIcons.listOrdered;
   }
 }
 
@@ -1267,13 +1278,9 @@ class _LiveLogPanelState extends State<_LiveLogPanel> {
                   ),
                 ),
                 const SizedBox(width: 5),
-                Tooltip(
-                  message: '自动滚动',
-                  child: Switch(
-                    value: autoScroll,
-                    onChanged: (value) => setState(() => autoScroll = value),
-                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  ),
+                _LiveToggle(
+                  value: autoScroll,
+                  onChanged: (value) => setState(() => autoScroll = value),
                 ),
               ],
             ),
@@ -1306,6 +1313,53 @@ class _LiveLogPanelState extends State<_LiveLogPanel> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _LiveToggle extends StatelessWidget {
+  const _LiveToggle({required this.value, required this.onChanged});
+
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = ShadTheme.of(context).colorScheme;
+    return Tooltip(
+      message: '自动滚动',
+      child: Semantics(
+        button: true,
+        toggled: value,
+        label: '自动滚动',
+        child: GestureDetector(
+          onTap: () => onChanged(!value),
+          child: Container(
+            width: 42,
+            height: 24,
+            padding: const EdgeInsets.all(3),
+            decoration: BoxDecoration(
+              color: value ? scheme.primary : scheme.border,
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: AnimatedAlign(
+              duration: const Duration(milliseconds: 150),
+              alignment: value ? Alignment.centerRight : Alignment.centerLeft,
+              child: Container(
+                width: 18,
+                height: 18,
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(color: Color(0x24000000), blurRadius: 3),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
