@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
+import 'package:nkas_mobile_preview/core/platform/runtime_platform.dart';
+
 class StarAuthorization {
   const StarAuthorization({
     required this.authorized,
@@ -114,7 +116,11 @@ class NkasPlatform {
 
   Stream<NkasPlatformEvent>? _eventStream;
 
-  bool get supported => !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+  /// Native STAR verification is implemented on Android and iOS. Android-only
+  /// setup methods keep their own platform guard below.
+  bool get supported => !kIsWeb && (isAndroid || isIOS);
+
+  bool get _androidSupported => !kIsWeb && isAndroid;
 
   Stream<NkasPlatformEvent> get events => _eventStream ??= _events
       .receiveBroadcastStream()
@@ -128,12 +134,12 @@ class NkasPlatform {
   }
 
   Future<void> beginStarVerification() async {
-    if (!supported) throw UnsupportedError('STAR 验证仅支持 Android');
+    if (!supported) throw UnsupportedError('STAR 验证仅支持 Android 和 iOS');
     await _channel.invokeMethod<void>('beginStarVerification');
   }
 
   Future<SetupStatus> setupStatus() async {
-    if (!supported) {
+    if (!_androidSupported) {
       return const SetupStatus(
         authorized: false,
         termuxInstalled: false,
@@ -147,27 +153,27 @@ class NkasPlatform {
   }
 
   Future<void> startSetup() async {
-    if (!supported) throw UnsupportedError('初始化仅支持 Android');
+    if (!_androidSupported) throw UnsupportedError('初始化仅支持 Android');
     await _channel.invokeMethod<void>('startSetup');
   }
 
   Future<void> downloadTermux() async {
-    if (!supported) throw UnsupportedError('Termux 仅支持 Android');
+    if (!_androidSupported) throw UnsupportedError('Termux 仅支持 Android');
     await _channel.invokeMethod<void>('downloadTermux');
   }
 
   Future<void> requestRunCommandPermission() async {
-    if (!supported) return;
+    if (!_androidSupported) return;
     await _channel.invokeMethod<void>('requestRunCommandPermission');
   }
 
   Future<void> openTermux() async {
-    if (!supported) return;
+    if (!_androidSupported) return;
     await _channel.invokeMethod<void>('openTermux');
   }
 
   Future<void> pairDevice({String code = '', String serial = ''}) async {
-    if (!supported) throw UnsupportedError('无线调试配对仅支持 Android');
+    if (!_androidSupported) throw UnsupportedError('无线调试配对仅支持 Android');
     await _channel.invokeMethod<void>(
       'pairDevice',
       <String, Object?>{'code': code, 'serial': serial},
@@ -175,22 +181,22 @@ class NkasPlatform {
   }
 
   Future<void> openWirelessSettings() async {
-    if (!supported) return;
+    if (!_androidSupported) return;
     await _channel.invokeMethod<void>('openWirelessSettings');
   }
 
   Future<String> getAppLog() async {
-    if (!supported) return '';
+    if (!_androidSupported) return '';
     return await _channel.invokeMethod<String>('getAppLog') ?? '';
   }
 
   Future<String> getSerial() async {
-    if (!supported) return '';
+    if (!_androidSupported) return '';
     return await _channel.invokeMethod<String>('getSerial') ?? '';
   }
 
   Future<void> setSerial(String serial) async {
-    if (!supported) return;
+    if (!_androidSupported) return;
     await _channel.invokeMethod<void>(
       'setSerial',
       <String, Object?>{'serial': serial},

@@ -130,7 +130,7 @@ class _StarVerifyPageState extends State<StarVerifyPage> {
                         const SizedBox(height: 4),
                         Text(
                           unsupported
-                              ? 'STAR 验证需要 Android 平台能力。'
+                              ? '当前平台暂不支持 STAR 验证。'
                               : status.authorized
                               ? '设备身份已确认，可以继续初始化 NKAS。'
                               : '通过 GitHub 验证账号是否已 Star 项目。',

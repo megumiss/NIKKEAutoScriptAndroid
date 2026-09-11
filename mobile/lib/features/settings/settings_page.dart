@@ -8,6 +8,7 @@ import 'package:nkas_mobile_preview/core/api/update_info.dart';
 import 'package:nkas_mobile_preview/core/widgets/icon_box.dart';
 import 'package:nkas_mobile_preview/core/connection/connection_controller.dart';
 import 'package:nkas_mobile_preview/core/platform/nkas_platform.dart';
+import 'package:nkas_mobile_preview/core/platform/runtime_platform.dart';
 import 'package:nkas_mobile_preview/core/widgets/buttons.dart';
 import 'package:nkas_mobile_preview/core/widgets/page_inset.dart';
 import 'package:nkas_mobile_preview/core/widgets/page_subtitle.dart';
@@ -88,16 +89,17 @@ class _SettingsPageState extends State<SettingsPage> {
               subtitle: '设备身份与授权状态 · ${star.authorized ? '已验证' : '待验证'}',
               onTap: widget.onOpenStarVerify,
             ),
-            _SettingRow(
-              icon: LucideIcons.sparkles,
-              iconColor: warning,
-              title: '初始化 NKAS',
-              subtitle: widget.starAuthorized && star.authorized
-                  ? '准备 Termux、设备连接和 NKAS 服务'
-                  : '请先完成 STAR 验证',
-              enabled: widget.starAuthorized,
-              onTap: widget.starAuthorized ? widget.onOpenSetup : null,
-            ),
+            if (isAndroid)
+              _SettingRow(
+                icon: LucideIcons.sparkles,
+                iconColor: warning,
+                title: '初始化 NKAS',
+                subtitle: widget.starAuthorized && star.authorized
+                    ? '准备 Termux、设备连接和 NKAS 服务'
+                    : '请先完成 STAR 验证',
+                enabled: widget.starAuthorized,
+                onTap: widget.starAuthorized ? widget.onOpenSetup : null,
+              ),
           ],
         ),
         const SizedBox(height: 20),
