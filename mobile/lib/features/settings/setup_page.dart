@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:nkas_mobile/core/platform/nkas_platform.dart';
 import 'package:nkas_mobile/core/platform/runtime_platform.dart';
@@ -36,6 +37,8 @@ class _NkasSetupPageState extends State<NkasSetupPage> {
   bool loading = true;
   bool running = false;
   final serialController = TextEditingController();
+  final stageStates = <String, String>{};
+  String? activeStage;
   final expanded = <String>{
     'permission',
     'termux_setting',
@@ -62,6 +65,16 @@ class _NkasSetupPageState extends State<NkasSetupPage> {
     'adb_device': 'ADB 设备连接',
   };
 
+  static const bootstrapStages = <String, String>{
+    'installing-termux-tools': 'tools',
+    'cloning-nkas': 'source',
+    'creating-config': 'config',
+    'installing-container': 'container',
+    'starting-nkas': 'service',
+  };
+
+  static const initialNoticeKey = 'initial_notice_shown';
+
   @override
   void initState() {
     super.initState();
@@ -86,12 +99,20 @@ class _NkasSetupPageState extends State<NkasSetupPage> {
         setState(() {
           this.output = output;
           if (log) running = true;
+          if (log) _applyBootstrapLog(output);
         });
       case SetupStateEvent(:final state, :final message):
         setState(() {
           running = state != 'ready' && state != 'failed';
           if (state == 'failed') error = message ?? '初始化失败';
-          if (state == 'ready') output = '初始化完成';
+          if (state == 'failed') {
+            stageStates[activeStage ?? 'tools'] = '失败';
+          } else if (state == 'ready') {
+            output = '初始化完成';
+            for (final key in bootstrapStages.values) {
+              stageStates[key] = '完成';
+            }
+          }
         });
         if (state == 'ready' || state == 'failed') unawaited(_refresh());
       case TermuxDownloadEvent(:final progress, :final message, :final error):
@@ -131,6 +152,8 @@ class _NkasSetupPageState extends State<NkasSetupPage> {
       running = true;
       error = null;
       output = '';
+      activeStage = null;
+      stageStates.clear();
     });
     try {
       await NkasPlatform.instance.startSetup();
@@ -164,6 +187,29 @@ class _NkasSetupPageState extends State<NkasSetupPage> {
     }
   }
 
+  void _applyBootstrapLog(String raw) {
+    final state = raw
+        .split('---STATE---')
+        .skip(1)
+        .join('---STATE---')
+        .split('---LOG---')
+        .first
+        .trim();
+    final currentIndex = bootstrapStages.keys.toList().indexOf(state);
+    if (currentIndex < 0) return;
+
+    final entries = bootstrapStages.entries.toList();
+    activeStage = entries[currentIndex].value;
+    for (var index = 0; index < entries.length; index++) {
+      final key = entries[index].value;
+      stageStates[key] = index < currentIndex
+          ? '完成'
+          : index == currentIndex
+          ? '执行中'
+          : '等待';
+    }
+  }
+
   void _show(String text) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
   }
@@ -172,11 +218,11 @@ class _NkasSetupPageState extends State<NkasSetupPage> {
   Widget build(BuildContext context) {
     if (isIOS) return _buildIos(context);
     final inset = nkasPageInset(context);
-    return Column(
+    return Stack(
       children: [
-        Expanded(
+        Positioned.fill(
           child: ListView(
-            padding: EdgeInsets.fromLTRB(inset, 5, inset, 20),
+            padding: EdgeInsets.fromLTRB(inset, 5, inset, 92),
             children: [
               const PageSubtitle(
                 '准备 Termux、NKAS 服务和本地 Web UI；请开启自启动、关联启动，并允许后台运行。',
@@ -210,11 +256,19 @@ class _NkasSetupPageState extends State<NkasSetupPage> {
             ],
           ),
         ),
-        _SetupFooter(
-          label: _actionLabel,
-          icon: _actionIcon,
-          enabled: !_actionDisabled,
-          onPressed: _handleAction,
+        Positioned(
+          left: inset,
+          right: inset,
+          bottom: 12,
+          child: SafeArea(
+            top: false,
+            child: _SetupFloatingAction(
+              label: _actionLabel,
+              icon: _actionIcon,
+              enabled: !_actionDisabled,
+              onPressed: _handleAction,
+            ),
+          ),
         ),
       ],
     );
@@ -345,6 +399,30 @@ class _NkasSetupPageState extends State<NkasSetupPage> {
       return NkasPlatform.instance.openWirelessSettings();
     }
     if (status.initialized) return _refresh();
+    final preferences = await SharedPreferences.getInstance();
+    if (preferences.getBool(initialNoticeKey) != true) {
+      final proceed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('安装前提醒'),
+          content: const Text(
+            '安装可能需要较长时间。执行期间请保持 NKAS Mobile 始终在前台，并确保网络连接稳定；切换到其他应用或断网可能导致下载失败。',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('继续安装'),
+            ),
+          ],
+        ),
+      );
+      if (proceed != true) return;
+      await preferences.setBool(initialNoticeKey, true);
+    }
     return _start();
   }
 
@@ -353,7 +431,11 @@ class _NkasSetupPageState extends State<NkasSetupPage> {
     if (key == 'permission') return status.runCommandPermission ? '已授权' : '待授权';
     if (key == 'wireless') return status.wirelessDebug ? '已开启' : '待开启';
     if (key == 'adb_device' && status.serial.isNotEmpty) return '已连接';
-    if (status.artifacts[key] == true) return '已完成';
+    if (running && stageStates[key] != null) return stageStates[key]!;
+    if (status.artifacts[key] == true) {
+      return key == 'service' ? '运行中' : '已检测';
+    }
+    if (stageStates[key] != null) return stageStates[key]!;
     if (!status.authorized &&
         const [
           'tools',
@@ -502,7 +584,7 @@ class _NkasSetupPageState extends State<NkasSetupPage> {
           ),
         );
       default:
-        if (running && output.isNotEmpty) {
+        if (running && output.isNotEmpty && stageStates[key] == '执行中') {
           return _ExtraPanel(text: output, monospace: true);
         }
         return null;
@@ -532,7 +614,15 @@ class _StepRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = ShadTheme.of(context).colorScheme;
-    final done = const ['已完成', '已安装', '已授权', '已开启', '已连接'].contains(state);
+    final done = const [
+      '已完成',
+      '已检测',
+      '运行中',
+      '已安装',
+      '已授权',
+      '已开启',
+      '已连接',
+    ].contains(state);
     final active = state == '执行中';
     final row = Material(
       color: Colors.transparent,
@@ -696,8 +786,8 @@ class _IosSetupStep extends StatelessWidget {
   }
 }
 
-class _SetupFooter extends StatelessWidget {
-  const _SetupFooter({
+class _SetupFloatingAction extends StatelessWidget {
+  const _SetupFloatingAction({
     required this.label,
     required this.icon,
     required this.enabled,
@@ -711,15 +801,12 @@ class _SetupFooter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final inset = nkasPageInset(context);
-    return Container(
-      padding: EdgeInsets.fromLTRB(inset, 12, inset, 15),
-      decoration: BoxDecoration(
-        color: ShadTheme.of(context).colorScheme.background,
-        border: Border(
-          top: BorderSide(color: ShadTheme.of(context).colorScheme.border),
-        ),
-      ),
+    final scheme = ShadTheme.of(context).colorScheme;
+    return Material(
+      color: Colors.transparent,
+      elevation: 8,
+      shadowColor: scheme.primary.withValues(alpha: .28),
+      borderRadius: BorderRadius.circular(13),
       child: SizedBox(
         width: double.infinity,
         child: PrimaryButton(
