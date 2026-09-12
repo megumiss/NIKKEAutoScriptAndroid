@@ -5,6 +5,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 
 import 'package:nkas_mobile/core/api/instance_info.dart';
 import 'package:nkas_mobile/core/api/screenshot_frame.dart';
+import 'package:nkas_mobile/core/platform/nkas_platform.dart';
 import 'package:nkas_mobile/core/widgets/avatar.dart';
 import 'package:nkas_mobile/core/widgets/buttons.dart';
 import 'package:nkas_mobile/core/widgets/page_inset.dart';
@@ -192,6 +193,9 @@ class _ScreenPanelState extends State<ScreenPanel> {
   bool loading = false;
   String? error;
   Timer? timer;
+  StreamSubscription<NkasPlatformEvent>? platformEvents;
+  int? textureId;
+  String? nativeError;
 
   @override
   void initState() {
@@ -199,6 +203,7 @@ class _ScreenPanelState extends State<ScreenPanel> {
     if (widget.accessGranted) {
       _load();
       _startPolling();
+      _startNativeVideo();
     }
   }
 
@@ -209,9 +214,11 @@ class _ScreenPanelState extends State<ScreenPanel> {
     if (widget.accessGranted) {
       _startPolling();
       _load();
+      _startNativeVideo();
     } else {
       timer?.cancel();
       timer = null;
+      unawaited(NkasPlatform.instance.nativeScrcpyStop());
     }
   }
 
@@ -223,7 +230,36 @@ class _ScreenPanelState extends State<ScreenPanel> {
   @override
   void dispose() {
     timer?.cancel();
+    platformEvents?.cancel();
+    unawaited(NkasPlatform.instance.nativeScrcpyStop());
     super.dispose();
+  }
+
+  Future<void> _startNativeVideo() async {
+    if (!NkasPlatform.instance.supported || platformEvents != null) return;
+    platformEvents = NkasPlatform.instance.events.listen((event) {
+      if (!mounted || event is! ScrcpyVideoEvent) return;
+      if (event.state == 'started' && event.textureId != null) {
+        setState(() {
+          textureId = event.textureId;
+          nativeError = null;
+        });
+      } else if (event.state == 'error') {
+        setState(() => nativeError = event.error);
+      } else if (event.state == 'stopped') {
+        setState(() => textureId = null);
+      }
+    });
+    try {
+      final endpoint = await NkasPlatform.instance.getSerial();
+      if (endpoint.isEmpty || !mounted) return;
+      final started = await NkasPlatform.instance.nativeScrcpyStart(endpoint);
+      if (mounted && started.textureId != null) {
+        setState(() => textureId = started.textureId);
+      }
+    } catch (error) {
+      if (mounted) setState(() => nativeError = error.toString());
+    }
   }
 
   Future<void> _load() async {
@@ -245,7 +281,7 @@ class _ScreenPanelState extends State<ScreenPanel> {
 
   @override
   Widget build(BuildContext context) {
-    final controlLabel = frame == null ? '刷新画面' : '进入控制';
+    final controlLabel = textureId == null && frame == null ? '刷新画面' : '进入控制';
     return Surface(
       padding: EdgeInsets.zero,
       color: NkasColors.screenBg,
@@ -255,12 +291,14 @@ class _ScreenPanelState extends State<ScreenPanel> {
           Center(
             child: AspectRatio(
               aspectRatio: 9 / 16,
-              child: frame == null
+              child: textureId != null
+                  ? Texture(textureId: textureId!)
+                  : frame == null
                   ? Center(
                       child: Text(
-                        error == null
+                        nativeError ?? (error == null
                             ? (loading ? '正在获取画面…' : '暂无画面')
-                            : '画面加载失败',
+                            : '画面加载失败'),
                         style: const TextStyle(color: NkasColors.screenText),
                       ),
                     )
@@ -282,7 +320,11 @@ class _ScreenPanelState extends State<ScreenPanel> {
               child: Row(
                 children: [
                   Text(
-                    frame == null ? '未连接' : _captureLabel(frame!.capturedAt),
+                    textureId != null
+                        ? '原生视频'
+                        : frame == null
+                        ? '未连接'
+                        : _captureLabel(frame!.capturedAt),
                     style: const TextStyle(
                       color: Color(0xFFD6E3EA),
                       fontSize: 11,
@@ -292,7 +334,7 @@ class _ScreenPanelState extends State<ScreenPanel> {
                   TextButton(
                     onPressed: loading || !widget.accessGranted
                         ? null
-                        : frame == null
+                        : textureId == null && frame == null
                         ? _load
                         : widget.onOpenControl,
                     style: TextButton.styleFrom(
