@@ -189,6 +189,8 @@ class _NkasSetupPageState extends State<NkasSetupPage>
         });
       case StarAuthorizationEvent():
         unawaited(_refresh());
+      case ScrcpyVideoEvent():
+        break;
     }
   }
 

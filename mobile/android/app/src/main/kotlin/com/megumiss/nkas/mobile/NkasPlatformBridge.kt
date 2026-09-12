@@ -134,10 +134,7 @@ class NkasPlatformBridge(private val activity: FlutterActivity) :
             "nativeAdbPull" -> nativeAdbPull(call, result)
             "nativeScrcpyStart" -> nativeScrcpyStart(call, result)
             "nativeScrcpyStop" -> {
-                nativeScrcpy?.close()
-                nativeScrcpy = null
-                scrcpyTexture?.release()
-                scrcpyTexture = null
+                stopNativeScrcpy()
                 result.success(true)
             }
             "nativeScrcpyBack" -> nativeScrcpy?.controlWriter?.pressBack(call.argument<Int>("action") ?: 0)
@@ -330,10 +327,7 @@ class NkasPlatformBridge(private val activity: FlutterActivity) :
     }
 
     fun close() {
-        nativeScrcpy?.close()
-        nativeScrcpy = null
-        scrcpyTexture?.release()
-        scrcpyTexture = null
+        stopNativeScrcpy()
         nativeAdb?.close()
         nativeAdb = null
         nativeExecutor.shutdownNow()
@@ -421,9 +415,7 @@ class NkasPlatformBridge(private val activity: FlutterActivity) :
             result.error("native_scrcpy_texture", "Flutter Texture 尚未注册", null)
             return
         }
-        nativeScrcpy?.close()
-        nativeScrcpy = null
-        scrcpyTexture?.release()
+        stopNativeScrcpy()
         scrcpyTexture = if (options.video) textureRegistry!!.createSurfaceTexture() else null
         val surface = scrcpyTexture?.let { Surface(it.surfaceTexture()) }
         nativeExecutor.execute {
@@ -471,13 +463,24 @@ class NkasPlatformBridge(private val activity: FlutterActivity) :
                     }
                 },
                 onFailure = { error ->
-                    surface?.release()
+                    if (nativeScrcpy == null) surface?.release()
+                    nativeScrcpy?.close()
+                    nativeScrcpy = null
                     scrcpyTexture?.release()
                     scrcpyTexture = null
                     main.post { result.error("native_scrcpy_start", error.message ?: "scrcpy 启动失败", null) }
                 },
             )
         }
+    }
+
+    private fun stopNativeScrcpy() {
+        val hadSession = nativeScrcpy != null || scrcpyTexture != null
+        nativeScrcpy?.close()
+        nativeScrcpy = null
+        scrcpyTexture?.release()
+        scrcpyTexture = null
+        if (hadSession) emit(mapOf("type" to "scrcpyVideo", "state" to "stopped"))
     }
 
     private fun nativeScrcpyKeycode(call: MethodCall, result: MethodChannel.Result) {
