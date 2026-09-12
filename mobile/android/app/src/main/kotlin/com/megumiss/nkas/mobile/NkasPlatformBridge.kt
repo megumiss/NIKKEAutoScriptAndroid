@@ -217,10 +217,6 @@ class NkasPlatformBridge(private val activity: FlutterActivity) :
             result.error("run_command_permission", "未授权 Termux 外部命令", null)
             return
         }
-        if (!isWirelessDebugEnabled()) {
-            result.error("wireless_debug_required", "请先开启无线调试", null)
-            return
-        }
         LogStore.log("bootstrap", "Flutter 页面开始执行安装脚本")
         val started = BootstrapService(activity).start { command ->
             val output = command.stdout + if (command.stderr.isBlank()) "" else "\n${command.stderr}"

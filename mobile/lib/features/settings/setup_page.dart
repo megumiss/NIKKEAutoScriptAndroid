@@ -547,16 +547,15 @@ class _NkasSetupPageState extends State<NkasSetupPage>
       return termuxDownloadNeedsCheck ? '重新检查' : '下载并安装 Termux';
     }
     if (!status.runCommandPermission) return '授权 Termux 外部命令';
-    if (status.artifacts['termux_setting'] != true) {
+    if (_artifactStatusKnown && !_termuxSettingReady) {
       return '等待 Termux 设置';
     }
-    if (!status.wirelessDebug) return '打开无线调试设置';
     if (running) return '正在安装…';
+    if (_artifactCheckFailed) return '重新检查';
+    if (!_projectArtifactsReady) return '开始安装';
+    if (!status.wirelessDebug) return '打开无线调试设置';
     if (_artifactBlocked) {
-      if (_artifactCheckFailed) return '重新检查';
-      return status.artifacts['termux_setting'] != true
-          ? '等待 Termux 设置'
-          : '等待 ADB 设备';
+      return '等待 ADB 设备';
     }
     if (status.artifactsReady) return '打开 NKAS UI';
     return '开始安装';
@@ -568,19 +567,36 @@ class _NkasSetupPageState extends State<NkasSetupPage>
     if (!status.authorized) return LucideIcons.shieldCheck;
     if (!status.termuxInstalled) return LucideIcons.download;
     if (!status.runCommandPermission) return LucideIcons.shieldCheck;
-    if (status.artifacts['termux_setting'] != true) return LucideIcons.terminal;
-    if (!status.wirelessDebug) return LucideIcons.settings2;
+    if (_artifactStatusKnown && !_termuxSettingReady) {
+      return LucideIcons.terminal;
+    }
     if (running) return LucideIcons.loaderCircle;
     if (_artifactCheckFailed) return LucideIcons.refreshCw;
+    if (!_projectArtifactsReady) return LucideIcons.rocket;
+    if (!status.wirelessDebug) return LucideIcons.settings2;
     if (status.artifactsReady) return LucideIcons.externalLink;
     return LucideIcons.rocket;
   }
 
   bool get _artifactBlocked =>
       _artifactCheckFailed ||
-      (status.artifacts.isNotEmpty &&
-          (status.artifacts['termux_setting'] != true ||
-              status.artifacts['adb_device'] != true));
+      (_artifactStatusKnown &&
+          (!_termuxSettingReady ||
+              (_projectArtifactsReady && !_adbDeviceReady)));
+
+  bool get _artifactStatusKnown => status.artifacts.isNotEmpty;
+
+  bool get _termuxSettingReady => status.artifacts['termux_setting'] == true;
+
+  bool get _projectArtifactsReady => const [
+    'tools',
+    'source',
+    'config',
+    'container',
+    'service',
+  ].every((key) => status.artifacts[key] == true);
+
+  bool get _adbDeviceReady => status.artifacts['adb_device'] == true;
 
   bool get _artifactCheckFailed =>
       status.commandExitCode != null &&
@@ -621,40 +637,43 @@ class _NkasSetupPageState extends State<NkasSetupPage>
       await Future<void>.delayed(const Duration(milliseconds: 500));
       return _refresh();
     }
-    if (status.artifacts['termux_setting'] != true) return _refresh();
+    if (_artifactStatusKnown && !_termuxSettingReady) return _refresh();
+    if (_artifactCheckFailed) return _refresh();
+    if (!_projectArtifactsReady) {
+      if (!await NkasPlatform.instance.initialNoticeShown()) {
+        if (!mounted) return;
+        final proceed = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('安装前提醒'),
+            content: const Text(
+              '安装可能需要较长时间。执行期间请保持 NKAS Mobile 始终在前台，并确保网络连接稳定；切换到其他应用或断网可能导致下载失败。',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('取消'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('继续安装'),
+              ),
+            ],
+          ),
+        );
+        if (proceed != true) return;
+        await NkasPlatform.instance.setInitialNoticeShown();
+      }
+      return _start();
+    }
     if (!status.wirelessDebug) {
       return NkasPlatform.instance.openWirelessSettings();
     }
-    if (_artifactCheckFailed) return _refresh();
-    if (_artifactBlocked) return;
+    if (_projectArtifactsReady && !_adbDeviceReady) return;
     if (status.artifactsReady) {
       return _openUi();
     }
-    if (!await NkasPlatform.instance.initialNoticeShown()) {
-      if (!mounted) return;
-      final proceed = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('安装前提醒'),
-          content: const Text(
-            '安装可能需要较长时间。执行期间请保持 NKAS Mobile 始终在前台，并确保网络连接稳定；切换到其他应用或断网可能导致下载失败。',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('取消'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('继续安装'),
-            ),
-          ],
-        ),
-      );
-      if (proceed != true) return;
-      await NkasPlatform.instance.setInitialNoticeShown();
-    }
-    return _start();
+    return _refresh();
   }
 
   Future<void> _openUi() async {
