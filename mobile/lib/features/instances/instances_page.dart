@@ -653,7 +653,7 @@ class _DashboardHeader extends StatelessWidget {
   }
 }
 
-class _QueueSummary extends StatelessWidget {
+class _QueueSummary extends StatefulWidget {
   const _QueueSummary({
     required this.queue,
     required this.loading,
@@ -666,10 +666,17 @@ class _QueueSummary extends StatelessWidget {
   final ValueChanged<String> onOpenTask;
 
   @override
+  State<_QueueSummary> createState() => _QueueSummaryState();
+}
+
+class _QueueSummaryState extends State<_QueueSummary> {
+  bool expanded = false;
+
+  @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
     final scheme = theme.colorScheme;
-    if (loading && queue == null) {
+    if (widget.loading && widget.queue == null) {
       return const Center(
         child: Padding(
           padding: EdgeInsets.only(top: 36),
@@ -677,16 +684,21 @@ class _QueueSummary extends StatelessWidget {
         ),
       );
     }
-    if (queue == null) {
+    if (widget.queue == null) {
       return Padding(
         padding: const EdgeInsets.only(top: 28),
-        child: Text(error == null ? '暂无队列数据' : '队列加载失败'),
+        child: Text(widget.error == null ? '暂无队列数据' : '队列加载失败'),
       );
     }
     final groups = [
-      ('运行中', queue!.running, scheme.success, LucideIcons.loaderCircle),
-      ('队列中', queue!.pending, scheme.primary, LucideIcons.listOrdered),
-      ('等待中', queue!.waiting, scheme.mutedForeground, LucideIcons.clock3),
+      ('运行中', widget.queue!.running, scheme.success, LucideIcons.loaderCircle),
+      ('队列中', widget.queue!.pending, scheme.primary, LucideIcons.listOrdered),
+      (
+        '等待中',
+        widget.queue!.waiting,
+        scheme.mutedForeground,
+        LucideIcons.clock3,
+      ),
     ];
     return Surface(
       padding: const EdgeInsets.all(12),
@@ -705,9 +717,9 @@ class _QueueSummary extends StatelessWidget {
               ],
             ],
           ),
-          if (queue!.running.isEmpty &&
-              queue!.pending.isEmpty &&
-              queue!.waiting.isEmpty)
+          if (widget.queue!.running.isEmpty &&
+              widget.queue!.pending.isEmpty &&
+              widget.queue!.waiting.isEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 10),
               child: Text('暂无任务', style: theme.textTheme.muted),
@@ -717,7 +729,14 @@ class _QueueSummary extends StatelessWidget {
               if (group.$2.isNotEmpty) ...[
                 const SizedBox(height: 6),
                 const Divider(height: 12),
-                for (var i = 0; i < group.$2.length; i++)
+                for (
+                  var i = 0;
+                  i <
+                      (expanded
+                          ? group.$2.length
+                          : group.$2.length.clamp(0, 3));
+                  i++
+                )
                   _QueueRow(
                     name: group.$2[i].name,
                     detail: group.$2[i].command,
@@ -725,13 +744,27 @@ class _QueueSummary extends StatelessWidget {
                     color: group.$3,
                     icon: group.$4,
                     // The schema is keyed by the backend command, not the localized label.
-                    onTap: () => onOpenTask(
+                    onTap: () => widget.onOpenTask(
                       group.$2[i].command.isEmpty
                           ? group.$2[i].name
                           : group.$2[i].command,
                     ),
                   ),
               ],
+            if (groups.any((group) => group.$2.length > 3))
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  onPressed: () => setState(() => expanded = !expanded),
+                  icon: Icon(
+                    expanded
+                        ? LucideIcons.chevronsUp
+                        : LucideIcons.chevronsDown,
+                    size: 16,
+                  ),
+                  label: Text(expanded ? '收起队列' : '展开全部'),
+                ),
+              ),
           ],
         ],
       ),

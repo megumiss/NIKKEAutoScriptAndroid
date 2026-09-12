@@ -230,26 +230,39 @@ class _ScheduleRow extends StatelessWidget {
               ),
               const SizedBox(width: 7),
               SizedBox(
-                width: 112,
+                width: 132,
                 child: TextFormField(
-                  key: ValueKey('${task.command}-${task.cadence}'),
+                  key: ValueKey(
+                    '${task.command}-${task.cadence}-${task.activeTime}',
+                  ),
                   initialValue: task.activeTime,
                   enabled: !disabled && !task.locked,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: '时间',
                     isDense: true,
-                    contentPadding: EdgeInsets.symmetric(
+                    contentPadding: const EdgeInsets.symmetric(
                       horizontal: 10,
                       vertical: 8,
                     ),
+                    suffixIconConstraints: const BoxConstraints.tightFor(
+                      width: 32,
+                      height: 32,
+                    ),
+                    suffixIcon: task.activeTime.isEmpty
+                        ? null
+                        : IconButton(
+                            onPressed: disabled || task.locked
+                                ? null
+                                : () => onChanged({
+                                    _activeTimeKey(task.cadence): '',
+                                  }),
+                            icon: const Icon(LucideIcons.x, size: 15),
+                            tooltip: '清空时间',
+                            padding: EdgeInsets.zero,
+                          ),
                   ),
                   onChanged: (value) {
-                    final key = switch (task.cadence) {
-                      'weekly' => 'weekly_time',
-                      'monthly' => 'monthly_time',
-                      _ => 'daily_times',
-                    };
-                    onChanged({key: value});
+                    onChanged({_activeTimeKey(task.cadence): value});
                   },
                 ),
               ),
@@ -300,6 +313,12 @@ class _ScheduleRow extends StatelessWidget {
     'weekly' => '每周',
     'monthly' => '每月',
     _ => '每天',
+  };
+
+  static String _activeTimeKey(String cadence) => switch (cadence) {
+    'weekly' => 'weekly_time',
+    'monthly' => 'monthly_time',
+    _ => 'daily_times',
   };
 }
 

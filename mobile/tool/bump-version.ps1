@@ -8,7 +8,7 @@ $aboutPagePath = Join-Path $mobileRoot 'lib/features/settings/about_page.dart'
 
 $utf8 = [Text.UTF8Encoding]::new($false)
 $pubspec = $utf8.GetString([IO.File]::ReadAllBytes($pubspecPath))
-$versionMatch = [regex]::Match($pubspec, '(?m)^version:\s+(\d+)\.(\d+)\.(\d+)(?:\+\d+)?\s*$')
+$versionMatch = [regex]::Match($pubspec, '(?m)^version:[ \t]+(\d+)\.(\d+)\.(\d+)(?:\+\d+)?[ \t]*$')
 if (-not $versionMatch.Success) {
     throw "Unable to find a semantic version in $pubspecPath"
 }
@@ -33,7 +33,7 @@ if ($DryRun) {
 
 $nextPubspec = [regex]::Replace(
     $pubspec,
-    '(?m)^version:\s+\S+\s*$',
+    '(?m)^version:[ \t]+\S+[ \t]*$',
     "version: $nextVersion",
     1
 )
