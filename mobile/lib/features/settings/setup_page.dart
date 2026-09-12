@@ -47,6 +47,7 @@ class _NkasSetupPageState extends State<NkasSetupPage>
   bool termuxDownloadNeedsCheck = false;
   bool termuxDownloadFailed = false;
   final serialController = TextEditingController();
+  final serialFocusNode = FocusNode();
   final pairCodeController = TextEditingController();
   final stageStates = <String, String>{};
   final stageLogs = <String, String>{};
@@ -91,6 +92,7 @@ class _NkasSetupPageState extends State<NkasSetupPage>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    serialFocusNode.addListener(_onSerialFocusChanged);
     unawaited(_refresh());
     if (NkasPlatform.instance.supported) {
       subscription = NkasPlatform.instance.events.listen(_onEvent);
@@ -103,6 +105,8 @@ class _NkasSetupPageState extends State<NkasSetupPage>
     refreshTimer?.cancel();
     unawaited(subscription?.cancel());
     serialController.dispose();
+    serialFocusNode.removeListener(_onSerialFocusChanged);
+    serialFocusNode.dispose();
     pairCodeController.dispose();
     super.dispose();
   }
@@ -176,7 +180,9 @@ class _NkasSetupPageState extends State<NkasSetupPage>
     try {
       final value = await NkasPlatform.instance.setupStatus();
       if (!mounted) return;
-      serialController.text = value.serial.split(':').last;
+      if (!serialFocusNode.hasFocus) {
+        serialController.text = value.serial.split(':').last;
+      }
       setState(() {
         status = value;
         loading = false;
@@ -227,6 +233,7 @@ class _NkasSetupPageState extends State<NkasSetupPage>
   }
 
   Future<void> _pair() async {
+    if (!await _saveSerial(refresh: false)) return;
     final serial = serialController.text.trim();
     final code = pairCodeController.text.trim();
     if (code.isNotEmpty && !RegExp(r'^\d{4,8}$').hasMatch(code)) {
@@ -262,6 +269,27 @@ class _NkasSetupPageState extends State<NkasSetupPage>
         _show(exception.toString());
       }
     }
+  }
+
+  void _onSerialFocusChanged() {
+    if (!serialFocusNode.hasFocus) unawaited(_saveSerial());
+  }
+
+  Future<bool> _saveSerial({bool refresh = true}) async {
+    final serial = serialController.text.trim();
+    if (serial.isEmpty) return true;
+    if (!RegExp(r'^\d{1,5}$').hasMatch(serial)) {
+      if (mounted) {
+        setState(() {
+          stageLogs['adb_device'] = '端口格式不正确，请填写无线调试页面显示的端口号。';
+          expanded.add('adb_device');
+        });
+      }
+      return false;
+    }
+    await NkasPlatform.instance.setSerial('127.0.0.1:$serial');
+    if (refresh && mounted) await _refresh();
+    return true;
   }
 
   void _applyBootstrapLog(String raw) {
@@ -740,7 +768,9 @@ class _NkasSetupPageState extends State<NkasSetupPage>
             children: [
               TextField(
                 controller: serialController,
+                focusNode: serialFocusNode,
                 keyboardType: TextInputType.number,
+                onSubmitted: (_) => unawaited(_saveSerial()),
                 decoration: const InputDecoration(
                   hintText: '无线调试端口',
                   isDense: true,
