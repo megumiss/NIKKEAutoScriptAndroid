@@ -107,7 +107,19 @@ class NativeScrcpySession internal constructor(
                     }
                     is ScrcpyVideoPacket -> {
                         val decoder = videoDecoder ?: continue
-                        if (!decoder.queue(item)) continue
+                        var queued = false
+                        repeat(20) {
+                            if (decoder.queue(item)) {
+                                queued = true
+                                return@repeat
+                            }
+                            decoder.drain()
+                            Thread.sleep(5L)
+                        }
+                        if (!queued) {
+                            if (item.isKeyFrame) throw IOException("scrcpy decoder input stalled on key frame")
+                            continue
+                        }
                         while (decoder.drain() >= 0) {
                             // Drain all decoded frames available without blocking.
                         }
