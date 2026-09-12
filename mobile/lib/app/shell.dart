@@ -495,6 +495,10 @@ class _NkasShellState extends State<NkasShell> {
 
   bool _handleBack() {
     if (page == NkasPage.instances) {
+      if (instanceLayer == InstanceLayer.tasks && taskKey != null) {
+        setState(() => taskKey = null);
+        return true;
+      }
       if (instanceLayer == InstanceLayer.tasks ||
           instanceLayer == InstanceLayer.schedule ||
           instanceLayer == InstanceLayer.liveLogs) {
@@ -632,6 +636,7 @@ class _NkasShellState extends State<NkasShell> {
         });
         if (schema == null) unawaited(_loadSchema(instance));
       },
+      onTaskKeyChanged: (value) => setState(() => taskKey = value),
       initialTaskKey: taskKey,
       accessGranted: _starAccessGranted,
       onSelectInstance: _switchInstance,

@@ -55,6 +55,7 @@ class InstancesPage extends StatelessWidget {
     required this.onSelectInstance,
     required this.liveLogUri,
     required this.onOpenTask,
+    required this.onTaskKeyChanged,
     required this.initialTaskKey,
     required this.accessGranted,
     super.key,
@@ -88,6 +89,7 @@ class InstancesPage extends StatelessWidget {
   final ValueChanged<String> onSelectInstance;
   final Uri liveLogUri;
   final ValueChanged<String> onOpenTask;
+  final ValueChanged<String?> onTaskKeyChanged;
   final String? initialTaskKey;
   final bool accessGranted;
 
@@ -138,6 +140,8 @@ class InstancesPage extends StatelessWidget {
               onReload: loadSchema,
               onPatch: patchConfig,
               initialTaskKey: initialTaskKey,
+              onBack: () => onLayerChanged(InstanceLayer.dashboard),
+              onTaskKeyChanged: (value) => onTaskKeyChanged(value),
             ),
           ],
         ),
@@ -167,11 +171,12 @@ class InstancesPage extends StatelessWidget {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _LayerBackBar(
-            title: title,
-            inset: inset,
-            onBack: () => onLayerChanged(InstanceLayer.dashboard),
-          ),
+          if (layer != InstanceLayer.tasks)
+            _LayerBackBar(
+              title: title,
+              inset: inset,
+              onBack: () => onLayerChanged(InstanceLayer.dashboard),
+            ),
           Expanded(child: content),
         ],
       );

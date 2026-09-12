@@ -420,7 +420,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('NKAS Mobile'), findsOneWidget);
-    expect(find.text('1.0.1'), findsWidgets);
+    expect(find.text('1.0.2'), findsWidgets);
     expect(find.text('NIKKEAutoScript 移动控制端'), findsOneWidget);
     expect(find.text('项目仓库'), findsOneWidget);
     expect(find.text('问题反馈'), findsOneWidget);
@@ -480,6 +480,8 @@ void main() {
     expect(find.text('客户端设置'), findsOneWidget);
     expect(find.text('客户端平台'), findsOneWidget);
     expect(find.text('自动点击红圈'), findsOneWidget);
+    expect(find.byTooltip('返回任务列表'), findsOneWidget);
+    expect(find.byTooltip('返回实例'), findsNothing);
   });
 
   testWidgets('renders real-time logs without prototype rows', (tester) async {

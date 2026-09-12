@@ -16,6 +16,8 @@ class SchemaPanel extends StatefulWidget {
     required this.onReload,
     required this.onPatch,
     required this.initialTaskKey,
+    required this.onBack,
+    required this.onTaskKeyChanged,
     super.key,
   });
 
@@ -25,6 +27,8 @@ class SchemaPanel extends StatefulWidget {
   final Future<void> Function() onReload;
   final Future<void> Function(String, Object?) onPatch;
   final String? initialTaskKey;
+  final VoidCallback onBack;
+  final ValueChanged<String?> onTaskKeyChanged;
 
   @override
   State<SchemaPanel> createState() => _SchemaPanelState();
@@ -52,14 +56,22 @@ class _SchemaPanelState extends State<SchemaPanel> {
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
     if (widget.loading && widget.schema == null) {
-      return const Padding(
-        padding: EdgeInsets.only(top: 36),
-        child: Center(child: CircularProgressIndicator()),
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _taskListHeader(),
+          const Padding(
+            padding: EdgeInsets.only(top: 36),
+            child: Center(child: CircularProgressIndicator()),
+          ),
+        ],
       );
     }
     if (widget.schema == null) {
       return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          _taskListHeader(),
           Text(widget.error == null ? '暂无任务配置' : '任务配置加载失败'),
           const SizedBox(height: 10),
           SecondaryButton(
@@ -80,7 +92,10 @@ class _SchemaPanelState extends State<SchemaPanel> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               IconButton(
-                onPressed: () => setState(() => taskKey = null),
+                onPressed: () {
+                  setState(() => taskKey = null);
+                  widget.onTaskKeyChanged(null);
+                },
                 icon: const Icon(LucideIcons.arrowLeft, size: 19),
                 tooltip: '返回任务列表',
                 padding: EdgeInsets.zero,
@@ -128,6 +143,7 @@ class _SchemaPanelState extends State<SchemaPanel> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        _taskListHeader(),
         for (
           var menuIndex = 0;
           menuIndex < schema.menus.length;
@@ -137,7 +153,10 @@ class _SchemaPanelState extends State<SchemaPanel> {
           _SchemaMenuGroup(
             menu: schema.menus[menuIndex],
             icon: _menuIcon(menuIndex, schema.menus[menuIndex].name),
-            onTask: (key) => setState(() => taskKey = key),
+            onTask: (key) {
+              setState(() => taskKey = key);
+              widget.onTaskKeyChanged(key);
+            },
           ),
         ],
         if (schema.menus.isEmpty)
@@ -145,6 +164,25 @@ class _SchemaPanelState extends State<SchemaPanel> {
             padding: const EdgeInsets.only(top: 28),
             child: Text('暂无任务配置', style: theme.textTheme.muted),
           ),
+      ],
+    );
+  }
+
+  Widget _taskListHeader() {
+    return Row(
+      children: [
+        IconButton(
+          onPressed: widget.onBack,
+          icon: const Icon(LucideIcons.arrowLeft, size: 19),
+          tooltip: '返回实例',
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints.tightFor(width: 40, height: 40),
+        ),
+        const SizedBox(width: 5),
+        const Text(
+          '任务配置',
+          style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+        ),
       ],
     );
   }
