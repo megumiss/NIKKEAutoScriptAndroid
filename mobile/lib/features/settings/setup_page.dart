@@ -27,7 +27,8 @@ class NkasSetupPage extends StatefulWidget {
   State<NkasSetupPage> createState() => _NkasSetupPageState();
 }
 
-class _NkasSetupPageState extends State<NkasSetupPage> {
+class _NkasSetupPageState extends State<NkasSetupPage>
+    with WidgetsBindingObserver {
   SetupStatus status = const SetupStatus(
     authorized: false,
     termuxInstalled: false,
@@ -88,6 +89,7 @@ class _NkasSetupPageState extends State<NkasSetupPage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     unawaited(_refresh());
     if (NkasPlatform.instance.supported) {
       subscription = NkasPlatform.instance.events.listen(_onEvent);
@@ -96,10 +98,18 @@ class _NkasSetupPageState extends State<NkasSetupPage> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     refreshTimer?.cancel();
     unawaited(subscription?.cancel());
     serialController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && mounted && !running) {
+      unawaited(_refresh());
+    }
   }
 
   void _onEvent(NkasPlatformEvent event) {
