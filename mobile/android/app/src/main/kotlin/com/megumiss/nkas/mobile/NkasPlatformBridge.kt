@@ -17,6 +17,7 @@ import com.megumiss.nkas.mobile.platform.BootstrapService
 import com.megumiss.nkas.mobile.platform.GateConfig
 import com.megumiss.nkas.mobile.platform.LogStore
 import com.megumiss.nkas.mobile.platform.SettingsStore
+import com.megumiss.nkas.mobile.platform.ScrcpySessionService
 import com.megumiss.nkas.mobile.platform.TermuxBridge
 import com.megumiss.nkas.mobile.platform.TermuxInstaller
 import com.megumiss.nkas.mobile.platform.adb.NativeAdbManager
@@ -450,6 +451,7 @@ class NkasPlatformBridge(private val activity: FlutterActivity) :
             }.fold(
                 onSuccess = { session ->
                     main.post {
+                        runCatching { activity.startForegroundService(ScrcpySessionService.start(activity)) }
                         emit(mapOf(
                             "type" to "scrcpyVideo",
                             "state" to "started",
@@ -487,6 +489,7 @@ class NkasPlatformBridge(private val activity: FlutterActivity) :
         scrcpyTexture?.release()
         scrcpyTexture = null
         if (hadSession) emit(mapOf("type" to "scrcpyVideo", "state" to "stopped"))
+        if (hadSession) runCatching { activity.startService(ScrcpySessionService.stop(activity)) }
     }
 
     private fun registerNetworkCallback() {
