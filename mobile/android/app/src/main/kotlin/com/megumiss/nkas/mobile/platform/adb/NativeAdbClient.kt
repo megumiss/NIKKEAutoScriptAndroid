@@ -156,6 +156,13 @@ class NativeAdbClient(
             val message = receive()
             when (message.command) {
                 CNXN -> return
+                STLS -> {
+                    if (message.arg0 != STLS_VERSION) {
+                        throw IOException("ADB returned unsupported STLS version ${message.arg0}")
+                    }
+                    send(STLS, STLS_VERSION, 0, ByteArray(0))
+                    upgradeToTls()
+                }
                 AUTH -> {
                     when (message.arg0) {
                         AUTH_TOKEN -> {
@@ -172,6 +179,20 @@ class NativeAdbClient(
                 }
                 else -> throw IOException("ADB returned unexpected command ${commandName(message.command)}")
             }
+        }
+    }
+
+    @Throws(IOException::class)
+    private fun upgradeToTls() {
+        val currentSocket = socket ?: throw IOException("ADB socket is not initialized")
+        val pair = keyPair ?: throw IOException("ADB key is not initialized")
+        try {
+            val tlsSocket = AdbTlsIdentity.upgrade(currentSocket, endpoint.host, endpoint.port, pair)
+            socket = tlsSocket
+            input = DataInputStream(tlsSocket.inputStream)
+            output = tlsSocket.outputStream
+        } catch (error: Exception) {
+            throw if (error is IOException) error else IOException("ADB TLS upgrade failed", error)
         }
     }
 
@@ -250,6 +271,7 @@ class NativeAdbClient(
         private const val MAX_PAYLOAD = 256 * 1024
         private const val MAX_SYNC_PAYLOAD = 16 * 1024 * 1024
         private const val CNXN = 0x4e584e43
+        private const val STLS = 0x534c5453
         private const val AUTH = 0x48545541
         private const val OPEN = 0x4e45504f
         private const val OKAY = 0x59414b4f
@@ -258,6 +280,7 @@ class NativeAdbClient(
         private const val AUTH_TOKEN = 1
         private const val AUTH_SIGNATURE = 2
         private const val AUTH_RSAPUBLICKEY = 3
+        private const val STLS_VERSION = 0x01000000
 
         private fun commandName(command: Int): String = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN)
             .putInt(command).array().toString(Charsets.US_ASCII)
