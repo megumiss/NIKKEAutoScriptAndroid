@@ -104,7 +104,8 @@ class _SchedulePanelState extends State<SchedulePanel> {
                       enableLocked: next.enableLocked,
                       cadence: change['cadence']?.toString() ?? next.cadence,
                       cadenceLocked: next.cadenceLocked,
-                      nextRun: next.nextRun,
+                      nextRun:
+                          change['next_run']?.toString() ?? next.nextRun,
                       dailyTimes:
                           change['daily_times']?.toString() ?? next.dailyTimes,
                       weeklyDays:
@@ -146,6 +147,7 @@ class _SchedulePanelState extends State<SchedulePanel> {
                               'command': task.command,
                               'enable': task.enabled,
                               'cadence': task.cadence,
+                              'next_run': task.nextRun,
                               'daily_times': task.dailyTimes,
                               'weekly_days': task.weeklyDays,
                               'weekly_time': task.weeklyTime,
@@ -193,11 +195,29 @@ class _ScheduleRow extends StatelessWidget {
                         fontWeight: FontWeight.w600,
                       ),
                     ),
-                    const SizedBox(height: 3),
-                    Text(
-                      task.nextRun.isEmpty ? '未安排下次运行' : '下次运行：${task.nextRun}',
-                      style: theme.textTheme.muted,
-                    ),
+                    if (task.nextRun.isNotEmpty)
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              '下次运行：${task.nextRun}',
+                              style: theme.textTheme.muted,
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: disabled || task.locked
+                                ? null
+                                : () => onChanged({'next_run': ''}),
+                            icon: const Icon(LucideIcons.x, size: 15),
+                            tooltip: '立即执行',
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints.tightFor(
+                              width: 28,
+                              height: 28,
+                            ),
+                          ),
+                        ],
+                      ),
                   ],
                 ),
               ),
@@ -232,34 +252,16 @@ class _ScheduleRow extends StatelessWidget {
               SizedBox(
                 width: 132,
                 child: TextFormField(
-                  key: ValueKey(
-                    '${task.command}-${task.cadence}-${task.activeTime}',
-                  ),
+                  key: ValueKey('${task.command}-${task.cadence}'),
                   initialValue: task.activeTime,
                   enabled: !disabled && !task.locked,
-                  decoration: InputDecoration(
+                  decoration: const InputDecoration(
                     labelText: '时间',
                     isDense: true,
-                    contentPadding: const EdgeInsets.symmetric(
+                    contentPadding: EdgeInsets.symmetric(
                       horizontal: 10,
                       vertical: 8,
                     ),
-                    suffixIconConstraints: const BoxConstraints.tightFor(
-                      width: 32,
-                      height: 32,
-                    ),
-                    suffixIcon: task.activeTime.isEmpty
-                        ? null
-                        : IconButton(
-                            onPressed: disabled || task.locked
-                                ? null
-                                : () => onChanged({
-                                    _activeTimeKey(task.cadence): '',
-                                  }),
-                            icon: const Icon(LucideIcons.x, size: 15),
-                            tooltip: '清空时间',
-                            padding: EdgeInsets.zero,
-                          ),
                   ),
                   onChanged: (value) {
                     onChanged({_activeTimeKey(task.cadence): value});

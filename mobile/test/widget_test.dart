@@ -420,7 +420,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('NKAS Mobile'), findsOneWidget);
-    expect(find.text('1.0.3'), findsWidgets);
+    expect(find.text('1.0.4'), findsWidgets);
     expect(find.text('NIKKEAutoScript 移动控制端'), findsOneWidget);
     expect(find.text('项目仓库'), findsOneWidget);
     expect(find.text('问题反馈'), findsOneWidget);
