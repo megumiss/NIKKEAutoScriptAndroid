@@ -195,7 +195,10 @@ class _ScreenPanelState extends State<ScreenPanel> {
   Timer? timer;
   StreamSubscription<NkasPlatformEvent>? platformEvents;
   int? textureId;
+  int? videoWidth;
+  int? videoHeight;
   String? nativeError;
+  Offset? lastTouchPosition;
 
   @override
   void initState() {
@@ -244,7 +247,14 @@ class _ScreenPanelState extends State<ScreenPanel> {
         timer = null;
         setState(() {
           textureId = event.textureId;
+          videoWidth = event.width ?? videoWidth;
+          videoHeight = event.height ?? videoHeight;
           nativeError = null;
+        });
+      } else if (event.state == 'size') {
+        setState(() {
+          videoWidth = event.width;
+          videoHeight = event.height;
         });
       } else if (event.state == 'error') {
         setState(() => nativeError = event.error);
@@ -296,7 +306,18 @@ class _ScreenPanelState extends State<ScreenPanel> {
             child: AspectRatio(
               aspectRatio: 9 / 16,
               child: textureId != null
-                  ? Texture(textureId: textureId!)
+                  ? LayoutBuilder(
+                      builder: (context, constraints) {
+                        final viewport = constraints.biggest;
+                        return GestureDetector(
+                          onTapUp: (details) => _sendTap(details.localPosition, viewport),
+                          onPanStart: (details) => _sendTouch(0, details.localPosition, viewport),
+                          onPanUpdate: (details) => _sendTouch(2, details.localPosition, viewport),
+                          onPanEnd: (_) => _sendTouch(1, null, viewport),
+                          child: Texture(textureId: textureId!),
+                        );
+                      },
+                    )
                   : frame == null
                   ? Center(
                       child: Text(
@@ -374,5 +395,29 @@ class _ScreenPanelState extends State<ScreenPanel> {
     ).toLocal();
     String two(int value) => value.toString().padLeft(2, '0');
     return '捕获于 ${two(date.hour)}:${two(date.minute)}:${two(date.second)}';
+  }
+
+  void _sendTap(Offset position, Size viewport) {
+    _sendTouch(0, position, viewport);
+    _sendTouch(1, position, viewport);
+  }
+
+  void _sendTouch(int action, Offset? position, Size viewport) {
+    final width = videoWidth;
+    final height = videoHeight;
+    if (width == null || height == null) return;
+    if (position != null) lastTouchPosition = position;
+    if (position == null && action != 1 && lastTouchPosition == null) return;
+    final point = position ?? lastTouchPosition ?? Offset.zero;
+    final x = (point.dx / viewport.width * width).round().clamp(0, width);
+    final y = (point.dy / viewport.height * height).round().clamp(0, height);
+    unawaited(NkasPlatform.instance.nativeScrcpyTouch(
+      action: action,
+      x: x,
+      y: y,
+      screenWidth: width,
+      screenHeight: height,
+    ));
+    if (action == 1) lastTouchPosition = null;
   }
 }
