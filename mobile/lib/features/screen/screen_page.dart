@@ -240,14 +240,18 @@ class _ScreenPanelState extends State<ScreenPanel> {
     platformEvents = NkasPlatform.instance.events.listen((event) {
       if (!mounted || event is! ScrcpyVideoEvent) return;
       if (event.state == 'started' && event.textureId != null) {
+        timer?.cancel();
+        timer = null;
         setState(() {
           textureId = event.textureId;
           nativeError = null;
         });
       } else if (event.state == 'error') {
         setState(() => nativeError = event.error);
+        _startPolling();
       } else if (event.state == 'stopped') {
         setState(() => textureId = null);
+        _startPolling();
       }
     });
     try {
