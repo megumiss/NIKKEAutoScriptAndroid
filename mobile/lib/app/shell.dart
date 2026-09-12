@@ -609,6 +609,7 @@ class _NkasShellState extends State<NkasShell> {
     ),
     NkasPage.setup => NkasSetupPage(
       onOpenStar: () => _selectPage(NkasPage.starVerify),
+      onOpenUi: _openWebUi,
     ),
     NkasPage.update => UpdatePage(
       connectionController: widget.connectionController,

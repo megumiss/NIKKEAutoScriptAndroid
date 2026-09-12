@@ -14,9 +14,14 @@ import 'package:nkas_mobile/core/widgets/surface.dart';
 import 'package:nkas_mobile/theme.dart';
 
 class NkasSetupPage extends StatefulWidget {
-  const NkasSetupPage({required this.onOpenStar, super.key});
+  const NkasSetupPage({
+    required this.onOpenStar,
+    required this.onOpenUi,
+    super.key,
+  });
 
   final VoidCallback onOpenStar;
+  final VoidCallback onOpenUi;
 
   @override
   State<NkasSetupPage> createState() => _NkasSetupPageState();
@@ -36,6 +41,10 @@ class _NkasSetupPageState extends State<NkasSetupPage> {
   String? error;
   bool loading = true;
   bool running = false;
+  bool setupFailed = false;
+  bool termuxDownloadActive = false;
+  bool termuxDownloadNeedsCheck = false;
+  bool termuxDownloadFailed = false;
   final serialController = TextEditingController();
   final stageStates = <String, String>{};
   final stageLogs = <String, String>{};
@@ -99,17 +108,24 @@ class _NkasSetupPageState extends State<NkasSetupPage> {
       case SetupOutputEvent(:final output, :final log):
         setState(() {
           this.output = output;
-          if (log) running = true;
+          if (log) {
+            running = true;
+            setupFailed = false;
+          }
           if (log) _applyBootstrapLog(output);
         });
       case SetupStateEvent(:final state, :final message):
         setState(() {
           running = state != 'ready' && state != 'failed';
-          if (state == 'failed') error = message ?? '初始化失败';
+          if (state == 'failed') {
+            error = message ?? '初始化失败';
+            setupFailed = true;
+          }
           if (state == 'failed') {
             stageStates[activeStage ?? 'tools'] = '失败';
           } else if (state == 'ready') {
             output = '初始化完成';
+            setupFailed = false;
             if (activeStage != null) expanded.remove(activeStage);
             activeStage = null;
             for (final key in bootstrapStages.values) {
@@ -120,12 +136,25 @@ class _NkasSetupPageState extends State<NkasSetupPage> {
         if (state == 'ready' || state == 'failed') unawaited(_refresh());
       case TermuxDownloadEvent(:final progress, :final message, :final error):
         setState(() {
-          output = message ?? '正在下载 Termux：$progress%';
+          final text = error != null
+              ? 'Termux 下载失败：$error'
+              : message ?? '正在下载 Termux\n进度：$progress%';
+          output = text;
+          stageLogs['termux'] = text;
+          expanded.add('termux');
+          termuxDownloadActive = error == null && message == null;
+          termuxDownloadNeedsCheck = error == null && message != null;
+          termuxDownloadFailed = error != null;
           if (error != null) this.error = error;
         });
       case SetupSerialEvent(:final serial):
         serialController.text = serial.split(':').last;
         unawaited(_refresh());
+      case SetupNoticeEvent(:final message):
+        setState(() {
+          stageLogs['adb_device'] = message;
+          expanded.add('adb_device');
+        });
       case StarAuthorizationEvent():
         unawaited(_refresh());
     }
@@ -139,6 +168,11 @@ class _NkasSetupPageState extends State<NkasSetupPage> {
       setState(() {
         status = value;
         loading = false;
+        if (value.termuxInstalled) {
+          termuxDownloadActive = false;
+          termuxDownloadNeedsCheck = false;
+          termuxDownloadFailed = false;
+        }
       });
     } on Object catch (exception) {
       if (mounted) {
@@ -153,6 +187,7 @@ class _NkasSetupPageState extends State<NkasSetupPage> {
   Future<void> _start() async {
     setState(() {
       running = true;
+      setupFailed = false;
       error = null;
       output = '正在请求 Termux 恢复安装脚本……';
       activeStage = 'tools';
@@ -172,6 +207,7 @@ class _NkasSetupPageState extends State<NkasSetupPage> {
       if (mounted) {
         setState(() {
           running = false;
+          setupFailed = true;
           error = exception.toString();
         });
       }
@@ -392,33 +428,61 @@ class _NkasSetupPageState extends State<NkasSetupPage> {
   }
 
   String get _actionLabel {
+    if (termuxDownloadActive) return '正在下载 Termux…';
+    if (setupFailed) return '重试当前安装';
     if (!status.authorized) return '前往 Star 验证';
-    if (!status.termuxInstalled) return '下载并安装 Termux';
+    if (!status.termuxInstalled) {
+      if (termuxDownloadFailed) return '重试下载 Termux';
+      return termuxDownloadNeedsCheck ? '重新检查' : '下载并安装 Termux';
+    }
     if (!status.runCommandPermission) return '授权 Termux 外部命令';
     if (!status.wirelessDebug) return '打开无线调试设置';
     if (running) return '正在安装…';
-    if (status.initialized) return '重新检查';
+    if (_artifactBlocked) {
+      return status.artifacts['termux_setting'] != true
+          ? '等待 Termux 设置'
+          : '等待 ADB 设备';
+    }
+    if (status.artifactsReady) return '打开 NKAS UI';
     return '开始安装';
   }
 
   IconData get _actionIcon {
+    if (termuxDownloadActive) return LucideIcons.loaderCircle;
+    if (setupFailed) return LucideIcons.refreshCw;
     if (!status.authorized) return LucideIcons.shieldCheck;
     if (!status.termuxInstalled) return LucideIcons.download;
     if (!status.runCommandPermission) return LucideIcons.shieldCheck;
     if (!status.wirelessDebug) return LucideIcons.settings2;
     if (running) return LucideIcons.loaderCircle;
-    if (status.initialized) return LucideIcons.refreshCw;
+    if (status.artifactsReady) return LucideIcons.externalLink;
     return LucideIcons.rocket;
   }
 
-  bool get _actionDisabled => running;
+  bool get _artifactBlocked =>
+      status.artifacts.isNotEmpty &&
+      (status.artifacts['termux_setting'] != true ||
+          status.artifacts['adb_device'] != true);
+
+  bool get _actionDisabled =>
+      running || termuxDownloadActive || _artifactBlocked;
 
   Future<void> _handleAction() async {
+    if (setupFailed) return _start();
     if (!status.authorized) {
       widget.onOpenStar();
       return;
     }
-    if (!status.termuxInstalled) return NkasPlatform.instance.downloadTermux();
+    if (!status.termuxInstalled) {
+      if (termuxDownloadNeedsCheck) return _refresh();
+      setState(() {
+        error = null;
+        termuxDownloadNeedsCheck = false;
+        termuxDownloadFailed = false;
+        termuxDownloadActive = true;
+      });
+      return NkasPlatform.instance.downloadTermux();
+    }
     if (!status.runCommandPermission) {
       await NkasPlatform.instance.requestRunCommandPermission();
       await Future<void>.delayed(const Duration(milliseconds: 500));
@@ -427,7 +491,10 @@ class _NkasSetupPageState extends State<NkasSetupPage> {
     if (!status.wirelessDebug) {
       return NkasPlatform.instance.openWirelessSettings();
     }
-    if (status.initialized) return _refresh();
+    if (_artifactBlocked) return;
+    if (status.artifactsReady) {
+      return _openUi();
+    }
     final preferences = await SharedPreferences.getInstance();
     if (!mounted) return;
     if (preferences.getBool(initialNoticeKey) != true) {
@@ -456,7 +523,49 @@ class _NkasSetupPageState extends State<NkasSetupPage> {
     return _start();
   }
 
+  Future<void> _openUi() async {
+    final current = status.serial.trim();
+    if (current.isEmpty) {
+      widget.onOpenUi();
+      return;
+    }
+    try {
+      final configured = (await NkasPlatform.instance.getNkasSerial()).trim();
+      if (!mounted) return;
+      if (configured.isEmpty || configured == current) {
+        widget.onOpenUi();
+        return;
+      }
+      final overwrite = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Serial 不一致'),
+          content: Text(
+            'nkas.json 中的 Serial：$configured\n当前设备：$current\n\n是否将配置覆盖为当前设备？',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('不覆盖'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('覆盖并打开'),
+            ),
+          ],
+        ),
+      );
+      if (overwrite == true) {
+        await NkasPlatform.instance.setNkasSerial(current);
+      }
+      if (mounted) widget.onOpenUi();
+    } on Object catch (exception) {
+      if (mounted) _show(exception.toString());
+    }
+  }
+
   String _stepState(String key) {
+    if (key == 'termux' && termuxDownloadActive) return '下载中';
     if (key == 'termux') return status.termuxInstalled ? '已安装' : '待安装';
     if (key == 'permission') return status.runCommandPermission ? '已授权' : '待授权';
     if (key == 'wireless') return status.wirelessDebug ? '已开启' : '待开启';
@@ -489,10 +598,17 @@ class _NkasSetupPageState extends State<NkasSetupPage> {
   }
 
   String _stepDetail(String key) {
+    if (key == 'termux') {
+      if (!status.termuxInstalled) return '需要安装官方 Termux';
+      final version = status.termuxVersion;
+      if (version != null && version.isNotEmpty) {
+        return '已安装版本：Termux v$version';
+      }
+      return '官方 Termux 应用与运行环境';
+    }
     if (key == 'adb_device' && status.serial.isNotEmpty) return status.serial;
     if (key == 'service' && status.artifacts[key] == true) return '服务已响应';
     return const {
-      'termux': '官方 Termux 应用与运行环境',
       'permission': '系统权限：Run commands in Termux environment',
       'termux_setting': 'Termux 配置 allow-external-apps=true',
       'tools': '安装 bash、git、adb、curl 等工具',
@@ -515,11 +631,7 @@ class _NkasSetupPageState extends State<NkasSetupPage> {
           child: SecondaryButton(
             icon: LucideIcons.settings2,
             label: '打开应用权限设置',
-            onPressed: () async {
-              await NkasPlatform.instance.requestRunCommandPermission();
-              await Future<void>.delayed(const Duration(milliseconds: 500));
-              await _refresh();
-            },
+            onPressed: NkasPlatform.instance.openAppSettings,
           ),
         );
       case 'termux_setting':

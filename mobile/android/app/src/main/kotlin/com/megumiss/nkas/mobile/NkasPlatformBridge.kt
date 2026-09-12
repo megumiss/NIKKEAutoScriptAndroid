@@ -80,6 +80,14 @@ class NkasPlatformBridge(private val activity: FlutterActivity) :
                 activity.requestPermissions(arrayOf(TermuxBridge.RUN_COMMAND_PERMISSION), RUN_COMMAND_REQUEST)
                 result.success(true)
             }
+            "openAppSettings" -> {
+                val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                    data = Uri.parse("package:${activity.packageName}")
+                }
+                runCatching { activity.startActivity(intent) }
+                    .onFailure { activity.startActivity(Intent(Settings.ACTION_SETTINGS)) }
+                result.success(true)
+            }
             "openTermux" -> {
                 val intent = activity.packageManager.getLaunchIntentForPackage("com.termux")
                 if (intent == null) result.error("termux_missing", "未安装 Termux", null)
@@ -102,6 +110,8 @@ class NkasPlatformBridge(private val activity: FlutterActivity) :
                 SettingsStore.setSerial(activity, value)
                 result.success(value)
             }
+            "getNkasSerial" -> readNkasSerial(result)
+            "setNkasSerial" -> writeNkasSerial(call, result)
             else -> result.notImplemented()
         }
     }
@@ -144,6 +154,7 @@ class NkasPlatformBridge(private val activity: FlutterActivity) :
         val bridge = TermuxBridge(activity)
         val base = linkedMapOf<String, Any?>(
             "termuxInstalled" to bridge.isInstalled(),
+            "termuxVersion" to termuxVersion(),
             "runCommandPermission" to hasRunCommandPermission(),
             "wirelessDebug" to isWirelessDebugEnabled(),
             "authorized" to AccessGate.isAuthorized(activity),
@@ -170,6 +181,7 @@ class NkasPlatformBridge(private val activity: FlutterActivity) :
                 if (SettingsStore.serial(activity) != serial) {
                     SettingsStore.setSerial(activity, serial)
                     LogStore.log("adb", "mDNS 自动发现连接端口：$port")
+                    emit(mapOf("type" to "setupNotice", "message" to "已通过 mDNS 自动发现无线调试端口：$port"))
                     emit(mapOf("type" to "setupSerial", "serial" to serial))
                 }
             }
@@ -249,6 +261,25 @@ class NkasPlatformBridge(private val activity: FlutterActivity) :
         }.onFailure { result.error("pair_failed", it.message ?: "无法启动配对服务", null) }
     }
 
+    private fun readNkasSerial(result: MethodChannel.Result) {
+        TermuxBridge(activity).readNkasSerial { command ->
+            main.post {
+                if (command.exitCode == 0) result.success(command.stdout.trim())
+                else result.error("read_nkas_serial", command.stderr.ifBlank { "无法读取 nkas.json 的 Serial" }, null)
+            }
+        }
+    }
+
+    private fun writeNkasSerial(call: MethodCall, result: MethodChannel.Result) {
+        val serial = call.argument<String>("serial")?.trim().orEmpty()
+        TermuxBridge(activity).writeNkasSerial(serial) { command ->
+            main.post {
+                if (command.exitCode == 0) result.success(true)
+                else result.error("write_nkas_serial", command.stderr.ifBlank { "无法更新 nkas.json 的 Serial" }, null)
+            }
+        }
+    }
+
     private fun downloadTermux(result: MethodChannel.Result) {
         if (TermuxBridge(activity).isInstalled()) {
             result.success(mapOf("installed" to true))
@@ -287,6 +318,10 @@ class NkasPlatformBridge(private val activity: FlutterActivity) :
     private fun hasRunCommandPermission() =
         activity.checkSelfPermission(TermuxBridge.RUN_COMMAND_PERMISSION) ==
             android.content.pm.PackageManager.PERMISSION_GRANTED
+
+    private fun termuxVersion(): String? = runCatching {
+        activity.packageManager.getPackageInfo("com.termux", 0).versionName
+    }.getOrNull()
 
     private fun isWirelessDebugEnabled(): Boolean = try {
         Build.VERSION.SDK_INT >= Build.VERSION_CODES.R &&

@@ -38,6 +38,7 @@ class SetupStatus {
     required this.runCommandPermission,
     required this.wirelessDebug,
     required this.serial,
+    this.termuxVersion,
     this.artifacts = const {},
     this.error,
   });
@@ -47,6 +48,7 @@ class SetupStatus {
   final bool runCommandPermission;
   final bool wirelessDebug;
   final String serial;
+  final String? termuxVersion;
   final Map<String, bool> artifacts;
   final String? error;
 
@@ -58,6 +60,7 @@ class SetupStatus {
       runCommandPermission: map['runCommandPermission'] == true,
       wirelessDebug: map['wirelessDebug'] == true,
       serial: map['serial'] as String? ?? '',
+      termuxVersion: map['termuxVersion'] as String?,
       artifacts: rawArtifacts is Map
           ? rawArtifacts.map(
               (key, value) => MapEntry(key.toString(), value == true),
@@ -70,8 +73,17 @@ class SetupStatus {
   bool get environmentReady =>
       authorized && termuxInstalled && runCommandPermission && wirelessDebug;
 
-  bool get initialized =>
-      artifacts['config'] == true && artifacts['service'] == true;
+  bool get initialized => artifactsReady;
+
+  bool get artifactsReady => const [
+    'termux_setting',
+    'adb_device',
+    'tools',
+    'source',
+    'config',
+    'container',
+    'service',
+  ].every((key) => artifacts[key] == true);
 }
 
 sealed class NkasPlatformEvent {
@@ -105,6 +117,11 @@ class TermuxDownloadEvent extends NkasPlatformEvent {
 class SetupSerialEvent extends NkasPlatformEvent {
   const SetupSerialEvent(this.serial);
   final String serial;
+}
+
+class SetupNoticeEvent extends NkasPlatformEvent {
+  const SetupNoticeEvent(this.message);
+  final String message;
 }
 
 class NkasPlatform {
@@ -177,6 +194,11 @@ class NkasPlatform {
     await _channel.invokeMethod<void>('requestRunCommandPermission');
   }
 
+  Future<void> openAppSettings() async {
+    if (!_androidSupported) return;
+    await _channel.invokeMethod<void>('openAppSettings');
+  }
+
   Future<void> openTermux() async {
     if (!_androidSupported) return;
     await _channel.invokeMethod<void>('openTermux');
@@ -212,6 +234,18 @@ class NkasPlatform {
     });
   }
 
+  Future<String> getNkasSerial() async {
+    if (!_androidSupported) return '';
+    return await _channel.invokeMethod<String>('getNkasSerial') ?? '';
+  }
+
+  Future<void> setNkasSerial(String serial) async {
+    if (!_androidSupported) return;
+    await _channel.invokeMethod<void>('setNkasSerial', <String, Object?>{
+      'serial': serial,
+    });
+  }
+
   NkasPlatformEvent _parseEvent(Map<Object?, Object?> value) {
     switch (value['type']) {
       case 'star':
@@ -233,6 +267,8 @@ class NkasPlatform {
         );
       case 'setupSerial':
         return SetupSerialEvent(value['serial'] as String? ?? '');
+      case 'setupNotice':
+        return SetupNoticeEvent(value['message'] as String? ?? '');
       default:
         return const SetupStateEvent('idle', null);
     }
