@@ -1,6 +1,5 @@
 package com.megumiss.nkas.mobile.platform.adb
 
-import android.util.Base64
 import java.io.File
 import java.math.BigInteger
 import java.nio.ByteBuffer
@@ -12,6 +11,7 @@ import java.security.PublicKey
 import java.security.interfaces.RSAPublicKey
 import java.security.spec.PKCS8EncodedKeySpec
 import java.security.spec.X509EncodedKeySpec
+import java.util.Base64
 
 data class AdbKeyPair(
     val privateKey: PrivateKey,
@@ -44,7 +44,7 @@ class AdbKeyStore(private val directory: File, private val keyName: String = "nk
     }
 }
 
-private fun encodeAdbPublicKey(publicKey: RSAPublicKey, name: String): ByteArray {
+internal fun encodeAdbPublicKey(publicKey: RSAPublicKey, name: String): ByteArray {
     val words = 64
     val modulusBytes = 256
     val two32 = BigInteger.ONE.shiftLeft(32)
@@ -62,7 +62,8 @@ private fun encodeAdbPublicKey(publicKey: RSAPublicKey, name: String): ByteArray
         .put(rrLE)
         .putInt(publicKey.publicExponent.toInt())
         .array()
-    return (Base64.encodeToString(body, Base64.NO_WRAP) + " $name\u0000").toByteArray(Charsets.UTF_8)
+    return (Base64.getEncoder().withoutPadding().encodeToString(body) + " $name\u0000")
+        .toByteArray(Charsets.UTF_8)
 }
 
 private fun padBigEndian(value: BigInteger, size: Int): ByteArray {
