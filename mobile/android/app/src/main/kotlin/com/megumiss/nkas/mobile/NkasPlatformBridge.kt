@@ -223,6 +223,12 @@ class NkasPlatformBridge(private val activity: FlutterActivity) :
                 main.postDelayed({ pollSetupLog() }, 2000)
             } else if (output.contains("state=ready")) {
                 emit(mapOf("type" to "setup", "state" to "ready"))
+            } else if (output.contains("state=failed")) {
+                emit(mapOf(
+                    "type" to "setup",
+                    "state" to "failed",
+                    "message" to output.takeLast(1000),
+                ))
             }
         }
     }
