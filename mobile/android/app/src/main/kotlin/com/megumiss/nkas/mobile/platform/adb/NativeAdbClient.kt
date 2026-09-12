@@ -242,33 +242,17 @@ class NativeAdbClient(
     @Throws(IOException::class)
     private fun receive(): AdbMessage {
         val data = input ?: throw IOException("ADB input is closed")
-        val header = ByteArray(24)
-        data.readFully(header)
-        val buffer = ByteBuffer.wrap(header).order(ByteOrder.LITTLE_ENDIAN)
-        val command = buffer.int
-        val arg0 = buffer.int
-        val arg1 = buffer.int
-        val length = buffer.int
-        val checksum = buffer.int
-        val magic = buffer.int
-        if (magic != (command xor -1) || length !in 0..MAX_PAYLOAD) throw IOException("Invalid ADB message header")
-        val payload = ByteArray(length)
-        data.readFully(payload)
-        val actual = payload.fold(0) { sum, byte -> sum + (byte.toInt() and 0xff) }
-        if (actual != checksum) throw IOException("Invalid ADB message checksum")
-        return AdbMessage(command, arg0, arg1, payload)
+        return AdbProtocol.decode(data)
     }
 
     private fun checkConnected() {
         if (closed) throw IOException("ADB client is not connected")
     }
 
-    private data class AdbMessage(val command: Int, val arg0: Int, val arg1: Int, val payload: ByteArray)
-
     companion object {
         private const val TAG = "NkasNativeAdb"
         private const val ADB_VERSION = 0x01000000
-        private const val MAX_PAYLOAD = 256 * 1024
+        private const val MAX_PAYLOAD = AdbProtocol.MAX_PAYLOAD
         private const val MAX_SYNC_PAYLOAD = 16 * 1024 * 1024
         private const val CNXN = 0x4e584e43
         private const val STLS = 0x534c5453
