@@ -400,6 +400,7 @@ class _NkasSetupPageState extends State<NkasSetupPage> {
     }
     if (status.initialized) return _refresh();
     final preferences = await SharedPreferences.getInstance();
+    if (!mounted) return;
     if (preferences.getBool(initialNoticeKey) != true) {
       final proceed = await showDialog<bool>(
         context: context,
