@@ -131,6 +131,58 @@ class SetupNoticeEvent extends NkasPlatformEvent {
   final String message;
 }
 
+class ScrcpyVideoEvent extends NkasPlatformEvent {
+  const ScrcpyVideoEvent({
+    required this.state,
+    this.textureId,
+    this.deviceName,
+    this.codecId,
+    this.width,
+    this.height,
+    this.error,
+  });
+
+  final String state;
+  final int? textureId;
+  final String? deviceName;
+  final int? codecId;
+  final int? width;
+  final int? height;
+  final String? error;
+}
+
+class NativeScrcpyStart {
+  const NativeScrcpyStart({
+    required this.scid,
+    this.command,
+    this.deviceName,
+    this.codecId,
+    this.textureId,
+    required this.video,
+    required this.control,
+  });
+
+  final int scid;
+  final String? command;
+  final String? deviceName;
+  final int? codecId;
+  final int? textureId;
+  final bool video;
+  final bool control;
+
+  factory NativeScrcpyStart.fromMap(Map<Object?, Object?> map) {
+    return NativeScrcpyStart(
+      scid: (map['scid'] as num?)?.toInt() ?? 0,
+      command: map['command'] as String?,
+      deviceName: map['deviceName'] as String?,
+      codecId: (map['codecId'] as num?)?.toInt(),
+      textureId: (map['textureId'] as num?)?.toInt(),
+      video: map['video'] == true,
+      control: map['control'] == true,
+    );
+  }
+}
+
 class NkasPlatform {
   NkasPlatform._();
 
@@ -263,6 +315,79 @@ class NkasPlatform {
     await _channel.invokeMethod<void>('setInitialNoticeShown');
   }
 
+  Future<NativeScrcpyStart> nativeScrcpyStart(
+    String endpoint, {
+    bool video = true,
+    bool control = true,
+    int maxSize = 0,
+    int videoBitRate = 0,
+  }) async {
+    if (!_androidSupported) throw UnsupportedError('原生 scrcpy 仅支持 Android');
+    final value = await _channel.invokeMethod<Object?>('nativeScrcpyStart', {
+      'endpoint': endpoint,
+      'video': video,
+      'control': control,
+      'maxSize': maxSize,
+      'videoBitRate': videoBitRate,
+    });
+    return NativeScrcpyStart.fromMap(_map(value));
+  }
+
+  Future<void> nativeScrcpyStop() async {
+    if (!_androidSupported) return;
+    await _channel.invokeMethod<void>('nativeScrcpyStop');
+  }
+
+  Future<void> nativeScrcpyBack({int action = 0}) async {
+    if (!_androidSupported) return;
+    await _channel.invokeMethod<void>('nativeScrcpyBack', {'action': action});
+  }
+
+  Future<void> nativeScrcpyText(String text) async {
+    if (!_androidSupported) return;
+    await _channel.invokeMethod<void>('nativeScrcpyText', {'text': text});
+  }
+
+  Future<void> nativeScrcpyKeycode({
+    required int action,
+    required int keycode,
+    int repeat = 0,
+    int metaState = 0,
+  }) async {
+    if (!_androidSupported) return;
+    await _channel.invokeMethod<void>('nativeScrcpyKeycode', {
+      'action': action,
+      'keycode': keycode,
+      'repeat': repeat,
+      'metaState': metaState,
+    });
+  }
+
+  Future<void> nativeScrcpyTouch({
+    required int action,
+    required int x,
+    required int y,
+    required int screenWidth,
+    required int screenHeight,
+    int pointerId = 0,
+    double pressure = 1,
+    int actionButton = 0,
+    int buttons = 0,
+  }) async {
+    if (!_androidSupported) return;
+    await _channel.invokeMethod<void>('nativeScrcpyTouch', {
+      'action': action,
+      'pointerId': pointerId,
+      'x': x,
+      'y': y,
+      'screenWidth': screenWidth,
+      'screenHeight': screenHeight,
+      'pressure': pressure,
+      'actionButton': actionButton,
+      'buttons': buttons,
+    });
+  }
+
   NkasPlatformEvent _parseEvent(Map<Object?, Object?> value) {
     switch (value['type']) {
       case 'star':
@@ -289,6 +414,16 @@ class NkasPlatform {
         return SetupSerialEvent(value['serial'] as String? ?? '');
       case 'setupNotice':
         return SetupNoticeEvent(value['message'] as String? ?? '');
+      case 'scrcpyVideo':
+        return ScrcpyVideoEvent(
+          state: value['state'] as String? ?? 'unknown',
+          textureId: (value['textureId'] as num?)?.toInt(),
+          deviceName: value['deviceName'] as String?,
+          codecId: (value['codecId'] as num?)?.toInt(),
+          width: (value['width'] as num?)?.toInt(),
+          height: (value['height'] as num?)?.toInt(),
+          error: value['error'] as String?,
+        );
       default:
         return const SetupStateEvent('idle', null);
     }
