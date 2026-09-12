@@ -16,6 +16,7 @@ import com.megumiss.nkas.mobile.platform.LogStore
 import com.megumiss.nkas.mobile.platform.SettingsStore
 import com.megumiss.nkas.mobile.platform.TermuxBridge
 import com.megumiss.nkas.mobile.platform.TermuxInstaller
+import com.megumiss.nkas.mobile.platform.adb.NativeAdbManager
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.EventChannel
@@ -32,6 +33,7 @@ class NkasPlatformBridge(private val activity: FlutterActivity) :
     private var events: EventChannel.EventSink? = null
     private var installer: TermuxInstaller? = null
     private var connectMdns: AdbMdns? = null
+    private var nativeAdb: NativeAdbManager? = null
 
     fun register(engine: FlutterEngine) {
         MethodChannel(engine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler(this)
@@ -112,6 +114,15 @@ class NkasPlatformBridge(private val activity: FlutterActivity) :
             }
             "getNkasSerial" -> readNkasSerial(result)
             "setNkasSerial" -> writeNkasSerial(call, result)
+            "nativeAdbConnect" -> nativeAdbConnect(call, result)
+            "nativeAdbShell" -> nativeAdbShell(call, result)
+            "nativeAdbPush" -> nativeAdbPush(call, result)
+            "nativeAdbPull" -> nativeAdbPull(call, result)
+            "nativeAdbClose" -> {
+                nativeAdb?.close()
+                nativeAdb = null
+                result.success(true)
+            }
             "getInitialNoticeShown" -> result.success(
                 activity.getSharedPreferences(SETUP_PREFS_NAME, 0)
                     .getBoolean(KEY_INITIAL_NOTICE_SHOWN, false),
@@ -298,6 +309,61 @@ class NkasPlatformBridge(private val activity: FlutterActivity) :
                 else result.error("write_nkas_serial", command.stderr.ifBlank { "无法更新 nkas.json 的 Serial" }, null)
             }
         }
+    }
+
+    private fun nativeAdbConnect(call: MethodCall, result: MethodChannel.Result) {
+        val endpoint = call.argument<String>("endpoint")?.trim().orEmpty()
+        if (endpoint.isBlank()) {
+            result.error("native_adb_endpoint", "ADB 地址不能为空", null)
+            return
+        }
+        runCatching {
+            (nativeAdb ?: NativeAdbManager(activity).also { nativeAdb = it }).connect(endpoint)
+        }.fold(
+            onSuccess = { parsed -> result.success(mapOf("endpoint" to parsed.toString())) },
+            onFailure = { error -> result.error("native_adb_connect", error.message ?: "ADB 连接失败", null) },
+        )
+    }
+
+    private fun nativeAdbShell(call: MethodCall, result: MethodChannel.Result) {
+        val command = call.argument<String>("command")?.trim().orEmpty()
+        if (command.isBlank()) {
+            result.error("native_adb_command", "ADB shell 命令不能为空", null)
+            return
+        }
+        runCatching { (nativeAdb ?: throw IllegalStateException("ADB is not connected")).shell(command) }
+            .fold(
+                onSuccess = result::success,
+                onFailure = { error -> result.error("native_adb_shell", error.message ?: "ADB shell 失败", null) },
+            )
+    }
+
+    private fun nativeAdbPush(call: MethodCall, result: MethodChannel.Result) {
+        val data = call.argument<ByteArray>("data")
+        val remotePath = call.argument<String>("remotePath")?.trim().orEmpty()
+        if (data == null || remotePath.isBlank()) {
+            result.error("native_adb_push_args", "ADB push 参数不完整", null)
+            return
+        }
+        val mode = call.argument<Int>("unixMode") ?: 420
+        runCatching { (nativeAdb ?: throw IllegalStateException("ADB is not connected")).push(data, remotePath, mode) }
+            .fold(
+                onSuccess = { result.success(true) },
+                onFailure = { error -> result.error("native_adb_push", error.message ?: "ADB push 失败", null) },
+            )
+    }
+
+    private fun nativeAdbPull(call: MethodCall, result: MethodChannel.Result) {
+        val remotePath = call.argument<String>("remotePath")?.trim().orEmpty()
+        if (remotePath.isBlank()) {
+            result.error("native_adb_pull_args", "ADB pull 路径不能为空", null)
+            return
+        }
+        runCatching { (nativeAdb ?: throw IllegalStateException("ADB is not connected")).pull(remotePath) }
+            .fold(
+                onSuccess = result::success,
+                onFailure = { error -> result.error("native_adb_pull", error.message ?: "ADB pull 失败", null) },
+            )
     }
 
     private fun downloadTermux(result: MethodChannel.Result) {
