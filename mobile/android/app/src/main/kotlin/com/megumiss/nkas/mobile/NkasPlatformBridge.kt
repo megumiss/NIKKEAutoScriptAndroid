@@ -2,6 +2,8 @@ package com.megumiss.nkas.mobile
 
 import android.content.Intent
 import android.net.Uri
+import android.net.ConnectivityManager
+import android.net.Network
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -44,12 +46,15 @@ class NkasPlatformBridge(private val activity: FlutterActivity) :
     private var nativeScrcpy: NativeScrcpySession? = null
     private var textureRegistry: TextureRegistry? = null
     private var scrcpyTexture: TextureRegistry.SurfaceTextureEntry? = null
+    private var connectivity: ConnectivityManager? = null
+    private var networkCallback: ConnectivityManager.NetworkCallback? = null
     private val nativeExecutor: ExecutorService = Executors.newSingleThreadExecutor { task ->
         Thread(task, "nkas-native-platform").apply { isDaemon = true }
     }
 
     fun register(engine: FlutterEngine) {
         textureRegistry = engine.renderer
+        registerNetworkCallback()
         MethodChannel(engine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler(this)
         EventChannel(engine.dartExecutor.binaryMessenger, EVENTS).setStreamHandler(this)
     }
@@ -327,6 +332,7 @@ class NkasPlatformBridge(private val activity: FlutterActivity) :
     }
 
     fun close() {
+        unregisterNetworkCallback()
         stopNativeScrcpy()
         nativeAdb?.close()
         nativeAdb = null
@@ -481,6 +487,37 @@ class NkasPlatformBridge(private val activity: FlutterActivity) :
         scrcpyTexture?.release()
         scrcpyTexture = null
         if (hadSession) emit(mapOf("type" to "scrcpyVideo", "state" to "stopped"))
+    }
+
+    private fun registerNetworkCallback() {
+        if (networkCallback != null) return
+        val manager = activity.getSystemService(ConnectivityManager::class.java) ?: return
+        val callback = object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: Network) {
+                emit(mapOf("type" to "nativeNetwork", "state" to "available"))
+            }
+
+            override fun onLost(network: Network) {
+                if (nativeScrcpy != null) {
+                    stopNativeScrcpy()
+                    emit(mapOf("type" to "scrcpyVideo", "state" to "error", "error" to "网络连接已断开"))
+                }
+                emit(mapOf("type" to "nativeNetwork", "state" to "lost"))
+            }
+        }
+        runCatching { manager.registerDefaultNetworkCallback(callback) }
+            .onSuccess {
+                connectivity = manager
+                networkCallback = callback
+            }
+    }
+
+    private fun unregisterNetworkCallback() {
+        val manager = connectivity
+        val callback = networkCallback
+        if (manager != null && callback != null) runCatching { manager.unregisterNetworkCallback(callback) }
+        connectivity = null
+        networkCallback = null
     }
 
     private fun nativeScrcpyKeycode(call: MethodCall, result: MethodChannel.Result) {

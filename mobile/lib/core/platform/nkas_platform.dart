@@ -151,6 +151,11 @@ class ScrcpyVideoEvent extends NkasPlatformEvent {
   final String? error;
 }
 
+class NativeNetworkEvent extends NkasPlatformEvent {
+  const NativeNetworkEvent(this.state);
+  final String state;
+}
+
 class NativeScrcpyStart {
   const NativeScrcpyStart({
     required this.scid,
@@ -424,6 +429,8 @@ class NkasPlatform {
           height: (value['height'] as num?)?.toInt(),
           error: value['error'] as String?,
         );
+      case 'nativeNetwork':
+        return NativeNetworkEvent(value['state'] as String? ?? 'unknown');
       default:
         return const SetupStateEvent('idle', null);
     }

@@ -191,6 +191,8 @@ class _NkasSetupPageState extends State<NkasSetupPage>
         unawaited(_refresh());
       case ScrcpyVideoEvent():
         break;
+      case NativeNetworkEvent():
+        break;
     }
   }
 
