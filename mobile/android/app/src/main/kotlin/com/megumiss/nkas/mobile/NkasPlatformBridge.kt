@@ -17,6 +17,11 @@ import com.megumiss.nkas.mobile.platform.SettingsStore
 import com.megumiss.nkas.mobile.platform.TermuxBridge
 import com.megumiss.nkas.mobile.platform.TermuxInstaller
 import com.megumiss.nkas.mobile.platform.adb.NativeAdbManager
+import com.megumiss.nkas.mobile.platform.scrcpy.NativeScrcpyLauncher
+import com.megumiss.nkas.mobile.platform.scrcpy.NativeScrcpySession
+import com.megumiss.nkas.mobile.platform.scrcpy.ScrcpyServerOptions
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.EventChannel
@@ -34,6 +39,10 @@ class NkasPlatformBridge(private val activity: FlutterActivity) :
     private var installer: TermuxInstaller? = null
     private var connectMdns: AdbMdns? = null
     private var nativeAdb: NativeAdbManager? = null
+    private var nativeScrcpy: NativeScrcpySession? = null
+    private val nativeExecutor: ExecutorService = Executors.newSingleThreadExecutor { task ->
+        Thread(task, "nkas-native-platform").apply { isDaemon = true }
+    }
 
     fun register(engine: FlutterEngine) {
         MethodChannel(engine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler(this)
@@ -118,6 +127,18 @@ class NkasPlatformBridge(private val activity: FlutterActivity) :
             "nativeAdbShell" -> nativeAdbShell(call, result)
             "nativeAdbPush" -> nativeAdbPush(call, result)
             "nativeAdbPull" -> nativeAdbPull(call, result)
+            "nativeScrcpyStart" -> nativeScrcpyStart(call, result)
+            "nativeScrcpyStop" -> {
+                nativeScrcpy?.close()
+                nativeScrcpy = null
+                result.success(true)
+            }
+            "nativeScrcpyBack" -> nativeScrcpy?.controlWriter?.pressBack(call.argument<Int>("action") ?: 0)
+                ?.let { result.success(true) } ?: result.error("native_scrcpy", "scrcpy 未启动", null)
+            "nativeScrcpyText" -> nativeScrcpy?.controlWriter?.injectText(call.argument<String>("text").orEmpty())
+                ?.let { result.success(true) } ?: result.error("native_scrcpy", "scrcpy 未启动", null)
+            "nativeScrcpyKeycode" -> nativeScrcpyKeycode(call, result)
+            "nativeScrcpyTouch" -> nativeScrcpyTouch(call, result)
             "nativeAdbClose" -> {
                 nativeAdb?.close()
                 nativeAdb = null
@@ -301,6 +322,14 @@ class NkasPlatformBridge(private val activity: FlutterActivity) :
         }
     }
 
+    fun close() {
+        nativeScrcpy?.close()
+        nativeScrcpy = null
+        nativeAdb?.close()
+        nativeAdb = null
+        nativeExecutor.shutdownNow()
+    }
+
     private fun writeNkasSerial(call: MethodCall, result: MethodChannel.Result) {
         val serial = call.argument<String>("serial")?.trim().orEmpty()
         TermuxBridge(activity).writeNkasSerial(serial) { command ->
@@ -364,6 +393,79 @@ class NkasPlatformBridge(private val activity: FlutterActivity) :
                 onSuccess = result::success,
                 onFailure = { error -> result.error("native_adb_pull", error.message ?: "ADB pull 失败", null) },
             )
+    }
+
+    private fun nativeScrcpyStart(call: MethodCall, result: MethodChannel.Result) {
+        val endpoint = call.argument<String>("endpoint")?.trim().orEmpty()
+        if (endpoint.isBlank()) {
+            result.error("native_scrcpy_endpoint", "ADB 地址不能为空", null)
+            return
+        }
+        val options = ScrcpyServerOptions(
+            video = call.argument<Boolean>("video") ?: true,
+            audio = false,
+            control = call.argument<Boolean>("control") ?: true,
+            maxSize = call.argument<Int>("maxSize") ?: 0,
+            videoBitRate = call.argument<Int>("videoBitRate") ?: 0,
+        )
+        nativeExecutor.execute {
+            runCatching {
+                val manager = nativeAdb ?: NativeAdbManager(activity).also { nativeAdb = it }
+                manager.connect(endpoint)
+                nativeScrcpy?.close()
+                val jar = activity.assets.open("bin/scrcpy-server-v4.1").use { it.readBytes() }
+                NativeScrcpyLauncher(manager).start(jar, options).also { nativeScrcpy = it }
+            }.fold(
+                onSuccess = { session ->
+                    main.post {
+                        result.success(mapOf(
+                            "scid" to session.scid,
+                            "command" to session.command,
+                            "deviceName" to session.videoMetadata?.deviceName,
+                            "codecId" to session.videoMetadata?.codecId,
+                            "video" to (session.videoStream != null),
+                            "control" to (session.controlStream != null),
+                        ))
+                    }
+                },
+                onFailure = { error -> main.post { result.error("native_scrcpy_start", error.message ?: "scrcpy 启动失败", null) } },
+            )
+        }
+    }
+
+    private fun nativeScrcpyKeycode(call: MethodCall, result: MethodChannel.Result) {
+        val writer = nativeScrcpy?.controlWriter
+        if (writer == null) {
+            result.error("native_scrcpy", "scrcpy 未启动", null)
+            return
+        }
+        writer.injectKeycode(
+            call.argument<Int>("action") ?: 0,
+            call.argument<Int>("keycode") ?: 0,
+            call.argument<Int>("repeat") ?: 0,
+            call.argument<Int>("metaState") ?: 0,
+        )
+        result.success(true)
+    }
+
+    private fun nativeScrcpyTouch(call: MethodCall, result: MethodChannel.Result) {
+        val writer = nativeScrcpy?.controlWriter
+        if (writer == null) {
+            result.error("native_scrcpy", "scrcpy 未启动", null)
+            return
+        }
+        writer.injectTouch(
+            action = call.argument<Int>("action") ?: 0,
+            pointerId = call.argument<Number>("pointerId")?.toLong() ?: 0L,
+            x = call.argument<Int>("x") ?: 0,
+            y = call.argument<Int>("y") ?: 0,
+            screenWidth = call.argument<Int>("screenWidth") ?: 1,
+            screenHeight = call.argument<Int>("screenHeight") ?: 1,
+            pressure = call.argument<Number>("pressure")?.toFloat() ?: 1f,
+            actionButton = call.argument<Int>("actionButton") ?: 0,
+            buttons = call.argument<Int>("buttons") ?: 0,
+        )
+        result.success(true)
     }
 
     private fun downloadTermux(result: MethodChannel.Result) {

@@ -18,4 +18,9 @@ class MainActivity : FlutterActivity() {
         setIntent(intent)
         if (::platformBridge.isInitialized) platformBridge.handleIntent(intent)
     }
+
+    override fun onDestroy() {
+        if (::platformBridge.isInitialized) platformBridge.close()
+        super.onDestroy()
+    }
 }
