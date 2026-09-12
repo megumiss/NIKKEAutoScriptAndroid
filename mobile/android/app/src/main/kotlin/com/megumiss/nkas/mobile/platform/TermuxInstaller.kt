@@ -49,6 +49,55 @@ class TermuxInstaller(private val activity: Activity) {
             abi.contains("x86") -> listOf("x86")
             else -> throw IllegalStateException("Termux 不支持当前设备架构：$abi")
         }
+        findAssetFromReleasePage(tokens)?.let { return it }
+        return findAssetFromApi(abi, tokens)
+    }
+
+    private fun findAssetFromReleasePage(tokens: List<String>): Pair<String, String>? {
+        val connection = (URL(RELEASE_PAGE).openConnection() as HttpURLConnection).apply {
+            connectTimeout = 15_000
+            readTimeout = 20_000
+            instanceFollowRedirects = true
+            requestMethod = "GET"
+            setRequestProperty("User-Agent", "NKAS-Mobile")
+        }
+        try {
+            if (connection.responseCode !in 200..299) return null
+            val tag = Regex("/releases/tag/([^/?#]+)").find(connection.url.toString())?.groupValues?.get(1)
+                ?: return null
+            val architecture = tokens.firstOrNull() ?: return null
+            val candidates = listOf(
+                "termux-app_${tag}+github-debug_${architecture}.apk",
+                "termux-app_${tag}+github-debug_universal.apk",
+                "termux-app_${tag}+github-release_${architecture}.apk",
+                "termux-app_${tag}+github-release_universal.apk",
+            )
+            for (name in candidates) {
+                val url = "https://github.com/termux/termux-app/releases/download/$tag/$name"
+                if (isAssetAvailable(url)) return name to url
+            }
+            return null
+        } finally {
+            connection.disconnect()
+        }
+    }
+
+    private fun isAssetAvailable(url: String): Boolean {
+        val connection = (URL(url).openConnection() as HttpURLConnection).apply {
+            connectTimeout = 10_000
+            readTimeout = 15_000
+            instanceFollowRedirects = true
+            requestMethod = "HEAD"
+            setRequestProperty("User-Agent", "NKAS-Mobile")
+        }
+        return try {
+            connection.responseCode in 200..299
+        } finally {
+            connection.disconnect()
+        }
+    }
+
+    private fun findAssetFromApi(abi: String, tokens: List<String>): Pair<String, String> {
         val connection = (URL(RELEASE_API).openConnection() as HttpURLConnection).apply {
             connectTimeout = 15_000
             readTimeout = 20_000
@@ -58,7 +107,12 @@ class TermuxInstaller(private val activity: Activity) {
         }
         try {
             if (connection.responseCode !in 200..299) {
-                throw IllegalStateException("GitHub API 返回 HTTP ${connection.responseCode}")
+                val detail = (connection.errorStream ?: connection.inputStream)
+                    .bufferedReader().use { it.readText() }.take(240)
+                throw IllegalStateException(
+                    "GitHub API 返回 HTTP ${connection.responseCode}" +
+                        if (detail.isBlank()) "" else "：$detail",
+                )
             }
             val release = JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
             val assets = release.optJSONArray("assets")
@@ -89,7 +143,12 @@ class TermuxInstaller(private val activity: Activity) {
         }
         try {
             if (connection.responseCode !in 200..299) {
-                throw IllegalStateException("Termux 下载返回 HTTP ${connection.responseCode}")
+                val detail = (connection.errorStream ?: connection.inputStream)
+                    .bufferedReader().use { it.readText() }.take(240)
+                throw IllegalStateException(
+                    "Termux 下载返回 HTTP ${connection.responseCode}" +
+                        if (detail.isBlank()) "" else "：$detail",
+                )
             }
             val total = connection.contentLengthLong
             var received = 0L
@@ -130,6 +189,7 @@ class TermuxInstaller(private val activity: Activity) {
     }
 
     companion object {
+        private const val RELEASE_PAGE = "https://github.com/termux/termux-app/releases/latest"
         private const val RELEASE_API = "https://api.github.com/repos/termux/termux-app/releases/latest"
     }
 }
