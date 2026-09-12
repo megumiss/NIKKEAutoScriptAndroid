@@ -38,6 +38,7 @@ class _NkasSetupPageState extends State<NkasSetupPage> {
   bool running = false;
   final serialController = TextEditingController();
   final stageStates = <String, String>{};
+  final stageLogs = <String, String>{};
   String? activeStage;
   final expanded = <String>{
     'permission',
@@ -109,6 +110,8 @@ class _NkasSetupPageState extends State<NkasSetupPage> {
             stageStates[activeStage ?? 'tools'] = '失败';
           } else if (state == 'ready') {
             output = '初始化完成';
+            if (activeStage != null) expanded.remove(activeStage);
+            activeStage = null;
             for (final key in bootstrapStages.values) {
               stageStates[key] = '完成';
             }
@@ -151,9 +154,12 @@ class _NkasSetupPageState extends State<NkasSetupPage> {
     setState(() {
       running = true;
       error = null;
-      output = '';
-      activeStage = null;
+      output = '正在请求 Termux 恢复安装脚本……';
+      activeStage = 'tools';
       stageStates.clear();
+      stageLogs.clear();
+      stageStates['tools'] = '执行中';
+      expanded.add('tools');
     });
     try {
       await NkasPlatform.instance.startSetup();
@@ -199,7 +205,26 @@ class _NkasSetupPageState extends State<NkasSetupPage> {
     if (currentIndex < 0) return;
 
     final entries = bootstrapStages.entries.toList();
+    final previousStage = activeStage;
     activeStage = entries[currentIndex].value;
+    if (previousStage != null && previousStage != activeStage) {
+      expanded.remove(previousStage);
+    }
+    final log = raw
+        .split('---LOG---')
+        .skip(1)
+        .join('---LOG---')
+        .split('---SERVICE---')
+        .first
+        .trim();
+    if (log.isNotEmpty) stageLogs[activeStage!] = _tail(log, 5000);
+    final service = raw
+        .split('---SERVICE---')
+        .skip(1)
+        .join('---SERVICE---')
+        .trim();
+    if (service.isNotEmpty) stageLogs['service'] = _tail(service, 5000);
+    expanded.add(activeStage!);
     for (var index = 0; index < entries.length; index++) {
       final key = entries[index].value;
       stageStates[key] = index < currentIndex
@@ -209,6 +234,10 @@ class _NkasSetupPageState extends State<NkasSetupPage> {
           : '等待';
     }
   }
+
+  String _tail(String value, int maxLength) => value.length <= maxLength
+      ? value
+      : value.substring(value.length - maxLength);
 
   void _show(String text) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
@@ -585,8 +614,9 @@ class _NkasSetupPageState extends State<NkasSetupPage> {
           ),
         );
       default:
-        if (running && output.isNotEmpty && stageStates[key] == '执行中') {
-          return _ExtraPanel(text: output, monospace: true);
+        final log = stageLogs[key] ?? (activeStage == key ? output : '');
+        if (log.isNotEmpty) {
+          return _ExtraPanel(text: log, monospace: true);
         }
         return null;
     }
