@@ -62,7 +62,7 @@ internal fun encodeAdbPublicKey(publicKey: RSAPublicKey, name: String): ByteArra
         .put(rrLE)
         .putInt(publicKey.publicExponent.toInt())
         .array()
-    return (Base64.getEncoder().withoutPadding().encodeToString(body) + " $name\u0000")
+    return (Base64.getEncoder().encodeToString(body) + " $name\u0000")
         .toByteArray(Charsets.UTF_8)
 }
 
