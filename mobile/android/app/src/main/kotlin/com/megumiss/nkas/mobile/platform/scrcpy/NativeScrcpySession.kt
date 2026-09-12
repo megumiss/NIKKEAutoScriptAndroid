@@ -75,6 +75,8 @@ class NativeScrcpySession internal constructor(
     val controlStream: AdbStream?,
     val videoMetadata: VideoMetadata?,
 ) : Closeable {
+    val controlWriter: ScrcpyControlWriter? = controlStream?.let { ScrcpyControlWriter(it.outputStream) }
+
     override fun close() {
         controlStream?.close()
         videoStream?.takeUnless { it === controlStream }?.close()
