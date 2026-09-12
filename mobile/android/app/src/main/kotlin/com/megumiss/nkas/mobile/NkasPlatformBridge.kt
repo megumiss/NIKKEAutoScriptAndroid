@@ -112,6 +112,16 @@ class NkasPlatformBridge(private val activity: FlutterActivity) :
             }
             "getNkasSerial" -> readNkasSerial(result)
             "setNkasSerial" -> writeNkasSerial(call, result)
+            "getInitialNoticeShown" -> result.success(
+                activity.getSharedPreferences(SETUP_PREFS_NAME, 0)
+                    .getBoolean(KEY_INITIAL_NOTICE_SHOWN, false),
+            )
+            "setInitialNoticeShown" -> {
+                activity.getSharedPreferences(SETUP_PREFS_NAME, 0).edit()
+                    .putBoolean(KEY_INITIAL_NOTICE_SHOWN, true)
+                    .apply()
+                result.success(true)
+            }
             else -> result.notImplemented()
         }
     }
@@ -168,6 +178,11 @@ class NkasPlatformBridge(private val activity: FlutterActivity) :
             val output = command.stdout + if (command.stderr.isBlank()) "" else "\n${command.stderr}"
             base["artifacts"] = parseArtifactOutput(output)
             base["commandExitCode"] = command.exitCode
+            base["adbConnect"] = output.lineSequence()
+                .firstOrNull { it.startsWith("adb_connect=") }
+                ?.substringAfter('=')
+                ?.trim()
+                .orEmpty()
             main.post { result.success(base) }
         }
     }
@@ -351,5 +366,7 @@ class NkasPlatformBridge(private val activity: FlutterActivity) :
         )
         private const val RUN_COMMAND_REQUEST = 1001
         private const val NOTIFICATION_REQUEST = 1002
+        private const val SETUP_PREFS_NAME = "nkas_state"
+        private const val KEY_INITIAL_NOTICE_SHOWN = "initial_notice_shown"
     }
 }

@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:nkas_mobile/core/platform/nkas_platform.dart';
 import 'package:nkas_mobile/core/platform/runtime_platform.dart';
@@ -46,11 +45,14 @@ class _NkasSetupPageState extends State<NkasSetupPage>
   bool termuxDownloadActive = false;
   bool termuxDownloadNeedsCheck = false;
   bool termuxDownloadFailed = false;
+  bool pairingActive = false;
+  Timer? pairingTimer;
   final serialController = TextEditingController();
   final serialFocusNode = FocusNode();
   final pairCodeController = TextEditingController();
   final stageStates = <String, String>{};
   final stageLogs = <String, String>{};
+  final stepCompletion = <String, bool>{};
   String? activeStage;
   final expanded = <String>{
     'permission',
@@ -86,8 +88,6 @@ class _NkasSetupPageState extends State<NkasSetupPage>
     'starting-nkas': 'service',
   };
 
-  static const initialNoticeKey = 'initial_notice_shown';
-
   @override
   void initState() {
     super.initState();
@@ -103,6 +103,7 @@ class _NkasSetupPageState extends State<NkasSetupPage>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     refreshTimer?.cancel();
+    pairingTimer?.cancel();
     unawaited(subscription?.cancel());
     serialController.dispose();
     serialFocusNode.removeListener(_onSerialFocusChanged);
@@ -186,6 +187,30 @@ class _NkasSetupPageState extends State<NkasSetupPage>
       setState(() {
         status = value;
         loading = false;
+        _syncStepExpansion('termux', value.termuxInstalled);
+        _syncStepExpansion('permission', value.runCommandPermission);
+        _syncStepExpansion('wireless', value.wirelessDebug);
+        for (final key in const [
+          'termux_setting',
+          'adb_device',
+          'tools',
+          'source',
+          'config',
+          'container',
+          'service',
+        ]) {
+          final done = value.artifacts[key];
+          if (done != null) _syncStepExpansion(key, done);
+        }
+        if (value.artifacts['adb_device'] == true) {
+          pairingActive = false;
+          pairingTimer?.cancel();
+        }
+        final connectResult = value.connectResult.trim();
+        if (connectResult.isNotEmpty && value.artifacts['adb_device'] != true) {
+          stageLogs['adb_device'] = _adbConnectMessage(connectResult);
+          expanded.add('adb_device');
+        }
         if (value.termuxInstalled) {
           termuxDownloadActive = false;
           termuxDownloadNeedsCheck = false;
@@ -233,6 +258,7 @@ class _NkasSetupPageState extends State<NkasSetupPage>
   }
 
   Future<void> _pair() async {
+    if (pairingActive) return;
     if (!await _saveSerial(refresh: false)) return;
     final serial = serialController.text.trim();
     final code = pairCodeController.text.trim();
@@ -243,10 +269,23 @@ class _NkasSetupPageState extends State<NkasSetupPage>
       });
       return;
     }
-    if (serial.isNotEmpty) {
-      await NkasPlatform.instance.setSerial('127.0.0.1:$serial');
-    }
+    setState(() {
+      pairingActive = true;
+      stageLogs['adb_device'] = '正在搜索无线调试配对服务……';
+      expanded.add('adb_device');
+    });
+    pairingTimer?.cancel();
+    pairingTimer = Timer(const Duration(seconds: 65), () {
+      if (!mounted || !pairingActive) return;
+      setState(() {
+        pairingActive = false;
+        stageLogs['adb_device'] = '等待配对服务超时，请确认无线调试中的“使用配对码配对”弹窗处于打开状态。';
+      });
+    });
     try {
+      if (serial.isNotEmpty) {
+        await NkasPlatform.instance.setSerial('127.0.0.1:$serial');
+      }
       await NkasPlatform.instance.pairDevice(
         code: code,
         serial: serial.isEmpty ? '' : '127.0.0.1:$serial',
@@ -261,8 +300,10 @@ class _NkasSetupPageState extends State<NkasSetupPage>
         _show('配对服务已启动，请在无线调试配对通知中输入配对码');
       }
     } on Object catch (exception) {
+      pairingTimer?.cancel();
       if (mounted) {
         setState(() {
+          pairingActive = false;
           stageLogs['adb_device'] = exception.toString();
           expanded.add('adb_device');
         });
@@ -509,6 +550,7 @@ class _NkasSetupPageState extends State<NkasSetupPage>
     if (!status.wirelessDebug) return '打开无线调试设置';
     if (running) return '正在安装…';
     if (_artifactBlocked) {
+      if (_artifactCheckFailed) return '重新检查';
       return status.artifacts['termux_setting'] != true
           ? '等待 Termux 设置'
           : '等待 ADB 设备';
@@ -525,17 +567,34 @@ class _NkasSetupPageState extends State<NkasSetupPage>
     if (!status.runCommandPermission) return LucideIcons.shieldCheck;
     if (!status.wirelessDebug) return LucideIcons.settings2;
     if (running) return LucideIcons.loaderCircle;
+    if (_artifactCheckFailed) return LucideIcons.refreshCw;
     if (status.artifactsReady) return LucideIcons.externalLink;
     return LucideIcons.rocket;
   }
 
   bool get _artifactBlocked =>
-      status.artifacts.isNotEmpty &&
-      (status.artifacts['termux_setting'] != true ||
-          status.artifacts['adb_device'] != true);
+      _artifactCheckFailed ||
+      (status.artifacts.isNotEmpty &&
+          (status.artifacts['termux_setting'] != true ||
+              status.artifacts['adb_device'] != true));
+
+  bool get _artifactCheckFailed =>
+      status.commandExitCode != null &&
+      (status.commandExitCode != 0 ||
+          !const [
+            'termux_setting',
+            'adb_device',
+            'tools',
+            'source',
+            'config',
+            'container',
+            'service',
+          ].every(status.artifacts.containsKey));
 
   bool get _actionDisabled =>
-      running || termuxDownloadActive || _artifactBlocked;
+      running ||
+      termuxDownloadActive ||
+      (_artifactBlocked && !_artifactCheckFailed);
 
   Future<void> _handleAction() async {
     if (setupFailed) return _start();
@@ -561,13 +620,13 @@ class _NkasSetupPageState extends State<NkasSetupPage>
     if (!status.wirelessDebug) {
       return NkasPlatform.instance.openWirelessSettings();
     }
+    if (_artifactCheckFailed) return _refresh();
     if (_artifactBlocked) return;
     if (status.artifactsReady) {
       return _openUi();
     }
-    final preferences = await SharedPreferences.getInstance();
-    if (!mounted) return;
-    if (preferences.getBool(initialNoticeKey) != true) {
+    if (!await NkasPlatform.instance.initialNoticeShown()) {
+      if (!mounted) return;
       final proceed = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
@@ -588,7 +647,7 @@ class _NkasSetupPageState extends State<NkasSetupPage>
         ),
       );
       if (proceed != true) return;
-      await preferences.setBool(initialNoticeKey, true);
+      await NkasPlatform.instance.setInitialNoticeShown();
     }
     return _start();
   }
@@ -639,14 +698,17 @@ class _NkasSetupPageState extends State<NkasSetupPage>
     if (key == 'termux') return status.termuxInstalled ? '已安装' : '待安装';
     if (key == 'permission') return status.runCommandPermission ? '已授权' : '待授权';
     if (key == 'wireless') return status.wirelessDebug ? '已开启' : '待开启';
-    if (key == 'adb_device' && status.serial.isNotEmpty) return '已连接';
+    if (key == 'adb_device' && status.artifacts['adb_device'] == true) {
+      return '已连接';
+    }
     if (running && stageStates[key] != null) return stageStates[key]!;
     if (status.artifacts[key] == true) {
       return key == 'service' ? '运行中' : '已检测';
     }
     if (stageStates[key] != null) return stageStates[key]!;
-    if (!status.authorized &&
+    if (_projectEnvironmentBlocked &&
         const [
+          'adb_device',
           'tools',
           'source',
           'config',
@@ -665,6 +727,35 @@ class _NkasSetupPageState extends State<NkasSetupPage>
       'adb_device' => '待连接',
       _ => '等待环境',
     };
+  }
+
+  bool get _projectEnvironmentBlocked =>
+      !status.authorized ||
+      !status.termuxInstalled ||
+      !status.runCommandPermission ||
+      !status.wirelessDebug ||
+      status.artifacts['termux_setting'] == false ||
+      _artifactCheckFailed;
+
+  String _adbConnectMessage(String result) {
+    final extra = result.toLowerCase().contains('not found')
+        ? '\nTermux 中还没有 adb 工具，请先完成上方“项目安装”中的 Termux 工具步骤。'
+        : result.toLowerCase().contains('authenticate') ||
+              result.toLowerCase().contains('unauthorized')
+        ? '\n设备尚未授权过 Termux，请使用下方配对地址和配对码执行一次配对，之后即可直接连接。'
+        : '';
+    return 'adb connect：$result$extra';
+  }
+
+  void _syncStepExpansion(String key, bool done) {
+    final previous = stepCompletion[key];
+    if (previous == done) return;
+    stepCompletion[key] = done;
+    if (done) {
+      expanded.remove(key);
+    } else {
+      expanded.add(key);
+    }
   }
 
   String _stepDetail(String key) {
@@ -790,8 +881,8 @@ class _NkasSetupPageState extends State<NkasSetupPage>
               const SizedBox(height: 8),
               SecondaryButton(
                 icon: LucideIcons.link,
-                label: '配对',
-                onPressed: _pair,
+                label: pairingActive ? '配对中…' : '配对',
+                onPressed: pairingActive ? null : _pair,
               ),
               const SizedBox(height: 7),
               Text(

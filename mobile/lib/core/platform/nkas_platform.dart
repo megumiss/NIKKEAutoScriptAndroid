@@ -40,6 +40,8 @@ class SetupStatus {
     required this.serial,
     this.termuxVersion,
     this.artifacts = const {},
+    this.commandExitCode,
+    this.connectResult = '',
     this.error,
   });
 
@@ -50,6 +52,8 @@ class SetupStatus {
   final String serial;
   final String? termuxVersion;
   final Map<String, bool> artifacts;
+  final int? commandExitCode;
+  final String connectResult;
   final String? error;
 
   factory SetupStatus.fromMap(Map<Object?, Object?> map) {
@@ -66,6 +70,8 @@ class SetupStatus {
               (key, value) => MapEntry(key.toString(), value == true),
             )
           : const {},
+      commandExitCode: (map['commandExitCode'] as num?)?.toInt(),
+      connectResult: map['adbConnect'] as String? ?? '',
       error: map['error'] as String?,
     );
   }
@@ -244,6 +250,16 @@ class NkasPlatform {
     await _channel.invokeMethod<void>('setNkasSerial', <String, Object?>{
       'serial': serial,
     });
+  }
+
+  Future<bool> initialNoticeShown() async {
+    if (!_androidSupported) return false;
+    return await _channel.invokeMethod<bool>('getInitialNoticeShown') ?? false;
+  }
+
+  Future<void> setInitialNoticeShown() async {
+    if (!_androidSupported) return;
+    await _channel.invokeMethod<void>('setInitialNoticeShown');
   }
 
   NkasPlatformEvent _parseEvent(Map<Object?, Object?> value) {
