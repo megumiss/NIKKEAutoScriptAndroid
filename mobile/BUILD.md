@@ -9,6 +9,16 @@ flutter test
 flutter build apk --release
 ```
 
+## 版本递增
+
+每次提交前递增移动端版本号，并同步关于页展示：
+
+```powershell
+pwsh -File tool/bump-version.ps1
+```
+
+补丁版本按十进制进位，例如 `1.0.9` 会递增为 `1.1.0`。
+
 仓库的 `.github/workflows/flutter-release.yml` 提供 `workflow_dispatch` 和 `v*` Tag 构建。Android 任务在 Ubuntu runner 上生成 APK，iOS 任务在 macOS runner 上生成 IPA。
 
 ## Android Secrets
