@@ -170,7 +170,7 @@ class NkasPlatformBridge(private val activity: FlutterActivity) :
             "authorized" to AccessGate.isAuthorized(activity),
             "serial" to SettingsStore.serial(activity),
         )
-        if (!bridge.isInstalled() || !hasRunCommandPermission() || !isWirelessDebugEnabled()) {
+        if (!bridge.isInstalled() || !hasRunCommandPermission()) {
             result.success(base)
             return
         }

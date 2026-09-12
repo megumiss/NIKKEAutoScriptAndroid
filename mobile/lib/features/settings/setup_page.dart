@@ -547,6 +547,9 @@ class _NkasSetupPageState extends State<NkasSetupPage>
       return termuxDownloadNeedsCheck ? '重新检查' : '下载并安装 Termux';
     }
     if (!status.runCommandPermission) return '授权 Termux 外部命令';
+    if (status.artifacts['termux_setting'] != true) {
+      return '等待 Termux 设置';
+    }
     if (!status.wirelessDebug) return '打开无线调试设置';
     if (running) return '正在安装…';
     if (_artifactBlocked) {
@@ -565,6 +568,7 @@ class _NkasSetupPageState extends State<NkasSetupPage>
     if (!status.authorized) return LucideIcons.shieldCheck;
     if (!status.termuxInstalled) return LucideIcons.download;
     if (!status.runCommandPermission) return LucideIcons.shieldCheck;
+    if (status.artifacts['termux_setting'] != true) return LucideIcons.terminal;
     if (!status.wirelessDebug) return LucideIcons.settings2;
     if (running) return LucideIcons.loaderCircle;
     if (_artifactCheckFailed) return LucideIcons.refreshCw;
@@ -617,6 +621,7 @@ class _NkasSetupPageState extends State<NkasSetupPage>
       await Future<void>.delayed(const Duration(milliseconds: 500));
       return _refresh();
     }
+    if (status.artifacts['termux_setting'] != true) return _refresh();
     if (!status.wirelessDebug) {
       return NkasPlatform.instance.openWirelessSettings();
     }
