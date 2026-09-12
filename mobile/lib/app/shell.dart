@@ -480,7 +480,7 @@ class _NkasShellState extends State<NkasShell> {
     NkasPage.deploy => '部署',
     NkasPage.settings => '设置',
     NkasPage.starVerify => 'STAR 验证',
-    NkasPage.setup => '初始化 NKAS',
+    NkasPage.setup => '初始化',
     NkasPage.update => '更新',
     NkasPage.about => '关于',
   };

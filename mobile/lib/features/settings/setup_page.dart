@@ -289,9 +289,16 @@ class _NkasSetupPageState extends State<NkasSetupPage> {
           child: ListView(
             padding: EdgeInsets.fromLTRB(inset, 5, inset, 92),
             children: [
-              const PageSubtitle(
-                '准备 Termux、NKAS 服务和本地 Web UI；请开启自启动、关联启动，并允许后台运行。',
+              Text(
+                '准备 Termux、NKAS 服务和本地 Web UI\n'
+                '请开启 Termux 和 NKAS 的自启动、关联启动，并允许后台运行',
+                style: TextStyle(
+                  color: ShadTheme.of(context).colorScheme.mutedForeground,
+                  fontSize: 13,
+                  height: 19 / 13,
+                ),
               ),
+              const SizedBox(height: 14),
               if (loading) const LinearProgressIndicator(minHeight: 2),
               for (final group in groups) ...[
                 const SizedBox(height: 19),
