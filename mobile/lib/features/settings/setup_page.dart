@@ -47,6 +47,7 @@ class _NkasSetupPageState extends State<NkasSetupPage>
   bool termuxDownloadNeedsCheck = false;
   bool termuxDownloadFailed = false;
   final serialController = TextEditingController();
+  final pairCodeController = TextEditingController();
   final stageStates = <String, String>{};
   final stageLogs = <String, String>{};
   String? activeStage;
@@ -102,6 +103,7 @@ class _NkasSetupPageState extends State<NkasSetupPage>
     refreshTimer?.cancel();
     unawaited(subscription?.cancel());
     serialController.dispose();
+    pairCodeController.dispose();
     super.dispose();
   }
 
@@ -226,16 +228,39 @@ class _NkasSetupPageState extends State<NkasSetupPage>
 
   Future<void> _pair() async {
     final serial = serialController.text.trim();
+    final code = pairCodeController.text.trim();
+    if (code.isNotEmpty && !RegExp(r'^\d{4,8}$').hasMatch(code)) {
+      setState(() {
+        stageLogs['adb_device'] = '配对码格式不正确，请填写配对弹窗显示的数字配对码。';
+        expanded.add('adb_device');
+      });
+      return;
+    }
     if (serial.isNotEmpty) {
       await NkasPlatform.instance.setSerial('127.0.0.1:$serial');
     }
     try {
       await NkasPlatform.instance.pairDevice(
+        code: code,
         serial: serial.isEmpty ? '' : '127.0.0.1:$serial',
       );
-      if (mounted) _show('配对服务已启动，请在无线调试配对通知中输入配对码');
+      if (mounted) {
+        setState(() {
+          stageLogs['adb_device'] = code.isEmpty
+              ? '配对服务已启动：请在无线调试页面打开“使用配对码配对”并在通知中输入配对码。'
+              : '配对服务已启动：发现配对服务后将自动使用填写的配对码完成配对。';
+          expanded.add('adb_device');
+        });
+        _show('配对服务已启动，请在无线调试配对通知中输入配对码');
+      }
     } on Object catch (exception) {
-      if (mounted) _show(exception.toString());
+      if (mounted) {
+        setState(() {
+          stageLogs['adb_device'] = exception.toString();
+          expanded.add('adb_device');
+        });
+        _show(exception.toString());
+      }
     }
   }
 
@@ -713,26 +738,30 @@ class _NkasSetupPageState extends State<NkasSetupPage>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: serialController,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(
-                        hintText: '无线调试端口',
-                        isDense: true,
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  SecondaryButton(
-                    icon: LucideIcons.link,
-                    label: '配对',
-                    onPressed: _pair,
-                  ),
-                ],
+              TextField(
+                controller: serialController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  hintText: '无线调试端口',
+                  isDense: true,
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: pairCodeController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  hintText: '配对码（可留空，在通知中输入）',
+                  isDense: true,
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 8),
+              SecondaryButton(
+                icon: LucideIcons.link,
+                label: '配对',
+                onPressed: _pair,
               ),
               const SizedBox(height: 7),
               Text(

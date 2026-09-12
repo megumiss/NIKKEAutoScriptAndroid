@@ -255,6 +255,15 @@ class NkasPlatformBridge(private val activity: FlutterActivity) :
             return
         }
         runCatching {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                activity.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) !=
+                android.content.pm.PackageManager.PERMISSION_GRANTED
+            ) {
+                activity.requestPermissions(
+                    arrayOf(android.Manifest.permission.POST_NOTIFICATIONS),
+                    NOTIFICATION_REQUEST,
+                )
+            }
             activity.startService(AdbPairingService.startIntent(activity, code.ifBlank { null }))
             LogStore.log("pair", "Flutter 页面启动无线调试配对")
             result.success(mapOf("started" to true))
@@ -341,5 +350,6 @@ class NkasPlatformBridge(private val activity: FlutterActivity) :
             "termux_setting", "tools", "source", "config", "container", "service", "adb_device",
         )
         private const val RUN_COMMAND_REQUEST = 1001
+        private const val NOTIFICATION_REQUEST = 1002
     }
 }
