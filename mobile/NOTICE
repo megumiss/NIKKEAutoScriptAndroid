@@ -1,0 +1,23 @@
+NKAS Mobile
+
+Copyright 2026 NKAS Mobile contributors.
+
+This product includes or downloads components distributed under their own
+licenses. The application source is licensed under the Apache License 2.0;
+see LICENSE.
+
+Third-party components:
+
+* Genymobile scrcpy server v4.1 — Apache License 2.0.
+  https://github.com/Genymobile/scrcpy
+* Bouncy Castle bcpkix-jdk18on — MIT License.
+  https://www.bouncycastle.org/licence.html
+* Conscrypt Android — Apache License 2.0.
+  https://github.com/google/conscrypt
+* Flutter and packages listed in pubspec.yaml — each package's license is
+  retained by its respective copyright holder and is available from its
+  package metadata and source repository.
+
+The scrcpy server binary is downloaded during the Android build and is not
+committed to this repository. Its version and SHA-256 are pinned in
+android/app/build.gradle.kts.
