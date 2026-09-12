@@ -61,13 +61,18 @@ class ConnectionController extends ChangeNotifier {
 
   Future<void> initialize() async {
     final saved = await _settings.readBaseUrl();
-    await connect(saved ?? defaultBackendBaseUrl);
+    await connect(
+      saved == null || saved.trim().isEmpty ? defaultBackendBaseUrl : saved,
+    );
   }
 
   Future<bool> connect(String value, {bool persist = false}) async {
     late final String baseUrl;
     try {
-      baseUrl = ApiClient.normalizeBaseUrl(value);
+      final input = value.trim();
+      baseUrl = input.isEmpty
+          ? defaultBackendBaseUrl
+          : ApiClient.normalizeBaseUrl(input);
     } on FormatException catch (error) {
       _setState(
         BackendConnectionState(
@@ -77,6 +82,10 @@ class ConnectionController extends ChangeNotifier {
         ),
       );
       return false;
+    }
+
+    if (persist) {
+      await _settings.writeBaseUrl(baseUrl);
     }
 
     _setState(
@@ -98,9 +107,6 @@ class ConnectionController extends ChangeNotifier {
           ),
         );
         return false;
-      }
-      if (persist) {
-        await _settings.writeBaseUrl(baseUrl);
       }
       _setState(
         BackendConnectionState(

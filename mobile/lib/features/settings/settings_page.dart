@@ -351,6 +351,10 @@ class _BackendAddressSheetState extends State<_BackendAddressSheet> {
       Navigator.pop(context);
     } else {
       setState(() => _saving = false);
+      final message = widget.connectionController.state.message;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message ?? '无法连接后端，请检查地址和服务状态')));
     }
   }
 
@@ -385,10 +389,18 @@ class _BackendAddressSheetState extends State<_BackendAddressSheet> {
             enabled: !_saving,
             keyboardType: TextInputType.url,
             autocorrect: false,
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               hintText: 'http://127.0.0.1:12271',
               border: OutlineInputBorder(),
+              suffixIcon: _textController.text.isEmpty
+                  ? null
+                  : IconButton(
+                      tooltip: '清空地址',
+                      icon: const Icon(LucideIcons.x, size: 17),
+                      onPressed: _saving ? null : _textController.clear,
+                    ),
             ),
+            onChanged: (_) => setState(() {}),
             onSubmitted: _saving ? null : (_) => _save(),
           ),
           const SizedBox(height: 10),

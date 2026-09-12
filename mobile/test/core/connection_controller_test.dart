@@ -88,6 +88,31 @@ void main() {
     expect(settings.value, 'http://nkas.example:12271');
   });
 
+  test(
+    'uses and persists the local default when backend address is cleared',
+    () async {
+      late Uri requestedUri;
+      final settings = _MemoryBackendSettings();
+      final controller = ConnectionController(
+        api: ApiClient(
+          client: MockClient((request) async {
+            requestedUri = request.url;
+            return _statusResponse(2);
+          }),
+        ),
+        settings: settings,
+      );
+      addTearDown(controller.dispose);
+
+      expect(await controller.connect('', persist: true), isTrue);
+      expect(
+        requestedUri.toString(),
+        '$defaultBackendBaseUrl/api/system/status',
+      );
+      expect(settings.value, defaultBackendBaseUrl);
+    },
+  );
+
   test('parses the instance list returned by the backend', () async {
     final api = ApiClient(
       client: MockClient(
@@ -118,24 +143,27 @@ void main() {
     expect(instances.single.avatar, 'avatar.webp');
   });
 
-  test('reports incompatible API versions without persisting', () async {
-    final settings = _MemoryBackendSettings();
-    final controller = ConnectionController(
-      api: ApiClient(client: MockClient((_) async => _statusResponse(3))),
-      settings: settings,
-    );
-    addTearDown(controller.dispose);
+  test(
+    'persists the address before reporting an incompatible API version',
+    () async {
+      final settings = _MemoryBackendSettings();
+      final controller = ConnectionController(
+        api: ApiClient(client: MockClient((_) async => _statusResponse(3))),
+        settings: settings,
+      );
+      addTearDown(controller.dispose);
 
-    final connected = await controller.connect(
-      'http://nkas.example',
-      persist: true,
-    );
+      final connected = await controller.connect(
+        'http://nkas.example',
+        persist: true,
+      );
 
-    expect(connected, isFalse);
-    expect(controller.state.phase, ConnectionPhase.incompatible);
-    expect(controller.state.message, contains('API v2'));
-    expect(settings.value, isNull);
-  });
+      expect(connected, isFalse);
+      expect(controller.state.phase, ConnectionPhase.incompatible);
+      expect(controller.state.message, contains('API v2'));
+      expect(settings.value, 'http://nkas.example');
+    },
+  );
 
   test('reports request timeouts', () async {
     final controller = ConnectionController(
