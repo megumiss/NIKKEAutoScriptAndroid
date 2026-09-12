@@ -6,6 +6,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
+import android.view.Surface
 import androidx.annotation.Keep
 import com.megumiss.nkas.mobile.platform.AccessGate
 import com.megumiss.nkas.mobile.platform.AdbMdns
@@ -27,6 +28,7 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
+import io.flutter.view.TextureRegistry
 import java.util.UUID
 
 /** Bridges the existing Android STAR/Termux flow to the Flutter UI. */
@@ -40,11 +42,14 @@ class NkasPlatformBridge(private val activity: FlutterActivity) :
     private var connectMdns: AdbMdns? = null
     private var nativeAdb: NativeAdbManager? = null
     private var nativeScrcpy: NativeScrcpySession? = null
+    private var textureRegistry: TextureRegistry? = null
+    private var scrcpyTexture: TextureRegistry.SurfaceTextureEntry? = null
     private val nativeExecutor: ExecutorService = Executors.newSingleThreadExecutor { task ->
         Thread(task, "nkas-native-platform").apply { isDaemon = true }
     }
 
     fun register(engine: FlutterEngine) {
+        textureRegistry = engine.renderer
         MethodChannel(engine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler(this)
         EventChannel(engine.dartExecutor.binaryMessenger, EVENTS).setStreamHandler(this)
     }
@@ -131,6 +136,8 @@ class NkasPlatformBridge(private val activity: FlutterActivity) :
             "nativeScrcpyStop" -> {
                 nativeScrcpy?.close()
                 nativeScrcpy = null
+                scrcpyTexture?.release()
+                scrcpyTexture = null
                 result.success(true)
             }
             "nativeScrcpyBack" -> nativeScrcpy?.controlWriter?.pressBack(call.argument<Int>("action") ?: 0)
@@ -325,6 +332,8 @@ class NkasPlatformBridge(private val activity: FlutterActivity) :
     fun close() {
         nativeScrcpy?.close()
         nativeScrcpy = null
+        scrcpyTexture?.release()
+        scrcpyTexture = null
         nativeAdb?.close()
         nativeAdb = null
         nativeExecutor.shutdownNow()
@@ -408,27 +417,65 @@ class NkasPlatformBridge(private val activity: FlutterActivity) :
             maxSize = call.argument<Int>("maxSize") ?: 0,
             videoBitRate = call.argument<Int>("videoBitRate") ?: 0,
         )
+        if (options.video && textureRegistry == null) {
+            result.error("native_scrcpy_texture", "Flutter Texture 尚未注册", null)
+            return
+        }
+        nativeScrcpy?.close()
+        nativeScrcpy = null
+        scrcpyTexture?.release()
+        scrcpyTexture = if (options.video) textureRegistry!!.createSurfaceTexture() else null
+        val surface = scrcpyTexture?.let { Surface(it.surfaceTexture()) }
         nativeExecutor.execute {
             runCatching {
                 val manager = nativeAdb ?: NativeAdbManager(activity).also { nativeAdb = it }
                 manager.connect(endpoint)
-                nativeScrcpy?.close()
                 val jar = activity.assets.open("bin/scrcpy-server-v4.1").use { it.readBytes() }
-                NativeScrcpyLauncher(manager).start(jar, options).also { nativeScrcpy = it }
+                NativeScrcpyLauncher(manager).start(jar, options).also { session ->
+                    nativeScrcpy = session
+                    if (surface != null) {
+                        session.startVideo(surface, object : NativeScrcpySession.VideoListener {
+                            override fun onSize(width: Int, height: Int) {
+                                emit(mapOf("type" to "scrcpyVideo", "state" to "size", "width" to width, "height" to height))
+                            }
+
+                            override fun onError(error: Throwable) {
+                                emit(mapOf("type" to "scrcpyVideo", "state" to "error", "error" to (error.message ?: "视频解码失败")))
+                            }
+
+                            override fun onStopped() {
+                                emit(mapOf("type" to "scrcpyVideo", "state" to "stopped"))
+                            }
+                        })
+                    }
+                }
             }.fold(
                 onSuccess = { session ->
                     main.post {
+                        emit(mapOf(
+                            "type" to "scrcpyVideo",
+                            "state" to "started",
+                            "textureId" to scrcpyTexture?.id(),
+                            "deviceName" to session.videoMetadata?.deviceName,
+                            "codecId" to session.videoMetadata?.codecId,
+                        ))
                         result.success(mapOf(
                             "scid" to session.scid,
                             "command" to session.command,
                             "deviceName" to session.videoMetadata?.deviceName,
                             "codecId" to session.videoMetadata?.codecId,
+                            "textureId" to scrcpyTexture?.id(),
                             "video" to (session.videoStream != null),
                             "control" to (session.controlStream != null),
                         ))
                     }
                 },
-                onFailure = { error -> main.post { result.error("native_scrcpy_start", error.message ?: "scrcpy 启动失败", null) } },
+                onFailure = { error ->
+                    surface?.release()
+                    scrcpyTexture?.release()
+                    scrcpyTexture = null
+                    main.post { result.error("native_scrcpy_start", error.message ?: "scrcpy 启动失败", null) }
+                },
             )
         }
     }

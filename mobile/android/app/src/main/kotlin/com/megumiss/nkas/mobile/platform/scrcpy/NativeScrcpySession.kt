@@ -7,6 +7,8 @@ import java.io.DataInputStream
 import java.io.EOFException
 import java.io.IOException
 import java.util.concurrent.ThreadLocalRandom
+import java.util.concurrent.atomic.AtomicBoolean
+import android.view.Surface
 
 /** Starts the scrcpy server over an already connected native ADB session. */
 class NativeScrcpyLauncher(
@@ -77,9 +79,72 @@ class NativeScrcpySession internal constructor(
 ) : Closeable {
     val controlWriter: ScrcpyControlWriter? = controlStream?.let { ScrcpyControlWriter(it.outputStream) }
 
+    private var videoThread: Thread? = null
+    private var videoDecoder: NativeVideoDecoder? = null
+    private var videoSurface: Surface? = null
+    private val closed = AtomicBoolean(false)
+
+    fun startVideo(surface: Surface, listener: VideoListener) {
+        check(videoStream != null) { "scrcpy video is disabled" }
+        check(videoThread == null) { "scrcpy video is already started" }
+        videoSurface = surface
+        videoThread = Thread({ readVideo(surface, listener) }, "nkas-scrcpy-video").apply {
+            isDaemon = true
+            start()
+        }
+    }
+
+    private fun readVideo(surface: Surface, listener: VideoListener) {
+        try {
+            val reader = ScrcpyVideoReader(videoStream!!.inputStream)
+            while (!closed.get()) {
+                when (val item = reader.readNext()) {
+                    is ScrcpyVideoSessionSize -> {
+                        videoDecoder?.close()
+                        videoDecoder = NativeVideoDecoder(videoMetadata!!.codecId, item.width, item.height, surface)
+                            .also { it.start() }
+                        listener.onSize(item.width, item.height)
+                    }
+                    is ScrcpyVideoPacket -> {
+                        val decoder = videoDecoder ?: continue
+                        if (!decoder.queue(item)) continue
+                        while (decoder.drain() >= 0) {
+                            // Drain all decoded frames available without blocking.
+                        }
+                    }
+                }
+            }
+        } catch (error: Exception) {
+            if (!closed.get()) listener.onError(error)
+        } finally {
+            videoDecoder?.close()
+            videoDecoder = null
+            if (!closed.get()) listener.onStopped()
+        }
+    }
+
     override fun close() {
+        if (!closed.compareAndSet(false, true)) return
+        videoStream?.close()
+        videoThread?.interrupt()
+        videoThread?.join(VIDEO_THREAD_JOIN_MS)
+        videoThread = null
+        videoDecoder?.close()
+        videoDecoder = null
+        videoSurface?.release()
+        videoSurface = null
         controlStream?.close()
         videoStream?.takeUnless { it === controlStream }?.close()
         serverStream.close()
+    }
+
+    interface VideoListener {
+        fun onSize(width: Int, height: Int)
+        fun onError(error: Throwable)
+        fun onStopped()
+    }
+
+    companion object {
+        private const val VIDEO_THREAD_JOIN_MS = 500L
     }
 }

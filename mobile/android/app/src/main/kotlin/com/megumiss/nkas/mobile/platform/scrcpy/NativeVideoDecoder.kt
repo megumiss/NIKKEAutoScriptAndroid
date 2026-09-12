@@ -31,7 +31,8 @@ class NativeVideoDecoder(
         val buffer = current.getInputBuffer(index) ?: return false
         buffer.clear()
         buffer.put(packet.payload)
-        current.queueInputBuffer(index, 0, packet.payload.size, packet.ptsUs, 0)
+        val flags = if (packet.isConfig) MediaCodec.BUFFER_FLAG_CODEC_CONFIG else 0
+        current.queueInputBuffer(index, 0, packet.payload.size, packet.ptsUs, flags)
         return true
     }
 
@@ -55,6 +56,6 @@ class NativeVideoDecoder(
     }
 
     private fun Int.toAscii(): String = buildString {
-        repeat(4) { append(((this@toAscii ushr (it * 8)) and 0xff).toChar()) }
+        repeat(4) { append(((this@toAscii ushr ((3 - it) * 8)) and 0xff).toChar()) }
     }
 }
