@@ -30,6 +30,13 @@ class NativeAdbManager(context: Context) : Closeable {
     fun shell(command: String): String = requireClient().shell(command)
 
     @Synchronized
+    fun openShellStream(command: String): AdbStream = requireClient().openStream("shell:$command")
+
+    @Synchronized
+    fun openAbstractSocket(name: String): AdbStream =
+        requireClient().openStream("localabstract:$name")
+
+    @Synchronized
     fun push(data: ByteArray, remotePath: String, unixMode: Int = 420) {
         requireClient().push(data, remotePath, unixMode)
     }

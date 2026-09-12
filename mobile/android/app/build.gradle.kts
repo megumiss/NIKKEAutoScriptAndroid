@@ -1,4 +1,6 @@
 import java.util.Properties
+import java.net.URI
+import java.security.MessageDigest
 
 plugins {
     id("com.android.application")
@@ -67,3 +69,33 @@ dependencies {
     implementation("org.conscrypt:conscrypt-android:2.7.0")
     testImplementation("junit:junit:4.13.2")
 }
+
+val scrcpyServerAssetDir = "${project.projectDir}/src/main/assets/bin"
+val scrcpyServerAssetFile = "$scrcpyServerAssetDir/scrcpy-server-v4.1"
+val scrcpyServerDownloadUrl = "https://github.com/Genymobile/scrcpy/releases/download/v4.1/scrcpy-server-v4.1"
+val scrcpyServerSha256 = "deacb991ed2509715160ffdc7907e47b4160eb30d1566217e9047fd5b8850cae"
+
+val downloadScrcpyServer by tasks.registering {
+    description = "Download and verify the scrcpy server used by the native launcher"
+    group = "build setup"
+    outputs.file(scrcpyServerAssetFile)
+    doLast {
+        val file = outputs.files.singleFile
+        if (!file.parentFile.exists()) file.parentFile.mkdirs()
+        fun sha256(target: java.io.File): String = target.inputStream().use { input ->
+            val digest = MessageDigest.getInstance("SHA-256")
+            val buffer = ByteArray(8192)
+            var count: Int
+            while (input.read(buffer).also { count = it } >= 0) digest.update(buffer, 0, count)
+            digest.digest().joinToString("") { "%02x".format(it) }
+        }
+        if (!file.exists() || sha256(file) != scrcpyServerSha256) {
+            URI(scrcpyServerDownloadUrl).toURL().openStream().use { input ->
+                file.outputStream().use { output -> input.copyTo(output) }
+            }
+            check(sha256(file) == scrcpyServerSha256) { "scrcpy-server-v4.1 SHA-256 mismatch" }
+        }
+    }
+}
+
+tasks.named("preBuild") { dependsOn(downloadScrcpyServer) }
