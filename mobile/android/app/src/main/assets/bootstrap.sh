@@ -213,7 +213,7 @@ if ! source_ready; then
     run_stage cloning-nkas sync_repository
 fi
 run_stage creating-config create_config
-if service_ready && config_ready; then
+if container_ready && service_ready && config_ready; then
     set_state ready
     exit 0
 fi

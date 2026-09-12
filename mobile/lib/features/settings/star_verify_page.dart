@@ -232,7 +232,7 @@ class _StarVerifyPageState extends State<StarVerifyPage> {
                           )
                         : PrimaryButton(
                             icon: LucideIcons.gitBranch,
-                            label: opening ? '正在打开…' : '前往 GitHub 验证 Star',
+                            label: opening ? '正在打开…' : '前往 GitHub 验证',
                             onPressed: unsupported || opening
                                 ? null
                                 : _authorize,
