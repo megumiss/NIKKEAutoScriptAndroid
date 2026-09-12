@@ -535,6 +535,8 @@ void main() {
     await tester.tap(find.text('每日任务'));
     await tester.pumpAndSettle();
     expect(find.text('NKAS设置'), findsOneWidget);
+    expect(find.byTooltip('返回实例'), findsOneWidget);
+    expect(find.byTooltip('返回'), findsNothing);
 
     await tester.tap(find.byTooltip('返回实例'));
     await tester.pumpAndSettle();

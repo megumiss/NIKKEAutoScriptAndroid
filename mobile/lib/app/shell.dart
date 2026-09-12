@@ -66,7 +66,9 @@ class _NkasShellState extends State<NkasShell> {
       ? NkasPage.values.asNameMap()[Uri.base.queryParameters['page']] ??
             NkasPage.overview
       : NkasPage.overview;
+  late final List<NkasPage> pageStack = [page];
   InstanceLayer instanceLayer = InstanceLayer.list;
+  bool instanceListParent = false;
   String instance = '主账号';
   bool notifications = true;
   final instanceStates = <String, bool>{
@@ -416,60 +418,120 @@ class _NkasShellState extends State<NkasShell> {
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
-    return Scaffold(
-      backgroundColor: theme.colorScheme.background,
-      body: Center(
-        child: LayoutBuilder(
-          builder: (context, constraints) => SizedBox(
-            // 内容区随窗口走，宽窗口放宽到 480（桌面浏览器预览不至于拉成一条），
-            // 窄窗口/真机全幅
-            width: constraints.maxWidth.clamp(0, 480),
-            height: constraints.maxHeight,
-            child: SafeArea(
-              child: Column(
-                children: [
-                  _AppHeader(
-                    title: _pageTitle,
-                    connection: widget.connectionController.state,
-                    showBack: _isSettingsSubpage,
-                    onBack: () => _selectPage(NkasPage.settings),
-                  ),
-                  // 底部导航悬浮在内容之上（原型 .np-nav：bottom 14 + 阴影 + 毛玻璃），
-                  // 各页面底部预留 88 避让区
-                  Expanded(
-                    child: Stack(
-                      children: [
-                        Positioned.fill(child: _pageBody()),
-                        // 未通过 STAR 验证时，设置以外的页面盖遮罩，
-                        // 底部导航保持可用，可经遮罩按钮或导航前往验证页
-                        if (!_starAccessGranted &&
-                            page != NkasPage.settings &&
-                            !_isSettingsSubpage)
-                          Positioned.fill(
-                            child: _StarGateOverlay(
-                              onVerify: () => _selectPage(NkasPage.starVerify),
-                            ),
-                          ),
-                        if (!_isSettingsSubpage)
-                          Positioned(
-                            left: 0,
-                            right: 0,
-                            bottom: 14,
-                            child: _BottomNav(
-                              page: page,
-                              onSelect: _selectPage,
-                            ),
-                          ),
-                      ],
+    return PopScope<void>(
+      canPop: _canPopSystemRoute,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _handleBack();
+      },
+      child: Scaffold(
+        backgroundColor: theme.colorScheme.background,
+        body: Center(
+          child: LayoutBuilder(
+            builder: (context, constraints) => SizedBox(
+              // 内容区随窗口走，宽窗口放宽到 480（桌面浏览器预览不至于拉成一条），
+              // 窄窗口/真机全幅
+              width: constraints.maxWidth.clamp(0, 480),
+              height: constraints.maxHeight,
+              child: SafeArea(
+                child: Column(
+                  children: [
+                    _AppHeader(
+                      title: _pageTitle,
+                      connection: widget.connectionController.state,
+                      showBack:
+                          !_canPopSystemRoute && !_hasInstanceLayerBackBar,
+                      backTooltip: _isSettingsSubpage ? '返回设置' : '返回',
+                      onBack: _handleBack,
                     ),
-                  ),
-                ],
+                    // 底部导航悬浮在内容之上（原型 .np-nav：bottom 14 + 阴影 + 毛玻璃），
+                    // 各页面底部预留 88 避让区
+                    Expanded(
+                      child: Stack(
+                        children: [
+                          Positioned.fill(child: _pageBody()),
+                          // 未通过 STAR 验证时，设置以外的页面盖遮罩，
+                          // 底部导航保持可用，可经遮罩按钮或导航前往验证页
+                          if (!_starAccessGranted &&
+                              page != NkasPage.settings &&
+                              !_isSettingsSubpage)
+                            Positioned.fill(
+                              child: _StarGateOverlay(
+                                onVerify: () => _pushPage(NkasPage.starVerify),
+                              ),
+                            ),
+                          if (!_isSettingsSubpage)
+                            Positioned(
+                              left: 0,
+                              right: 0,
+                              bottom: 14,
+                              child: _BottomNav(
+                                page: page,
+                                onSelect: _selectRootPage,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
         ),
       ),
     );
+  }
+
+  bool get _canPopSystemRoute =>
+      page == NkasPage.overview &&
+      pageStack.length == 1 &&
+      instanceLayer == InstanceLayer.list;
+
+  bool get _hasInstanceLayerBackBar =>
+      page == NkasPage.instances &&
+      (instanceLayer == InstanceLayer.tasks ||
+          instanceLayer == InstanceLayer.schedule ||
+          instanceLayer == InstanceLayer.liveLogs);
+
+  bool _handleBack() {
+    if (page == NkasPage.instances) {
+      if (instanceLayer == InstanceLayer.tasks ||
+          instanceLayer == InstanceLayer.schedule ||
+          instanceLayer == InstanceLayer.liveLogs) {
+        setState(() => instanceLayer = InstanceLayer.dashboard);
+        return true;
+      }
+      if (instanceLayer == InstanceLayer.dashboard &&
+          instanceListParent &&
+          instances.length > 1) {
+        setState(() {
+          instanceLayer = InstanceLayer.list;
+          taskKey = null;
+          schema = null;
+          schemaError = null;
+        });
+        return true;
+      }
+    }
+    if (pageStack.length > 1) {
+      setState(() {
+        pageStack.removeLast();
+        page = pageStack.last;
+        if (page != NkasPage.instances) {
+          instanceListParent = false;
+          instanceLayer = InstanceLayer.list;
+          taskKey = null;
+          schema = null;
+          schemaError = null;
+        }
+      });
+      return true;
+    }
+    if (page != NkasPage.overview) {
+      _selectRootPage(NkasPage.overview);
+      return true;
+    }
+    return false;
   }
 
   String get _pageTitle => switch (page) {
@@ -504,12 +566,14 @@ class _NkasShellState extends State<NkasShell> {
       onRefreshStatus: () => widget.connectionController.connect(
         widget.connectionController.state.baseUrl,
       ),
-      onOpenInstances: () => _selectPage(NkasPage.instances),
+      onOpenInstances: () => _pushPage(NkasPage.instances),
       onSelectInstance: (value) {
         setState(() {
           instance = value;
           instanceLayer = InstanceLayer.dashboard;
+          pageStack.add(NkasPage.instances);
           page = NkasPage.instances;
+          instanceListParent = false;
           taskKey = null;
           queueError = null;
           schema = null;
@@ -547,7 +611,7 @@ class _NkasShellState extends State<NkasShell> {
       loadQueueSnapshot: _loadQueueSnapshot,
       fetchScreenshot: (name) =>
           widget.connectionController.fetchScreenshot(name),
-      onOpenScreen: () => _selectPage(NkasPage.screen),
+      onOpenScreen: () => _pushPage(NkasPage.screen),
       loadSchedule: () => widget.connectionController.fetchSchedule(instance),
       saveSchedule: (changes) =>
           widget.connectionController.saveSchedule(instance, changes),
@@ -599,16 +663,16 @@ class _NkasShellState extends State<NkasShell> {
       notifications: notifications,
       onThemeModeChanged: widget.onThemeModeChanged,
       onNotificationsChanged: (value) => setState(() => notifications = value),
-      onOpenStarVerify: () => _selectPage(NkasPage.starVerify),
+      onOpenStarVerify: () => _pushPage(NkasPage.starVerify),
       onOpenSetup: () => unawaited(_openSetup()),
-      onOpenUpdate: () => _selectPage(NkasPage.update),
-      onOpenAbout: () => _selectPage(NkasPage.about),
+      onOpenUpdate: () => _pushPage(NkasPage.update),
+      onOpenAbout: () => _pushPage(NkasPage.about),
     ),
     NkasPage.starVerify => StarVerifyPage(
       onOpenSetup: () => unawaited(_openSetup()),
     ),
     NkasPage.setup => NkasSetupPage(
-      onOpenStar: () => _selectPage(NkasPage.starVerify),
+      onOpenStar: () => _pushPage(NkasPage.starVerify),
       onOpenUi: _openWebUi,
     ),
     NkasPage.update => UpdatePage(
@@ -632,10 +696,27 @@ class _NkasShellState extends State<NkasShell> {
     unawaited(_loadQueue(value));
   }
 
-  void _selectPage(NkasPage value) {
+  void _selectRootPage(NkasPage value) {
+    setState(() {
+      pageStack
+        ..clear()
+        ..add(value);
+      page = value;
+      instanceListParent = value == NkasPage.instances;
+      instanceLayer = InstanceLayer.list;
+      taskKey = null;
+      schema = null;
+      schemaError = null;
+    });
+  }
+
+  void _pushPage(NkasPage value) {
+    if (page == value) return;
     if (value == NkasPage.instances) {
       setState(() {
+        pageStack.add(value);
         page = value;
+        instanceListParent = true;
         // The page decides whether a single instance skips the list. Keeping
         // the list layer here also handles instances arriving asynchronously.
         instanceLayer = InstanceLayer.list;
@@ -645,18 +726,21 @@ class _NkasShellState extends State<NkasShell> {
       });
       return;
     }
-    setState(() => page = value);
+    setState(() {
+      pageStack.add(value);
+      page = value;
+    });
   }
 
   Future<void> _openSetup() async {
     if (!isAndroid && !isIOS) {
-      _selectPage(NkasPage.setup);
+      _pushPage(NkasPage.setup);
       return;
     }
     final latest = await NkasPlatform.instance.starStatus();
     if (!mounted) return;
     _applyStarStatus(latest);
-    if (latest.authorized) _selectPage(NkasPage.setup);
+    if (latest.authorized) _pushPage(NkasPage.setup);
   }
 
   Future<void> _openWebUi() async {
@@ -718,11 +802,13 @@ class _AppHeader extends StatelessWidget {
     required this.title,
     required this.connection,
     this.showBack = false,
+    this.backTooltip = '返回',
     this.onBack,
   });
   final String title;
   final BackendConnectionState connection;
   final bool showBack;
+  final String backTooltip;
   final VoidCallback? onBack;
 
   @override
@@ -745,7 +831,7 @@ class _AppHeader extends StatelessWidget {
               IconButton(
                 onPressed: onBack,
                 icon: const Icon(LucideIcons.arrowLeft, size: 20),
-                tooltip: '返回设置',
+                tooltip: backTooltip,
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints.tightFor(
                   width: 36,
