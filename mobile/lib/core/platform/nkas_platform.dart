@@ -102,9 +102,10 @@ class StarAuthorizationEvent extends NkasPlatformEvent {
 }
 
 class SetupOutputEvent extends NkasPlatformEvent {
-  const SetupOutputEvent(this.output, {this.log = false});
+  const SetupOutputEvent(this.output, {this.log = false, this.exitCode});
   final String output;
   final bool log;
+  final int? exitCode;
 }
 
 class SetupStateEvent extends NkasPlatformEvent {
@@ -269,7 +270,10 @@ class NkasPlatform {
       case 'setupLog':
         return SetupOutputEvent(value['output'] as String? ?? '', log: true);
       case 'setupCommand':
-        return SetupOutputEvent(value['output'] as String? ?? '');
+        return SetupOutputEvent(
+          value['output'] as String? ?? '',
+          exitCode: (value['exitCode'] as num?)?.toInt(),
+        );
       case 'setup':
         return SetupStateEvent(
           value['state'] as String? ?? 'idle',

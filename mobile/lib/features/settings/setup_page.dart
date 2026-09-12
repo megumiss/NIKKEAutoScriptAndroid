@@ -54,6 +54,7 @@ class _NkasSetupPageState extends State<NkasSetupPage>
   final stageLogs = <String, String>{};
   final stepCompletion = <String, bool>{};
   String? activeStage;
+  String? failedStage;
   final expanded = <String>{
     'permission',
     'termux_setting',
@@ -122,14 +123,25 @@ class _NkasSetupPageState extends State<NkasSetupPage>
   void _onEvent(NkasPlatformEvent event) {
     if (!mounted) return;
     switch (event) {
-      case SetupOutputEvent(:final output, :final log):
+      case SetupOutputEvent(:final output, :final log, :final exitCode):
         setState(() {
           this.output = output;
-          if (log) {
+          if (log && !setupFailed) {
             running = true;
-            setupFailed = false;
           }
-          if (log) _applyBootstrapLog(output);
+          if (log && !setupFailed) {
+            _applyBootstrapLog(output);
+          } else if (log) {
+            stageLogs[failedStage ?? activeStage ?? 'tools'] = _tail(
+              output,
+              5000,
+            );
+          }
+          if (!log && exitCode != null && exitCode != 0) {
+            _markSetupFailed(
+              output.isEmpty ? 'Termux 外部命令执行失败（退出码 $exitCode）' : output,
+            );
+          }
         });
       case SetupStateEvent(:final state, :final message):
         setState(() {
@@ -137,12 +149,15 @@ class _NkasSetupPageState extends State<NkasSetupPage>
           if (state == 'failed') {
             error = message ?? '初始化失败';
             setupFailed = true;
+            running = false;
+            failedStage ??= activeStage ?? 'tools';
           }
           if (state == 'failed') {
             stageStates[activeStage ?? 'tools'] = '失败';
-          } else if (state == 'ready') {
+          } else if (state == 'ready' && !setupFailed) {
             output = '初始化完成';
             setupFailed = false;
+            failedStage = null;
             if (activeStage != null) expanded.remove(activeStage);
             activeStage = null;
             for (final key in bootstrapStages.values) {
@@ -232,6 +247,7 @@ class _NkasSetupPageState extends State<NkasSetupPage>
       running = true;
       setupFailed = false;
       error = null;
+      failedStage = null;
       output = '正在请求 Termux 恢复安装脚本……';
       activeStage = 'tools';
       stageStates.clear();
@@ -373,6 +389,15 @@ class _NkasSetupPageState extends State<NkasSetupPage>
           ? '执行中'
           : '等待';
     }
+  }
+
+  void _markSetupFailed(String message) {
+    running = false;
+    setupFailed = true;
+    error = message.trim();
+    failedStage ??= activeStage ?? 'tools';
+    stageStates[failedStage!] = '失败';
+    refreshTimer?.cancel();
   }
 
   String _tail(String value, int maxLength) => value.length <= maxLength
@@ -725,6 +750,14 @@ class _NkasSetupPageState extends State<NkasSetupPage>
     if (key == 'adb_device' && status.artifacts['adb_device'] == true) {
       return '已连接';
     }
+    if (setupFailed && bootstrapStages.values.contains(key)) {
+      final failedIndex = bootstrapStages.values.toList().indexOf(
+        failedStage ?? '',
+      );
+      final keyIndex = bootstrapStages.values.toList().indexOf(key);
+      if (key == failedStage) return '失败';
+      if (failedIndex >= 0 && keyIndex > failedIndex) return '等待';
+    }
     if (running && stageStates[key] != null) return stageStates[key]!;
     if (status.artifacts[key] == true) {
       return key == 'service' ? '运行中' : '已检测';
@@ -1067,16 +1100,22 @@ class _ExtraPanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            text,
-            style: monospace
-                ? const TextStyle(
+          if (monospace)
+            SizedBox(
+              height: 190,
+              child: SingleChildScrollView(
+                child: Text(
+                  text,
+                  style: const TextStyle(
                     fontFamily: 'monospace',
                     fontSize: 10,
                     height: 1.55,
-                  )
-                : ShadTheme.of(context).textTheme.muted,
-          ),
+                  ),
+                ),
+              ),
+            )
+          else
+            Text(text, style: ShadTheme.of(context).textTheme.muted),
           if (child != null) ...[const SizedBox(height: 8), child!],
         ],
       ),
