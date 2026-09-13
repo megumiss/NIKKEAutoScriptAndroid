@@ -14,7 +14,7 @@ import 'package:nkas_mobile/core/widgets/page_inset.dart';
 import 'package:nkas_mobile/core/widgets/page_subtitle.dart';
 import 'package:nkas_mobile/core/widgets/surface.dart';
 import 'package:nkas_mobile/theme.dart';
-import 'package:nkas_mobile/features/settings/native_control_sheet.dart';
+import 'package:nkas_mobile/features/settings/native_control_page.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({
@@ -132,7 +132,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     : '远程 Android 与 Tailscale',
                 enabled: widget.starAuthorized,
                 onTap: widget.starAuthorized
-                    ? () => showNativeControlSettings(context)
+                    ? () => openNativeControlSettings(context)
                     : null,
               ),
             _SettingRow(

@@ -9,7 +9,7 @@ import 'package:nkas_mobile/core/api/instance_info.dart';
 import 'package:nkas_mobile/core/api/screenshot_frame.dart';
 import 'package:nkas_mobile/core/platform/nkas_platform.dart';
 import 'package:nkas_mobile/core/platform/native_control_settings.dart';
-import 'package:nkas_mobile/features/settings/native_control_sheet.dart';
+import 'package:nkas_mobile/features/settings/native_control_page.dart';
 import 'package:nkas_mobile/features/screen/native_video_surface.dart';
 import 'package:nkas_mobile/core/widgets/avatar.dart';
 import 'package:nkas_mobile/core/widgets/buttons.dart';
@@ -401,7 +401,7 @@ class _ScreenPanelState extends State<ScreenPanel> {
   Future<void> _configure() async {
     await _stopNative();
     if (!mounted) return;
-    await showNativeControlSettings(context, platform: platform);
+    await openNativeControlSettings(context, platform: platform);
     if (mounted && widget.accessGranted) await _startNativeVideo();
   }
 

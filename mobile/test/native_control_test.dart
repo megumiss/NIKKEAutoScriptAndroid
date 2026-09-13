@@ -6,7 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nkas_mobile/core/platform/nkas_platform.dart';
 import 'package:nkas_mobile/features/screen/native_video_surface.dart';
 import 'package:nkas_mobile/features/screen/screen_page.dart';
-import 'package:nkas_mobile/features/settings/native_control_sheet.dart';
+import 'package:nkas_mobile/features/settings/native_control_page.dart';
 import 'package:nkas_mobile/theme.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
@@ -149,7 +149,7 @@ void main() {
   });
 
   testWidgets(
-    'connection settings fit a small keyboard viewport and cancel pending registration',
+    'connection page fits a small keyboard viewport and cancels pending registration',
     (tester) async {
       tester.view.physicalSize = const Size(360, 640);
       tester.view.devicePixelRatio = 1;
@@ -164,7 +164,7 @@ void main() {
           Builder(
             builder: (context) => TextButton(
               onPressed: () =>
-                  showNativeControlSettings(context, platform: platform),
+                  openNativeControlSettings(context, platform: platform),
               child: const Text('设置'),
             ),
           ),
@@ -172,6 +172,9 @@ void main() {
       );
       await tester.tap(find.text('设置'));
       await tester.pumpAndSettle();
+      expect(find.byType(NativeControlPage), findsOneWidget);
+      expect(find.byType(BottomSheet), findsNothing);
+      expect(find.text('设置'), findsNothing);
       await tester.enterText(
         find.byType(TextFormField).last,
         'test-registration-key',
@@ -185,6 +188,17 @@ void main() {
         hasLength(1),
       );
       expect(find.text('test-registration-key'), findsNothing);
+      expect(
+        tester
+            .widget<IconButton>(
+              find.ancestor(
+                of: find.byTooltip('返回'),
+                matching: find.byType(IconButton),
+              ),
+            )
+            .onPressed,
+        isNull,
+      );
       await tester.binding.handlePopRoute();
       await tester.pump();
       expect(find.text('控制连接'), findsOneWidget);
@@ -193,12 +207,112 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('连接已取消'), findsOneWidget);
       expect(tester.takeException(), isNull);
-      await tester.ensureVisible(find.text('关闭'));
-      await tester.tap(find.text('关闭'));
+      await tester.tap(find.byTooltip('返回'));
       await tester.pumpAndSettle();
       expect(find.text('控制连接'), findsNothing);
+      expect(find.text('设置'), findsOneWidget);
     },
   );
+
+  testWidgets(
+    'connection page saves before returning and system back leaves edits unsaved',
+    (tester) async {
+      final calls = <MethodCall>[];
+      _mockPlatform(calls);
+      final platform = NkasPlatform.testing(events: const Stream.empty());
+      bool? saved;
+      await tester.pumpWidget(
+        host(
+          Builder(
+            builder: (context) => TextButton(
+              onPressed: () async {
+                saved = await openNativeControlSettings(
+                  context,
+                  platform: platform,
+                );
+              },
+              child: const Text('设置'),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('设置'));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byType(TextFormField).first,
+        'adb://192.168.31.219:5555',
+      );
+      await tester.tap(find.text('通过 Tailscale 连接'));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('保存'));
+      await tester.tap(find.text('保存'));
+      await tester.pumpAndSettle();
+      expect(saved, isTrue);
+      expect(find.byType(NativeControlPage), findsNothing);
+      final save = calls.singleWhere(
+        (call) => call.method == 'saveNativeControlSettings',
+      );
+      expect((save.arguments as Map)['endpoint'], 'adb://192.168.31.219:5555');
+      expect((save.arguments as Map)['tailscaleEnabled'], isFalse);
+      expect(calls.where((call) => call.method == 'tsnetConnect'), isEmpty);
+
+      await tester.tap(find.text('设置'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextFormField).first, 'unsaved:5555');
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(saved, isFalse);
+      expect(find.text('设置'), findsOneWidget);
+      expect(
+        calls.where((call) => call.method == 'saveNativeControlSettings'),
+        hasLength(1),
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('screen stops control for settings and reconnects on return', (
+    tester,
+  ) async {
+    final calls = <MethodCall>[];
+    _mockPlatform(calls);
+    final platform = NkasPlatform.testing(events: const Stream.empty());
+    await tester.pumpWidget(
+      host(
+        ScreenPanel(
+          platform: platform,
+          accessGranted: true,
+          loadScreenshot: () async => null,
+        ),
+      ),
+    );
+    await tester.pump();
+    final firstStart = calls.singleWhere(
+      (call) => call.method == 'nativeScrcpyStart',
+    );
+    final firstId = (firstStart.arguments as Map)['requestId'];
+    await tester.tap(find.byTooltip('控制连接设置'));
+    await tester.pumpAndSettle();
+    expect(find.byType(NativeControlPage), findsOneWidget);
+    expect(find.byType(BottomSheet), findsNothing);
+    final stop = calls.singleWhere((call) => call.method == 'nativeScrcpyStop');
+    expect((stop.arguments as Map)['requestId'], firstId);
+    expect(
+      calls.where((call) => call.method == 'nativeScrcpyStart'),
+      hasLength(1),
+    );
+
+    await tester.tap(find.byTooltip('返回'));
+    await tester.pumpAndSettle();
+    expect(find.byType(NativeControlPage), findsNothing);
+    final starts = calls
+        .where((call) => call.method == 'nativeScrcpyStart')
+        .toList();
+    expect(starts, hasLength(2));
+    expect((starts.last.arguments as Map)['requestId'], isNot(firstId));
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
 
   testWidgets(
     'authorization restoration starts again and rejects stale session events',
