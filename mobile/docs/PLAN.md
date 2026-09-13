@@ -112,7 +112,7 @@ Go 层只导出 Android 友好的简单类型，避免把 `context.Context`、ch
 - 普通 TCP ADB `CNXN/AUTH`。
 - Android 11+ TLS ADB `STLS`。
 - shell、push、pull 和远程 socket。
-- `adb://host:port` 解析。
+- `host:port` 和 `adb://host:port` 解析。
 - 连接 `127.0.0.1:forwardPort`，不让 ADB 直接处理 Tailscale。
 - 保留 pairing API，但不阻塞 redroid 的普通 `5555` 场景。
 
@@ -208,7 +208,7 @@ CI 包含：
 - Go 核心及绑定测试通过，包含取消活动连接、重复关闭、监听释放、清除身份及错误脱敏。
 - `tool/build_tsnet.py android` 已生成并验证 armv7、arm64、x86_64 三种 ABI 的 AAR；产物不入库。
 - iOS 已接入 ADB/scrcpy/VideoToolbox、tsnet 与会话恢复；原生框架三架构构建与链接、模拟器应用编译、九项 XCTest 和未签名 IPA 构建均通过 CI。
-- Android 已接入 tsnet、原生控制会话、前台服务和独立的本机虚拟屏幕身份；33 项 JVM 测试通过，包含握手取消。
+- Android 已接入 tsnet、原生控制会话、前台服务和独立的本机虚拟屏幕身份；37 项 JVM 测试通过，包含转发地址解析和握手取消。
 - Flutter 已完成连接设置、控制目标显示、长按/滑动/取消、首帧展示和截图回退；45 项测试通过，analyze 无问题。
 - iOS 构建器、CI、87 条原生第三方声明和交付文档已补齐；原生构建工具 4 项回归通过。
 - `adb-mobile` 的独立移植胶水缺少顶层许可证，已记录来源状态；对外再分发前需确认授权。

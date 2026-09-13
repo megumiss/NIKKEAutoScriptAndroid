@@ -8,7 +8,7 @@
 | --- | --- |
 | Go 核心和移动端绑定测试 | 通过，包含停止活动连接、释放监听、重复清理和凭据处理 |
 | Android tsnet AAR | 已构建；armv7、arm64、x86_64 三 ABI |
-| Kotlin JVM 测试 | 33 项通过；包括 AUTH、流量确认、push/pull、取消握手、输入协议 |
+| Kotlin JVM 测试 | 37 项通过；包括带/不带 adb 前缀的地址、回环 ADB 握手和传输、AUTH、取消握手、输入协议 |
 | Flutter analyze / test | analyze 无问题；45 项测试通过 |
 | iOS 固定源码与嵌入补丁 | `--prepare-only` 通过，包含原始 vendor 补丁和应用内启动补丁 |
 | 许可证、资源与工作流静态检查 | 87 条原生声明、scrcpy SHA-256、三 ABI 检查通过；工作流 21 个 shell 步骤语法检查通过 |
@@ -27,6 +27,7 @@
 
 - 准备一个启用 TCP ADB 的 redroid，端口为 `5555`，记录 Tailscale IP 和 MagicDNS 名称。
 - 准备能访问该目标的 tailnet AuthKey，目标 ACL 允许到 `5555` 的连接。
+- 从外网测试局域网地址时，先确认对应子网路由已发布并获批。
 - 先从现有 ADB 客户端确认远端会接受授权；有授权对话框的 Android 设备需在设备侧接受 RSA 身份。
 - 运行 `Flutter Release`，先确认 native、JVM、Flutter 与 XCTest 检查通过，再安装自己签名或重签的构建。
 - 使用已有 NKAS API v2 后端，让截图回退也有可检查的来源。
@@ -37,6 +38,7 @@
 | --- | --- | --- |
 | 首次注册 | 开启 Tailscale，输入 AuthKey 并验证 | 节点状态变为已注册；AuthKey 输入清空，不出现在普通设置或日志中 |
 | 复用身份 | 关闭并重启 App，AuthKey 留空连接 | 复用同一节点身份 |
+| 地址格式与转发 | 分别使用 `host:port` 和 `adb://host:port` 保存目标，测试内网直连与外网 Tailscale | 两种写法均可保存并连接；内部回环转发地址通过解析，无前缀错误 |
 | IPv4 / MagicDNS | 分别保存 `adb://100.x.x.x:5555` 和 DNS 地址 | 都能显示远端实时画面，控制目标与保存值一致 |
 | 输入 | 长按一秒再抬起，滑动后取消，点击四角 | 长按持续；取消会释放；坐标不超出画面边缘 |
 | 系统键和文本 | 返回、主页，输入 ASCII 与少量多字节文本 | 按键正确；300 UTF-8 字节上限明确，超长文本不发送 |

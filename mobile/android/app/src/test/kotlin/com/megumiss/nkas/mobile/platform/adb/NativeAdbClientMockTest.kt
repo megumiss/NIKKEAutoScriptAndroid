@@ -182,7 +182,7 @@ class NativeAdbClientMockTest {
         val directory = Files.createTempDirectory("nkas-adb-mock").toFile()
         try {
             val result = NativeAdbClient(
-                AdbEndpoint("127.0.0.1", server.localPort),
+                AdbEndpoint.parse("127.0.0.1:${server.localPort}"),
                 AdbKeyStore(directory),
             ).use { client ->
                 client.connect()

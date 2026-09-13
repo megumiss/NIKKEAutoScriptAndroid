@@ -13,15 +13,16 @@ data class AdbEndpoint(val host: String, val port: Int) {
 
     companion object {
         fun parse(value: String): AdbEndpoint {
-            val input = value.trim()
+            val trimmed = value.trim()
+            val input = if (trimmed.contains("://")) trimmed else "adb://$trimmed"
             require(input.startsWith("adb://", ignoreCase = true)) {
-                "ADB endpoint must use adb://host:port"
+                "ADB endpoint must use host:port or adb://host:port"
             }
             val uri = runCatching { URI(input) }.getOrElse {
                 throw IllegalArgumentException("Invalid ADB endpoint", it)
             }
             require(uri.scheme.equals("adb", ignoreCase = true)) {
-                "ADB endpoint must use adb://host:port"
+                "ADB endpoint must use host:port or adb://host:port"
             }
             require(uri.userInfo == null && uri.query == null && uri.fragment == null) {
                 "ADB endpoint cannot contain credentials, query, or fragment"
