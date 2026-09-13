@@ -336,7 +336,7 @@ enum NkasIosAdbError: LocalizedError {
     case .invalidEndpoint(let value): return "无效的 ADB 地址：\(value)"
     case .invalidPath(let value): return "无效的 ADB 路径：\(value)"
     case .connection(let message), .protocolError(let message), .remote(let message): return message
-    case .authentication: return "iOS ADB 需要设备认证，当前密钥后端尚未接入"
+    case .authentication: return "ADB 设备拒绝了 iOS 客户端密钥，请在设备上确认授权"
     case .notConnected: return "ADB 尚未连接"
     case .rejected(let destination): return "ADB 服务被设备拒绝：\(destination)"
     }

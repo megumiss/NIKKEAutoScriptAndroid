@@ -8,7 +8,7 @@ see LICENSE.
 
 Third-party components:
 
-* Genymobile scrcpy server v4.1 — Apache License 2.0.
+* Genymobile scrcpy server v4.1 (Android and iOS bundles) — Apache License 2.0.
   https://github.com/Genymobile/scrcpy
 * Bouncy Castle bcpkix-jdk18on — MIT License.
   https://www.bouncycastle.org/licence.html
@@ -18,6 +18,6 @@ Third-party components:
   retained by its respective copyright holder and is available from its
   package metadata and source repository.
 
-The scrcpy server binary is downloaded during the Android build and is not
-committed to this repository. Its version and SHA-256 are pinned in
-android/app/build.gradle.kts.
+The Android build downloads and verifies the scrcpy server when the bundled
+asset is missing. The iOS Runner includes the same v4.1 server asset so the
+foreground scrcpy session does not depend on an external installation.
