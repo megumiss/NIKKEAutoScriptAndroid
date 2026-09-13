@@ -2,7 +2,7 @@
 
 ## 当前验证状态
 
-2026-09-13，Windows 本地验证：
+2026-09-13，Windows 本地与 GitHub Actions 验证：
 
 | 检查 | 状态 |
 | --- | --- |
@@ -11,13 +11,17 @@
 | Kotlin JVM 测试 | 33 项通过；包括 AUTH、流量确认、push/pull、取消握手、输入协议 |
 | Flutter analyze / test | analyze 无问题；45 项测试通过 |
 | iOS 固定源码与嵌入补丁 | `--prepare-only` 通过，包含原始 vendor 补丁和应用内启动补丁 |
-| 许可证、资源与工作流静态检查 | 86 条原生声明、scrcpy SHA-256、三 ABI 检查通过；工作流 20 个 shell 步骤语法检查通过 |
-| 原生构建工具回归 | 3 项通过，覆盖依赖归并、排除主机库和 Windows 补丁换行 |
-| Go race | 本地未运行；Linux 工作流已配置 |
-| iOS 三架构链接、XCTest、IPA | 未运行；需要 macOS/Xcode，由用户执行工作流 |
-| 最终 Android APK 与真机链路 | 未运行；由用户验收 |
+| 许可证、资源与工作流静态检查 | 87 条原生声明、scrcpy SHA-256、三 ABI 检查通过；工作流 21 个 shell 步骤语法检查通过 |
+| 原生构建工具回归 | 4 项通过，覆盖依赖归并、排除主机库、Windows 补丁换行和跨平台许可证顺序 |
+| Go race | Linux CI 通过；Windows 本地未运行 |
+| iOS 原生框架三架构构建与链接 | macOS CI 通过，包含真机 arm64 和模拟器 arm64/x86_64 |
+| iOS 应用构建、XCTest、IPA | macOS CI 通过：模拟器应用、九项协议 XCTest、未签名 IPA 与包内资源校验 |
+| Android Release APK 与包内校验 | CI 通过，包含签名、三 ABI、scrcpy 与许可证资产检查 |
+| 真机链路 | 未运行；由用户验收 |
 
-本地已有阶段提交 `8655cb3`（计划迁移与 Go 核心）、`fde8854`（Android / Flutter 控制）、`8818366`（iOS 原生控制与固定 ADB 构建）。所有阶段只本地提交，没有推送。
+阶段提交 `8655cb3`（计划迁移与 Go 核心）、`fde8854`（Android / Flutter 控制）、`8818366`（iOS 原生控制与固定 ADB 构建）及后续 CI 修复已推送到 `android/main`。用户已授权自动构建、修复、提交和推送循环。
+
+已验证的 CI 记录：[Android APK 与 33 项 JVM 测试](https://github.com/megumiss/NIKKEAutoScriptAndroid/actions/runs/34747072044/job/103697074164)；[iOS 完整构建、九项 XCTest 与未签名 IPA](https://github.com/megumiss/NIKKEAutoScriptAndroid/actions/runs/34749063803/job/103702315459)。这些记录分别对应提交 `4f46ea4` 和 `2cdfd81`；下载交付产物时，应核对完整双端构建的提交号，并确认两项任务均成功。
 
 ## 真机验收准备
 
@@ -63,7 +67,7 @@
 
 保留工作流运行链接、Android/iOS 版本、设备型号、App 提交号、目标 redroid 版本，以及失败步骤和对应的连接状态。分享日志前移除账号、AuthKey 和私有状态文件内容。
 
-iOS 还需要核验：Xcode 能导入两个 XCFramework，九项协议 XCTest 通过，H.264 首帧与旋转恢复正常，支持 H.265 的设备能正常解码。静态源码检查不能替代这些验证。
+iOS 两个 XCFramework 的 Xcode 导入与九项协议 XCTest 已通过 CI。真机仍需核验 H.264 首帧、旋转恢复，以及支持 H.265 的设备上的实际解码。
 
 ## 再分发前的许可证事项
 

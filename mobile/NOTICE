@@ -60,6 +60,9 @@ application-owned server startup entry point. The embedded server rejects
 kill-server and does not install the command-line SIGINT/atexit handlers or
 scan for local emulators. See native/adb/embedded.patch for the modifications.
 
+NKAS groups Abseil's Apple architecture flags so CMake preserves each selector
+with its compiler option. See native/adb/abseil-apple.patch.
+
 The Android build downloads and verifies the scrcpy server when the bundled
 asset is missing. The iOS Runner includes the same v4.1 server asset so the
 foreground scrcpy session does not depend on an external installation.

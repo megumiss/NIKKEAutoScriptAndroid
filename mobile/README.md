@@ -54,6 +54,7 @@ flutter pub get
 python tool/build_tsnet.py android
 flutter analyze
 flutter test
+flutter build apk --debug --config-only
 Push-Location android
 .\gradlew.bat :app:testDebugUnitTest --console=plain
 Pop-Location
@@ -83,13 +84,13 @@ flutter build ios --simulator --debug --no-codesign
 
 ## 工作流和验证
 
-仓库的 `Flutter Release` 工作流由用户手动触发。它先执行 Flutter、Go race、资源与许可证检查，再构建 Android AAR/APK，以及 iOS 框架、模拟器 XCTest 和 IPA。工作流不会自动发布 Release。
+仓库的 `Flutter Release` 工作流通过 Actions 页面或 `gh workflow run` 触发。它先执行 Flutter、Go race、资源与许可证检查，再构建 Android AAR/APK，以及 iOS 框架、模拟器 XCTest 和 IPA。工作流不会自动发布 Release。
 
 定位 iOS 原生构建问题时可选 `ios_only`，保留公共验证并只构建 iOS。默认构建两端，交付时需确认同一提交的 Android 和 iOS 任务均通过。
 
 Android 工作流需要 `ANDROID_KEYSTORE_BASE64`、`ANDROID_KEYSTORE_PASSWORD`、`ANDROID_KEY_ALIAS`、`ANDROID_KEY_PASSWORD`。iOS 默认生成用于个人重签的未签名 IPA；选中 `ios_signed` 时需要 `IOS_CERTIFICATE_BASE64`、`IOS_CERTIFICATE_PASSWORD`、`IOS_PROVISIONING_PROFILE_BASE64`、`IOS_TEAM_ID`，可选 `IOS_KEYCHAIN_PASSWORD`。描述文件的应用标识应匹配 `com.megumiss.nkas.mobile`。
 
-Go 测试在 `native/tsnet` 中执行 `go test ./...`；race 检测使用 `go test -race ./...`，需要支持 cgo 的 C 工具链。Windows 当前环境没有运行 race 或 Xcode 检查，最终工作流和真机验收由用户执行，详见 [验收记录](docs/VALIDATION.md)。
+Go 测试在 `native/tsnet` 中执行 `go test ./...`；race 检测使用 `go test -race ./...`，需要支持 cgo 的 C 工具链。GitHub Actions 已通过 Go race、Android APK、iOS 模拟器编译、九项 XCTest 和未签名 IPA 构建；Windows 本地未运行 race 或 Xcode。真机验收由用户执行，详见 [验收记录](docs/VALIDATION.md)。
 
 ## 第三方声明
 
