@@ -13,10 +13,9 @@ import java.net.InetSocketAddress
 import java.net.Socket
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
-import java.security.Signature
+import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
-import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -28,6 +27,8 @@ class NativeAdbClient(
 ) : Closeable {
     private val nextLocalId = AtomicInteger(1)
     private val streams = ConcurrentHashMap<Int, AdbStream>()
+    private val writeLock = Any()
+    private var maxPayload = AdbProtocol.MAX_PAYLOAD
     private var socket: Socket? = null
     private var input: DataInputStream? = null
     private var output: OutputStream? = null
@@ -40,14 +41,14 @@ class NativeAdbClient(
     fun connect() {
         if (!closed) return
         val newSocket = Socket()
-        newSocket.connect(InetSocketAddress(endpoint.host, endpoint.port), connectTimeoutMs)
-        newSocket.soTimeout = connectTimeoutMs
         socket = newSocket
-        input = DataInputStream(newSocket.getInputStream())
-        output = newSocket.getOutputStream()
-        keyPair = keyStore.loadOrCreate()
         closed = false
         try {
+            newSocket.connect(InetSocketAddress(endpoint.host, endpoint.port), connectTimeoutMs)
+            newSocket.soTimeout = connectTimeoutMs
+            input = DataInputStream(newSocket.getInputStream())
+            output = newSocket.getOutputStream()
+            keyPair = keyStore.loadOrCreate()
             handshake()
             newSocket.soTimeout = 0
             reader = Thread(::readLoop, "nkas-adb-reader").apply { isDaemon = true; start() }
@@ -69,10 +70,10 @@ class NativeAdbClient(
     fun openStream(service: String): AdbStream {
         checkConnected()
         val localId = nextLocalId.getAndIncrement()
-        val stream = AdbStream(localId) { command, arg0, arg1, data -> send(command, arg0, arg1, data) }
+        val stream = AdbStream(localId, maxPayload) { command, arg0, arg1, data -> send(command, arg0, arg1, data) }
         streams[localId] = stream
-        send(OPEN, localId, 0, (service + "\u0000").toByteArray(Charsets.UTF_8))
         try {
+            send(OPEN, localId, 0, (service + "\u0000").toByteArray(Charsets.UTF_8))
             stream.awaitOpen(15_000)
             return stream
         } catch (error: Exception) {
@@ -155,7 +156,11 @@ class NativeAdbClient(
         while (true) {
             val message = receive()
             when (message.command) {
-                CNXN -> return
+                CNXN -> {
+                    if (message.arg1 <= 0) throw IOException("ADB returned an invalid maximum payload")
+                    maxPayload = minOf(MAX_PAYLOAD, message.arg1)
+                    return
+                }
                 STLS -> {
                     if (message.arg0 != STLS_VERSION) {
                         throw IOException("ADB returned unsupported STLS version ${message.arg0}")
@@ -168,7 +173,7 @@ class NativeAdbClient(
                         AUTH_TOKEN -> {
                             val pair = keyPair ?: throw IOException("ADB key is not initialized")
                             if (!signatureSent) {
-                                send(AUTH, AUTH_SIGNATURE, 0, signToken(pair, message.payload))
+                                send(AUTH, AUTH_SIGNATURE, 0, pair.signToken(message.payload))
                                 signatureSent = true
                             } else {
                                 send(AUTH, AUTH_RSAPUBLICKEY, 0, pair.adbPublicKey)
@@ -196,15 +201,6 @@ class NativeAdbClient(
         }
     }
 
-    private fun signToken(pair: AdbKeyPair, token: ByteArray): ByteArray {
-        val signature = runCatching { Signature.getInstance("SHA1withRSA") }
-            .getOrElse { Signature.getInstance("NONEwithRSA") }
-        return signature.apply {
-            initSign(pair.privateKey)
-            update(token)
-        }.sign()
-    }
-
     private fun readLoop() {
         try {
             while (!closed) {
@@ -212,31 +208,33 @@ class NativeAdbClient(
                     else -> when (message.command) {
                         OKAY -> streams[message.arg1]?.onOkay(message.arg0)
                         WRTE -> {
-                            streams[message.arg1]?.onData(message.payload)
-                            send(OKAY, message.arg1, message.arg0, ByteArray(0))
+                            val stream = streams[message.arg1]
+                            if (stream == null) send(CLSE, message.arg1, message.arg0, ByteArray(0))
+                            else stream.onData(message.payload)
                         }
-                        CLSE -> streams.remove(message.arg1)?.forceClose()
+                        CLSE -> streams.remove(message.arg1)?.let {
+                            it.forceClose()
+                            send(CLSE, message.arg1, message.arg0, ByteArray(0))
+                        }
                         else -> Log.w(TAG, "Ignoring ADB command ${commandName(message.command)}")
                     }
                 }
             }
-        } catch (_: Exception) {
-            if (!closed) streams.values.forEach { it.forceClose() }
+        } catch (_: IOException) {
+            // Closing the transport below wakes every waiting stream.
+        } finally {
+            close()
         }
     }
 
-    @Synchronized
     @Throws(IOException::class)
     private fun send(command: Int, arg0: Int, arg1: Int, payload: ByteArray) {
-        checkConnected()
-        val data = output ?: throw IOException("ADB output is closed")
-        val checksum = payload.fold(0) { sum, byte -> sum + (byte.toInt() and 0xff) }
-        val header = ByteBuffer.allocate(24).order(ByteOrder.LITTLE_ENDIAN)
-            .putInt(command).putInt(arg0).putInt(arg1).putInt(payload.size)
-            .putInt(checksum).putInt(command xor -1).array()
-        data.write(header)
-        data.write(payload)
-        data.flush()
+        synchronized(writeLock) {
+            checkConnected()
+            val data = output ?: throw IOException("ADB output is closed")
+            data.write(AdbProtocol.encode(command, arg0, arg1, payload))
+            data.flush()
+        }
     }
 
     @Throws(IOException::class)
@@ -273,32 +271,46 @@ class NativeAdbClient(
 
 class AdbStream internal constructor(
     private val localId: Int,
+    private val maxPayload: Int = 64 * 1024,
+    private val writeTimeoutMs: Long = 15_000,
     private val sender: (Int, Int, Int, ByteArray) -> Unit,
 ) : Closeable {
     private val opened = CountDownLatch(1)
     private var openOkay = false
-    private val queue = LinkedBlockingQueue<Any>()
+    private val queue = ArrayBlockingQueue<Any>(8)
+    private val writeState = Object()
+    private val writeLock = Any()
+    private var writeReady = false
     @Volatile private var remoteId = 0
     @Volatile private var closed = false
     val inputStream: InputStream = StreamInput()
     val outputStream: OutputStream = StreamOutput()
 
     internal fun onOkay(remote: Int) {
-        if (remoteId == 0) {
+        synchronized(writeState) {
+            if (closed || remote == 0) return
+            if (remoteId != 0 && remoteId != remote) throw IOException("ADB stream ID changed")
             remoteId = remote
-            openOkay = true
-            opened.countDown()
+            writeReady = true
+            if (!openOkay) {
+                openOkay = true
+                opened.countDown()
+            }
+            writeState.notifyAll()
         }
     }
 
     internal fun onData(data: ByteArray) {
-        if (!closed) queue.offer(data)
+        if (!closed && !queue.offer(data)) throw IOException("ADB peer exceeded the receive window")
     }
 
     internal fun forceClose() {
-        closed = true
-        queue.offer(END)
-        opened.countDown()
+        synchronized(writeState) {
+            closed = true
+            queue.offer(END)
+            opened.countDown()
+            writeState.notifyAll()
+        }
     }
 
     fun awaitOpen(timeoutMs: Long) {
@@ -308,25 +320,31 @@ class AdbStream internal constructor(
 
     override fun close() {
         if (closed) return
-        closed = true
+        forceClose()
         if (remoteId != 0) runCatching { sender(CLSE, localId, remoteId, ByteArray(0)) }
-        queue.offer(END)
     }
 
     private inner class StreamInput : InputStream() {
         private var chunk = ByteArray(0)
         private var offset = 0
+        private var eof = false
         override fun read(buffer: ByteArray, off: Int, len: Int): Int {
+            if (off < 0 || len < 0 || len > buffer.size - off) throw IndexOutOfBoundsException()
             if (len == 0) return 0
+            if (eof) return -1
             while (offset >= chunk.size) {
+                if (closed && queue.isEmpty()) { eof = true; return -1 }
                 val next = queue.take()
-                if (next === END) return -1
+                if (next === END) { eof = true; return -1 }
                 chunk = next as ByteArray
                 offset = 0
+                if (chunk.isEmpty() && !closed) sender(OKAY, localId, remoteId, ByteArray(0))
             }
             val count = minOf(len, chunk.size - offset)
             chunk.copyInto(buffer, off, offset, offset + count)
             offset += count
+            // Acknowledge after consumption so a slow decoder applies backpressure.
+            if (offset == chunk.size && !closed) sender(OKAY, localId, remoteId, ByteArray(0))
             return count
         }
         override fun read(): Int = ByteArray(1).let { if (read(it, 0, 1) < 0) -1 else it[0].toInt() and 0xff }
@@ -335,15 +353,33 @@ class AdbStream internal constructor(
     private inner class StreamOutput : OutputStream() {
         override fun write(value: Int) = write(byteArrayOf(value.toByte()))
         override fun write(buffer: ByteArray, off: Int, len: Int) {
-            if (closed) throw IOException("ADB stream is closed")
-            var position = off
-            var remaining = len
-            while (remaining > 0) {
-                val count = minOf(64 * 1024, remaining)
-                sender(WRTE, localId, remoteId, buffer.copyOfRange(position, position + count))
-                position += count
-                remaining -= count
+            if (off < 0 || len < 0 || len > buffer.size - off) throw IndexOutOfBoundsException()
+            synchronized(writeLock) {
+                if (closed) throw IOException("ADB stream is closed")
+                var position = off
+                var remaining = len
+                while (remaining > 0) {
+                    awaitWriteReady()
+                    synchronized(writeState) { writeReady = false }
+                    val count = minOf(maxPayload, remaining)
+                    sender(WRTE, localId, remoteId, buffer.copyOfRange(position, position + count))
+                    awaitWriteReady()
+                    position += count
+                    remaining -= count
+                }
             }
+        }
+    }
+
+    private fun awaitWriteReady() {
+        val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(writeTimeoutMs)
+        synchronized(writeState) {
+            while (!writeReady && !closed) {
+                val remaining = deadline - System.nanoTime()
+                if (remaining <= 0) throw IOException("ADB stream write timed out")
+                TimeUnit.NANOSECONDS.timedWait(writeState, remaining)
+            }
+            if (closed) throw IOException("ADB stream is closed")
         }
     }
 
@@ -351,6 +387,7 @@ class AdbStream internal constructor(
         const val END = "adb-stream-end"
         const val CLSE = 0x45534c43
         const val WRTE = 0x45545257
+        const val OKAY = 0x59414b4f
     }
 }
 

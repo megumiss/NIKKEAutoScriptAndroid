@@ -8,6 +8,7 @@ import java.security.KeyFactory
 import java.security.KeyPairGenerator
 import java.security.PrivateKey
 import java.security.PublicKey
+import java.security.Signature
 import java.security.interfaces.RSAPublicKey
 import java.security.spec.PKCS8EncodedKeySpec
 import java.security.spec.X509EncodedKeySpec
@@ -19,6 +20,18 @@ data class AdbKeyPair(
     val name: String,
 ) {
     val adbPublicKey: ByteArray by lazy { encodeAdbPublicKey(publicKey as RSAPublicKey, name) }
+
+    fun signToken(token: ByteArray): ByteArray {
+        require(token.size == 20) { "ADB AUTH token must contain a SHA-1 digest" }
+        // adbd sends the digest itself; SHA1withRSA would hash it a second time.
+        val digestInfo = byteArrayOf(0x30, 0x21, 0x30, 0x09, 0x06, 0x05, 0x2b, 0x0e, 0x03, 0x02, 0x1a, 0x05, 0x00, 0x04, 0x14)
+        return Signature.getInstance("NONEwithRSA").run {
+            initSign(privateKey)
+            update(digestInfo)
+            update(token)
+            sign()
+        }
+    }
 }
 
 /** Stores the client identity in app-private storage for ordinary ADB AUTH. */

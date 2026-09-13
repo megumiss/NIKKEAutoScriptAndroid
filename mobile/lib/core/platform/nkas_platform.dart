@@ -332,7 +332,7 @@ class NkasPlatform {
     return await _channel.invokeMethod<String>('nativeAdbShell', {'command': command}) ?? '';
   }
 
-  Future<void> nativeAdbPush(Uint8List data, String remotePath, {int mode = 0o644}) async {
+  Future<void> nativeAdbPush(Uint8List data, String remotePath, {int mode = 420}) async {
     if (!supported) throw UnsupportedError('原生 ADB 仅支持 Android 和 iOS');
     await _channel.invokeMethod<void>('nativeAdbPush', {
       'data': data,

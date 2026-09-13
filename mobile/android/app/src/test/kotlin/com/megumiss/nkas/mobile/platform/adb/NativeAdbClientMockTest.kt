@@ -1,6 +1,7 @@
 package com.megumiss.nkas.mobile.platform.adb
 
 import java.io.ByteArrayOutputStream
+import java.io.ByteArrayInputStream
 import java.io.DataInputStream
 import java.net.ServerSocket
 import java.nio.ByteBuffer
@@ -9,6 +10,8 @@ import java.nio.file.Files
 import kotlin.concurrent.thread
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class NativeAdbClientMockTest {
@@ -20,8 +23,9 @@ class NativeAdbClientMockTest {
             assertEquals(OPEN, open.command)
             send(output, OKAY, REMOTE_ID, open.arg0)
             send(output, WRTE, REMOTE_ID, open.arg0, "model\n".toByteArray())
+            assertEquals(OKAY, AdbProtocol.decode(input).command)
             send(output, CLSE, REMOTE_ID, open.arg0)
-            input.readMessageIgnoringClientAck()
+            assertEquals(CLSE, AdbProtocol.decode(input).command)
         },
     ).let { result ->
         assertEquals("model\n", result)
@@ -29,7 +33,8 @@ class NativeAdbClientMockTest {
 
     @Test
     fun pushUsesSyncSendDataDoneSequence() = withClient(
-        clientAction = { it.push("payload".toByteArray(), "/data/mock.txt") },
+        peerMaxPayload = 4096,
+        clientAction = { it.push(ByteArray(70_000) { 65 }, "/data/mock.txt") },
         serverAction = { input, output ->
             val open = AdbProtocol.decode(input)
             assertEquals(OPEN, open.command)
@@ -37,13 +42,32 @@ class NativeAdbClientMockTest {
             val sync = ByteArrayOutputStream()
             while (true) {
                 val message = AdbProtocol.decode(input)
+                assertEquals(WRTE, message.command)
+                assertTrue(message.payload.size <= 4096)
                 sync.write(message.payload)
-                if (sync.toByteArray().containsAscii("DONE")) break
+                send(output, OKAY, REMOTE_ID, open.arg0)
+                val bytes = sync.toByteArray()
+                if (bytes.size >= 8 && bytes.copyOfRange(bytes.size - 8, bytes.size - 4).contentEquals("DONE".toByteArray())) break
             }
             val bytes = sync.toByteArray()
             assertEquals("SEND", bytes.copyOfRange(0, 4).toString(Charsets.US_ASCII))
+            val reader = DataInputStream(ByteArrayInputStream(bytes))
+            reader.skipBytes(4)
+            val pathSize = Integer.reverseBytes(reader.readInt())
+            val path = ByteArray(pathSize).also(reader::readFully)
+            assertEquals("/data/mock.txt,420", path.toString(Charsets.UTF_8))
+            val payload = ByteArrayOutputStream()
+            while (true) {
+                val id = ByteArray(4).also(reader::readFully).toString(Charsets.US_ASCII)
+                val size = Integer.reverseBytes(reader.readInt())
+                if (id == "DONE") break
+                assertEquals("DATA", id)
+                payload.write(ByteArray(size).also(reader::readFully))
+            }
+            assertArrayEquals(ByteArray(70_000) { 65 }, payload.toByteArray())
             send(output, WRTE, REMOTE_ID, open.arg0, syncOkay())
-            input.readMessageIgnoringClientAck()
+            assertEquals(OKAY, AdbProtocol.decode(input).command)
+            assertEquals(CLSE, AdbProtocol.decode(input).command)
         },
     ).also { result ->
         assertEquals(Unit, result)
@@ -56,20 +80,40 @@ class NativeAdbClientMockTest {
             val open = AdbProtocol.decode(input)
             assertEquals(OPEN, open.command)
             send(output, OKAY, REMOTE_ID, open.arg0)
-            val request = AdbProtocol.decode(input)
-            assertEquals("RECV", request.payload.copyOfRange(0, 4).toString(Charsets.US_ASCII))
-            send(output, WRTE, REMOTE_ID, open.arg0, syncData("payload".toByteArray()))
-            send(output, WRTE, REMOTE_ID, open.arg0, syncDone())
-            var acknowledgements = 0
-            while (acknowledgements < 2) {
-                if (input.readMessageIgnoringClientAck()?.command == OKAY) acknowledgements++
+            val request = ByteArrayOutputStream()
+            while (request.size() < 8 + "/data/mock.txt".length) {
+                val message = AdbProtocol.decode(input)
+                assertEquals(WRTE, message.command)
+                request.write(message.payload)
+                send(output, OKAY, REMOTE_ID, open.arg0)
             }
+            assertEquals("RECV", request.toByteArray().copyOfRange(0, 4).toString(Charsets.US_ASCII))
+            send(output, WRTE, REMOTE_ID, open.arg0, syncData("payload".toByteArray()))
+            assertEquals(OKAY, AdbProtocol.decode(input).command)
+            send(output, WRTE, REMOTE_ID, open.arg0, syncDone())
+            assertEquals(OKAY, AdbProtocol.decode(input).command)
+            assertEquals(CLSE, AdbProtocol.decode(input).command)
         },
     ).let { result ->
         assertArrayEquals("payload".toByteArray(), result)
     }
 
+    @Test(timeout = 10_000)
+    fun transportEofClearsConnectedStateAndUnblocksReads() = withClient(
+        clientAction = { client ->
+            val stream = client.openStream("shell:wait")
+            assertEquals(-1, stream.inputStream.read())
+            assertEquals(-1, stream.inputStream.read())
+            assertFalse(client.isConnected())
+        },
+        serverAction = { input, output ->
+            val open = AdbProtocol.decode(input)
+            send(output, OKAY, REMOTE_ID, open.arg0)
+        },
+    )
+
     private fun <T> withClient(
+        peerMaxPayload: Int = 256 * 1024,
         clientAction: (NativeAdbClient) -> T,
         serverAction: (DataInputStream, java.io.OutputStream) -> Unit,
     ): T {
@@ -83,7 +127,7 @@ class NativeAdbClientMockTest {
                     val output = socket.getOutputStream()
                     val connect = AdbProtocol.decode(input)
                     assertEquals(CNXN, connect.command)
-                    send(output, CNXN, 0, 256 * 1024, "device::mock\u0000".toByteArray())
+                    send(output, CNXN, 0x01000000, peerMaxPayload, "device::mock\u0000".toByteArray())
                     serverAction(input, output)
                 }
             } catch (error: Throwable) {
@@ -92,14 +136,15 @@ class NativeAdbClientMockTest {
         }
         val directory = Files.createTempDirectory("nkas-adb-mock").toFile()
         try {
-            val client = NativeAdbClient(
+            val result = NativeAdbClient(
                 AdbEndpoint("127.0.0.1", server.localPort),
                 AdbKeyStore(directory),
-            )
-            client.connect()
-            val result = clientAction(client)
-            client.close()
+            ).use { client ->
+                client.connect()
+                clientAction(client)
+            }
             serverThread.join(5_000)
+            assertFalse("mock ADB server did not finish", serverThread.isAlive)
             failure[0]?.let { throw AssertionError("mock ADB server failed", it) }
             return result
         } finally {
@@ -119,15 +164,6 @@ class NativeAdbClientMockTest {
         "DATA".toByteArray() + ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(data.size).array() + data
 
     private fun syncDone() = "DONE".toByteArray() + ByteArray(4)
-
-    private fun ByteArray.containsAscii(value: String): Boolean =
-        indexOfSubsequence(value.toByteArray(Charsets.US_ASCII)) >= 0
-
-    private fun ByteArray.indexOfSubsequence(needle: ByteArray): Int =
-        (0..size - needle.size).firstOrNull { start -> needle.indices.all { this[start + it] == needle[it] } } ?: -1
-
-    private fun DataInputStream.readMessageIgnoringClientAck() =
-        runCatching { AdbProtocol.decode(this) }.getOrNull()
 
     private companion object {
         const val CNXN = 0x4e584e43
