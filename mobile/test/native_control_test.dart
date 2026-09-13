@@ -110,6 +110,10 @@ void main() {
       ),
     );
     await tester.pump();
+    // 打开画面页不自动开启控制，需手动连接
+    expect(calls.where((c) => c.method == 'nativeScrcpyStart'), isEmpty);
+    await tester.tap(find.byTooltip('连接设备'));
+    await tester.pump();
     final id =
         (calls.firstWhere((c) => c.method == 'nativeScrcpyStart').arguments
                 as Map)['requestId']
@@ -225,7 +229,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('screen stops control when leaving and reconnects on return', (
+  testWidgets('screen stops control when leaving and reconnects manually', (
     tester,
   ) async {
     final calls = <MethodCall>[];
@@ -241,6 +245,8 @@ void main() {
       ),
     );
     await tester.pumpWidget(screen());
+    await tester.pump();
+    await tester.tap(find.byTooltip('连接设备'));
     await tester.pump();
     final firstStart = calls.singleWhere(
       (call) => call.method == 'nativeScrcpyStart',
@@ -260,8 +266,14 @@ void main() {
     final stop = calls.singleWhere((call) => call.method == 'nativeScrcpyStop');
     expect((stop.arguments as Map)['requestId'], firstId);
 
-    // 返回画面页后按当前配置重新连接
+    // 返回画面页不自动重连，手动连接后按当前配置开始新会话
     await tester.pumpWidget(screen());
+    await tester.pump();
+    expect(
+      calls.where((call) => call.method == 'nativeScrcpyStart'),
+      hasLength(1),
+    );
+    await tester.tap(find.byTooltip('连接设备'));
     await tester.pump();
     final starts = calls
         .where((call) => call.method == 'nativeScrcpyStart')
@@ -289,6 +301,8 @@ void main() {
       );
       await tester.pumpWidget(screen(true));
       await tester.pump();
+      await tester.tap(find.byTooltip('连接设备'));
+      await tester.pump();
       final first =
           (calls.firstWhere((c) => c.method == 'nativeScrcpyStart').arguments
                   as Map)['requestId']
@@ -296,6 +310,8 @@ void main() {
       await tester.pumpWidget(screen(false));
       await tester.pump();
       await tester.pumpWidget(screen(true));
+      await tester.pump();
+      await tester.tap(find.byTooltip('连接设备'));
       await tester.pump();
       final starts = calls
           .where((c) => c.method == 'nativeScrcpyStart')

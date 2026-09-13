@@ -29,6 +29,7 @@ class SettingsPage extends StatefulWidget {
     required this.onOpenUpdate,
     required this.onOpenAbout,
     required this.onOpenNativeControl,
+    required this.onOpenDeploy,
     super.key,
   });
   final ThemeMode themeMode;
@@ -42,6 +43,7 @@ class SettingsPage extends StatefulWidget {
   final VoidCallback onOpenUpdate;
   final VoidCallback onOpenAbout;
   final VoidCallback onOpenNativeControl;
+  final VoidCallback onOpenDeploy;
 
   @override
   State<SettingsPage> createState() => _SettingsPageState();
@@ -149,6 +151,13 @@ class _SettingsPageState extends State<SettingsPage> {
               connectionController: widget.connectionController,
               enabled: widget.starAuthorized,
               onTap: widget.onOpenUpdate,
+            ),
+            _SettingRow(
+              icon: LucideIcons.rocket,
+              title: '部署',
+              subtitle: '后端部署与更新配置，修改需谨慎',
+              enabled: widget.starAuthorized,
+              onTap: widget.starAuthorized ? widget.onOpenDeploy : null,
             ),
           ],
         ),

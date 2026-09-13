@@ -12,6 +12,7 @@ import 'package:nkas_mobile/core/platform/native_control_settings.dart';
 import 'package:nkas_mobile/features/screen/native_video_surface.dart';
 import 'package:nkas_mobile/core/widgets/avatar.dart';
 import 'package:nkas_mobile/core/widgets/buttons.dart';
+import 'package:nkas_mobile/core/widgets/instance_picker.dart';
 import 'package:nkas_mobile/core/widgets/page_inset.dart';
 import 'package:nkas_mobile/core/widgets/page_subtitle.dart';
 import 'package:nkas_mobile/core/widgets/status.dart';
@@ -105,7 +106,15 @@ class ScreenPage extends StatelessWidget {
                 CompactButton(
                   icon: LucideIcons.layers3,
                   label: '切换',
-                  onPressed: () => _showInstancePicker(context),
+                  onPressed: () => showInstancePicker(
+                    context,
+                    instances: instances,
+                    selected: selected,
+                    loading: loading,
+                    error: error,
+                    avatarUrl: avatarUrl,
+                    onSelect: onSelectInstance,
+                  ),
                 ),
               ],
             ),
@@ -125,57 +134,6 @@ class ScreenPage extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-
-  void _showInstancePicker(BuildContext context) {
-    showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (context) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('切换实例', style: ShadTheme.of(context).textTheme.h3),
-              const SizedBox(height: 8),
-              if (loading)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 24),
-                  child: Center(child: CircularProgressIndicator()),
-                )
-              else if (instances.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 18),
-                  child: Text(
-                    error == null ? '暂无实例' : '实例加载失败，请检查后端连接',
-                    style: ShadTheme.of(context).textTheme.muted,
-                  ),
-                ),
-              for (final item in instances)
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: Avatar(
-                    text: item.name.characters.first,
-                    imageUrl: avatarUrl(item),
-                  ),
-                  title: Text(item.name),
-                  trailing: Icon(
-                    item.name == selected
-                        ? LucideIcons.check
-                        : LucideIcons.chevronRight,
-                  ),
-                  onTap: () {
-                    onSelectInstance(item.name);
-                    Navigator.pop(context);
-                  },
-                ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }
@@ -224,7 +182,6 @@ class _ScreenPanelState extends State<ScreenPanel> {
     if (widget.accessGranted) {
       _startPolling();
       unawaited(_load());
-      unawaited(_startNativeVideo());
     }
   }
 
@@ -235,7 +192,6 @@ class _ScreenPanelState extends State<ScreenPanel> {
     if (widget.accessGranted) {
       _startPolling();
       unawaited(_load());
-      unawaited(_startNativeVideo());
     } else {
       timer?.cancel();
       timer = null;

@@ -16,7 +16,7 @@ class SchemaPanel extends StatefulWidget {
     required this.onReload,
     required this.onPatch,
     required this.initialTaskKey,
-    required this.onBack,
+    this.onBack,
     required this.onTaskKeyChanged,
     super.key,
   });
@@ -27,7 +27,7 @@ class SchemaPanel extends StatefulWidget {
   final Future<void> Function() onReload;
   final Future<void> Function(String, Object?) onPatch;
   final String? initialTaskKey;
-  final VoidCallback onBack;
+  final VoidCallback? onBack;
   final ValueChanged<String?> onTaskKeyChanged;
 
   @override
@@ -169,10 +169,12 @@ class _SchemaPanelState extends State<SchemaPanel> {
   }
 
   Widget _taskListHeader() {
+    final onBack = widget.onBack;
+    if (onBack == null) return const SizedBox.shrink();
     return Row(
       children: [
         IconButton(
-          onPressed: widget.onBack,
+          onPressed: onBack,
           icon: const Icon(LucideIcons.arrowLeft, size: 19),
           tooltip: '返回实例',
           padding: EdgeInsets.zero,

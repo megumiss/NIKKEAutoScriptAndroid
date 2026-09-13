@@ -18,6 +18,7 @@ import 'package:nkas_mobile/core/platform/runtime_platform.dart';
 import 'package:nkas_mobile/core/widgets/buttons.dart';
 import 'package:nkas_mobile/core/widgets/status.dart';
 import 'package:nkas_mobile/features/instances/instances_page.dart';
+import 'package:nkas_mobile/features/tasks/tasks_page.dart';
 import 'package:nkas_mobile/features/screen/screen_page.dart';
 import 'package:nkas_mobile/features/logs/logs_page.dart';
 import 'package:nkas_mobile/features/deploy/deploy_page.dart';
@@ -33,6 +34,7 @@ import 'package:nkas_mobile/theme.dart';
 enum NkasPage {
   overview,
   instances,
+  tasks,
   screen,
   logs,
   deploy,
@@ -63,14 +65,12 @@ class NkasShell extends StatefulWidget {
 }
 
 class _NkasShellState extends State<NkasShell> {
-  // 预览工程支持 ?page=overview|instances|logs|deploy|settings 指定初始页，便于逐页截图验收
+  // 预览工程支持 ?page=overview|instances|tasks|screen|logs|settings 指定初始页，便于逐页截图验收
   NkasPage page = kIsWeb
       ? NkasPage.values.asNameMap()[Uri.base.queryParameters['page']] ??
             NkasPage.overview
       : NkasPage.overview;
   late final List<NkasPage> pageStack = [page];
-  InstanceLayer instanceLayer = InstanceLayer.list;
-  bool instanceListParent = false;
   String instance = '主账号';
   bool notifications = true;
   final instanceStates = <String, bool>{
@@ -109,9 +109,9 @@ class _NkasShellState extends State<NkasShell> {
   static const _rootPages = [
     NkasPage.overview,
     NkasPage.instances,
+    NkasPage.tasks,
     NkasPage.screen,
     NkasPage.logs,
-    NkasPage.deploy,
     NkasPage.settings,
   ];
 
@@ -341,18 +341,6 @@ class _NkasShellState extends State<NkasShell> {
     }
   }
 
-  /// 列表层为非选中实例拉一次队列快照：不开队列 WS，避免挤掉选中实例的 socket
-  Future<void> _loadQueueSnapshot(String name) async {
-    if (!_starAccessGranted) return;
-    try {
-      final result = await widget.connectionController.fetchQueue(name);
-      if (!mounted || !_starAccessGranted) return;
-      setState(() => queues[name] = result);
-    } catch (_) {
-      // 列表卡片计数失败静默：卡片不显示计数行
-    }
-  }
-
   Future<void> _loadCalendar({bool refresh = false}) async {
     if (!_starAccessGranted) return;
     setState(() {
@@ -451,8 +439,7 @@ class _NkasShellState extends State<NkasShell> {
                     _AppHeader(
                       title: _pageTitle,
                       connection: widget.connectionController.state,
-                      showBack:
-                          !_canPopSystemRoute && !_hasInstanceLayerBackBar,
+                      showBack: !_canPopSystemRoute,
                       backTooltip: _isSettingsSubpage ? '返回设置' : '返回',
                       onBack: _handleBack,
                     ),
@@ -523,52 +510,15 @@ class _NkasShellState extends State<NkasShell> {
   }
 
   bool get _canPopSystemRoute =>
-      page == NkasPage.overview &&
-      pageStack.length == 1 &&
-      instanceLayer == InstanceLayer.list;
-
-  bool get _hasInstanceLayerBackBar =>
-      page == NkasPage.instances &&
-      (instanceLayer == InstanceLayer.tasks ||
-          instanceLayer == InstanceLayer.schedule ||
-          instanceLayer == InstanceLayer.liveLogs);
+      page == NkasPage.overview && pageStack.length == 1;
 
   bool _handleBack() {
     _navDirection = -1;
-    if (page == NkasPage.instances) {
-      if (instanceLayer == InstanceLayer.tasks && taskKey != null) {
-        setState(() => taskKey = null);
-        return true;
-      }
-      if (instanceLayer == InstanceLayer.tasks ||
-          instanceLayer == InstanceLayer.schedule ||
-          instanceLayer == InstanceLayer.liveLogs) {
-        setState(() => instanceLayer = InstanceLayer.dashboard);
-        return true;
-      }
-      if (instanceLayer == InstanceLayer.dashboard &&
-          instanceListParent &&
-          instances.length > 1) {
-        setState(() {
-          instanceLayer = InstanceLayer.list;
-          taskKey = null;
-          schema = null;
-          schemaError = null;
-        });
-        return true;
-      }
-    }
     if (pageStack.length > 1) {
       setState(() {
+        if (page == NkasPage.tasks) taskKey = null;
         pageStack.removeLast();
         page = pageStack.last;
-        if (page != NkasPage.instances) {
-          instanceListParent = false;
-          instanceLayer = InstanceLayer.list;
-          taskKey = null;
-          schema = null;
-          schemaError = null;
-        }
       });
       return true;
     }
@@ -582,6 +532,7 @@ class _NkasShellState extends State<NkasShell> {
   String get _pageTitle => switch (page) {
     NkasPage.overview => '总览',
     NkasPage.instances => '实例',
+    NkasPage.tasks => '任务',
     NkasPage.screen => '画面',
     NkasPage.logs => '日志',
     NkasPage.deploy => '部署',
@@ -598,7 +549,8 @@ class _NkasShellState extends State<NkasShell> {
       page == NkasPage.setup ||
       page == NkasPage.update ||
       page == NkasPage.about ||
-      page == NkasPage.nativeControl;
+      page == NkasPage.nativeControl ||
+      page == NkasPage.deploy;
 
   Widget _pageBody() => switch (page) {
     NkasPage.overview => OverviewPage(
@@ -617,15 +569,12 @@ class _NkasShellState extends State<NkasShell> {
       onSelectInstance: (value) {
         setState(() {
           instance = value;
-          instanceLayer = InstanceLayer.dashboard;
-          pageStack.add(NkasPage.instances);
-          page = NkasPage.instances;
-          instanceListParent = false;
           taskKey = null;
           queueError = null;
           schema = null;
           schemaError = null;
         });
+        _pushPage(NkasPage.instances);
         unawaited(_loadQueue(value));
       },
       calendarItems: calendarItems,
@@ -646,43 +595,38 @@ class _NkasShellState extends State<NkasShell> {
       queueError: queueError,
       selected: instance,
       running: instanceStates[instance] ?? false,
-      layer: instanceLayer,
-      onLayerChanged: (value) {
-        setState(() => instanceLayer = value);
-        if (value == InstanceLayer.tasks && schema == null) {
-          unawaited(_loadSchema(instance));
-        }
-      },
       onToggle: () => unawaited(_toggleInstance(instance)),
-      onToggleInstance: (name) => unawaited(_toggleInstance(name)),
-      loadQueueSnapshot: _loadQueueSnapshot,
-      fetchScreenshot: (name) =>
-          widget.connectionController.fetchScreenshot(name),
-      onOpenScreen: () => _pushPage(NkasPage.screen),
-      loadSchedule: () => widget.connectionController.fetchSchedule(instance),
-      saveSchedule: (changes) =>
-          widget.connectionController.saveSchedule(instance, changes),
-      resetSchedule: () => widget.connectionController.resetSchedule(instance),
+      onSelectInstance: _switchInstance,
+      onOpenTask: _openTask,
+    ),
+    NkasPage.tasks => TasksPage(
+      instances: instances,
+      selected: instance,
+      selectedInstance: selectedInstance,
+      avatarUrl: _avatarUrl,
+      instancesLoading: loadingInstances,
+      instancesError: instancesError,
+      onSelectInstance: _switchInstance,
+      queue: queues[instance],
+      queueLoading: loadingQueue,
+      queueError: queueError,
       schema: schema,
       schemaLoading: loadingSchema,
       schemaError: schemaError,
       loadSchema: () => _loadSchema(instance),
-      patchConfig: (key, value) =>
+      onPatch: (key, value) =>
           widget.connectionController.patchConfig(instance, key, value),
+      initialTaskKey: taskKey,
+      onTaskKeyChanged: (value) => setState(() => taskKey = value),
+      loadSchedule: () => widget.connectionController.fetchSchedule(instance),
+      saveSchedule: (changes) =>
+          widget.connectionController.saveSchedule(instance, changes),
+      resetSchedule: () => widget.connectionController.resetSchedule(instance),
       liveLogUri: widget.connectionController.websocketUri(
         '/ws/${Uri.encodeComponent(instance)}/log',
       ),
-      onOpenTask: (value) {
-        setState(() {
-          instanceLayer = InstanceLayer.tasks;
-          taskKey = value;
-        });
-        if (schema == null) unawaited(_loadSchema(instance));
-      },
-      onTaskKeyChanged: (value) => setState(() => taskKey = value),
-      initialTaskKey: taskKey,
+      running: instanceStates[instance] ?? false,
       accessGranted: _starAccessGranted,
-      onSelectInstance: _switchInstance,
     ),
     NkasPage.screen => ScreenPage(
       instances: instances,
@@ -716,6 +660,7 @@ class _NkasShellState extends State<NkasShell> {
       onOpenUpdate: () => _pushPage(NkasPage.update),
       onOpenAbout: () => _pushPage(NkasPage.about),
       onOpenNativeControl: () => _pushPage(NkasPage.nativeControl),
+      onOpenDeploy: () => _pushPage(NkasPage.deploy),
     ),
     NkasPage.starVerify => StarVerifyPage(
       onOpenSetup: () => unawaited(_openSetup()),
@@ -740,26 +685,48 @@ class _NkasShellState extends State<NkasShell> {
   void _switchInstance(String value) {
     setState(() {
       instance = value;
-      instanceLayer = InstanceLayer.dashboard;
       queueError = null;
       schema = null;
       schemaError = null;
       taskKey = null;
     });
     unawaited(_loadQueue(value));
+    if (page == NkasPage.tasks && schema == null) {
+      unawaited(_loadSchema(value));
+    }
+  }
+
+  /// 进入实例/任务页前确保队列和 schema 已就绪（队列 socket 已在当前实例上则不重连）
+  void _prepareInstancePage(NkasPage value) {
+    if (value != NkasPage.instances && value != NkasPage.tasks) return;
+    if (queueSocketInstance != instance && !loadingQueue) {
+      unawaited(_loadQueue(instance));
+    }
+    if (value == NkasPage.tasks && schema == null) {
+      unawaited(_loadSchema(instance));
+    }
+  }
+
+  /// 实例详情点队列行：打开任务页并展开对应任务配置
+  void _openTask(String key) {
+    taskKey = key;
+    if (page == NkasPage.tasks) {
+      setState(() {});
+      return;
+    }
+    _pushPage(NkasPage.tasks);
   }
 
   void _selectRootPage(NkasPage value) {
     final from = _rootPages.indexOf(page);
     final to = _rootPages.indexOf(value);
     _navDirection = from >= 0 && to >= 0 && to < from ? -1 : 1;
+    _prepareInstancePage(value);
     setState(() {
       pageStack
         ..clear()
         ..add(value);
       page = value;
-      instanceListParent = value == NkasPage.instances;
-      instanceLayer = InstanceLayer.list;
       taskKey = null;
       schema = null;
       schemaError = null;
@@ -769,20 +736,7 @@ class _NkasShellState extends State<NkasShell> {
   void _pushPage(NkasPage value) {
     if (page == value) return;
     _navDirection = 1;
-    if (value == NkasPage.instances) {
-      setState(() {
-        pageStack.add(value);
-        page = value;
-        instanceListParent = true;
-        // The page decides whether a single instance skips the list. Keeping
-        // the list layer here also handles instances arriving asynchronously.
-        instanceLayer = InstanceLayer.list;
-        taskKey = null;
-        schema = null;
-        schemaError = null;
-      });
-      return;
-    }
+    _prepareInstancePage(value);
     setState(() {
       pageStack.add(value);
       page = value;
@@ -971,6 +925,12 @@ class _BottomNav extends StatelessWidget {
                     onTap: () => onSelect(NkasPage.instances),
                   ),
                   _NavItem(
+                    icon: LucideIcons.listOrdered,
+                    label: '任务',
+                    selected: page == NkasPage.tasks,
+                    onTap: () => onSelect(NkasPage.tasks),
+                  ),
+                  _NavItem(
                     icon: LucideIcons.monitorPlay,
                     label: '画面',
                     selected: page == NkasPage.screen,
@@ -981,12 +941,6 @@ class _BottomNav extends StatelessWidget {
                     label: '日志',
                     selected: page == NkasPage.logs,
                     onTap: () => onSelect(NkasPage.logs),
-                  ),
-                  _NavItem(
-                    icon: LucideIcons.rocket,
-                    label: '部署',
-                    selected: page == NkasPage.deploy,
-                    onTap: () => onSelect(NkasPage.deploy),
                   ),
                   _NavItem(
                     icon: LucideIcons.settings2,
