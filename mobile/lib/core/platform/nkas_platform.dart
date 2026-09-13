@@ -230,12 +230,13 @@ class NkasPlatform {
   Future<SetupStatus> setupStatus() async {
     if (isIOS) {
       final star = await starStatus();
+      final serial = await getSerial();
       return SetupStatus(
         authorized: star.authorized,
         termuxInstalled: false,
         runCommandPermission: false,
         wirelessDebug: false,
-        serial: '',
+        serial: serial,
       );
     }
     if (!_androidSupported) {

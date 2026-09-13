@@ -256,7 +256,7 @@ class _ScreenPanelState extends State<ScreenPanel> {
           videoWidth = event.width;
           videoHeight = event.height;
         });
-      } else if (event.state == 'error') {
+      } else if (event.state == 'error' || event.state == 'failed') {
         setState(() => nativeError = event.error);
         _startPolling();
       } else if (event.state == 'stopped') {
