@@ -11,11 +11,16 @@ import 'package:nkas_mobile/core/widgets/page_subtitle.dart';
 import 'package:nkas_mobile/core/widgets/queue_row.dart';
 import 'package:nkas_mobile/core/widgets/status.dart';
 import 'package:nkas_mobile/core/widgets/surface.dart';
+import 'package:nkas_mobile/core/widgets/tab_strip.dart';
+import 'package:nkas_mobile/features/instances/live_log_panel.dart';
 import 'package:nkas_mobile/theme.dart';
 
-/// 实例页直接展示选中实例的详情：头部（切换/启停）+ 任务队列摘要。
-/// 队列行点击跳转任务页对应配置；任务配置、实时日志、调度设置在任务页 tab 中。
-class InstancesPage extends StatelessWidget {
+/// 实例详情页顶部横向 tab：运行中/队列中/等待中三段队列 + 实时日志
+enum InstanceTab { running, pending, waiting, liveLog }
+
+/// 实例页直接展示选中实例的详情：头部（切换/启停）+ 横向 tab（队列三段、
+/// 实时日志）。队列行点击跳转任务页对应配置；任务配置、调度设置在任务页。
+class InstancesPage extends StatefulWidget {
   const InstancesPage({
     required this.selected,
     required this.selectedInstance,
@@ -24,13 +29,15 @@ class InstancesPage extends StatelessWidget {
     required this.toggleLoading,
     required this.error,
     required this.avatarUrl,
-    required this.queues,
+    required this.queue,
     required this.queueLoading,
     required this.queueError,
     required this.running,
     required this.onToggle,
     required this.onSelectInstance,
     required this.onOpenTask,
+    required this.liveLogUri,
+    required this.accessGranted,
     super.key,
   });
   final String selected;
@@ -40,84 +47,167 @@ class InstancesPage extends StatelessWidget {
   final bool toggleLoading;
   final String? error;
   final String? Function(InstanceInfo item) avatarUrl;
-  final Map<String, QueueInfo> queues;
+  final QueueInfo? queue;
   final bool queueLoading;
   final String? queueError;
   final bool running;
   final VoidCallback onToggle;
   final ValueChanged<String> onSelectInstance;
   final ValueChanged<String> onOpenTask;
+  final Uri liveLogUri;
+  final bool accessGranted;
+
+  @override
+  State<InstancesPage> createState() => _InstancesPageState();
+}
+
+class _InstancesPageState extends State<InstancesPage> {
+  InstanceTab tab = InstanceTab.running;
 
   @override
   Widget build(BuildContext context) {
     final inset = nkasPageInset(context);
+    final queue = widget.queue;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
           padding: EdgeInsets.fromLTRB(inset, 5, inset, 0),
-          child: const PageSubtitle('查看实例状态与任务队列'),
+          child: const PageSubtitle('查看实例状态、任务队列与实时日志'),
         ),
         _DashboardHeader(
-          selectedInstance: selectedInstance,
-          loading: loading,
-          error: error,
-          avatarUrl: avatarUrl,
-          running: running,
-          toggleLoading: toggleLoading,
-          showSwitcher: instances.isNotEmpty,
-          onToggle: onToggle,
+          selectedInstance: widget.selectedInstance,
+          loading: widget.loading,
+          error: widget.error,
+          avatarUrl: widget.avatarUrl,
+          running: widget.running,
+          toggleLoading: widget.toggleLoading,
+          showSwitcher: widget.instances.isNotEmpty,
+          onToggle: widget.onToggle,
           onShowPicker: () => showInstancePicker(
             context,
-            instances: instances,
-            selected: selected,
-            loading: loading,
-            error: error,
-            avatarUrl: avatarUrl,
-            onSelect: onSelectInstance,
+            instances: widget.instances,
+            selected: widget.selected,
+            loading: widget.loading,
+            error: widget.error,
+            avatarUrl: widget.avatarUrl,
+            onSelect: widget.onSelectInstance,
           ),
         ),
-        Expanded(
-          child: ListView(
-            padding: EdgeInsets.fromLTRB(inset, 8, inset, 88),
-            children: [
-              _QueueSummary(
-                queue: queues[selected],
-                loading: queueLoading,
-                error: queueError,
-                onOpenTask: onOpenTask,
-              ),
+        Padding(
+          padding: EdgeInsets.fromLTRB(inset, 10, inset, 0),
+          child: NkasTabStrip<InstanceTab>(
+            tabs: [
+              (InstanceTab.running, '运行中 ${queue?.running.length ?? 0}'),
+              (InstanceTab.pending, '队列中 ${queue?.pending.length ?? 0}'),
+              (InstanceTab.waiting, '等待中 ${queue?.waiting.length ?? 0}'),
+              (InstanceTab.liveLog, '实时日志'),
             ],
+            selected: tab,
+            onSelect: (value) => setState(() => tab = value),
           ),
         ),
+        const SizedBox(height: 8),
+        Expanded(child: _tabContent(inset)),
       ],
     );
   }
-}
 
-class _QueueCount extends StatelessWidget {
-  const _QueueCount({
-    required this.label,
-    required this.count,
-    required this.color,
-  });
-  final String label;
-  final int count;
-  final Color color;
+  Widget _tabContent(double inset) {
+    final scheme = ShadTheme.of(context).colorScheme;
+    switch (tab) {
+      case InstanceTab.liveLog:
+        return Padding(
+          key: const ValueKey(InstanceTab.liveLog),
+          padding: EdgeInsets.fromLTRB(inset, 0, inset, 88),
+          child: SizedBox.expand(
+            child: LiveLogPanel(
+              key: ValueKey(widget.selected),
+              running: widget.running,
+              uri: widget.liveLogUri,
+              accessGranted: widget.accessGranted,
+            ),
+          ),
+        );
+      case InstanceTab.running:
+        return _queueList(
+          inset,
+          tab,
+          widget.queue?.running,
+          scheme.success,
+          LucideIcons.loaderCircle,
+        );
+      case InstanceTab.pending:
+        return _queueList(
+          inset,
+          tab,
+          widget.queue?.pending,
+          scheme.primary,
+          LucideIcons.listOrdered,
+        );
+      case InstanceTab.waiting:
+        return _queueList(
+          inset,
+          tab,
+          widget.queue?.waiting,
+          scheme.mutedForeground,
+          LucideIcons.clock3,
+        );
+    }
+  }
 
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
+  Widget _queueList(
+    double inset,
+    InstanceTab key,
+    List<QueueItem>? items,
+    Color color,
+    IconData icon,
+  ) {
+    if (widget.queueLoading && widget.queue == null) {
+      return const Center(
+        key: ValueKey('queue-loading'),
+        child: CircularProgressIndicator(),
+      );
+    }
+    if (widget.queue == null || items == null) {
+      return Padding(
+        key: ValueKey(key),
+        padding: EdgeInsets.fromLTRB(inset, 28, inset, 0),
+        child: Text(widget.queueError == null ? '暂无队列数据' : '队列加载失败'),
+      );
+    }
+    if (items.isEmpty) {
+      return Padding(
+        key: ValueKey(key),
+        padding: EdgeInsets.fromLTRB(inset, 28, inset, 0),
+        child: Text('暂无任务', style: ShadTheme.of(context).textTheme.muted),
+      );
+    }
+    return ListView(
+      key: ValueKey(key),
+      padding: EdgeInsets.fromLTRB(inset, 0, inset, 88),
       children: [
-        Dot(color: color),
-        const SizedBox(width: 5),
-        Text(
-          '$label $count',
-          style: TextStyle(
-            color: color,
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
+        Surface(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          child: Column(
+            children: [
+              for (var i = 0; i < items.length; i++) ...[
+                if (i > 0) const Divider(height: 1),
+                QueueRow(
+                  name: items[i].name,
+                  detail: items[i].command,
+                  time: items[i].nextRun,
+                  color: color,
+                  icon: icon,
+                  // schema 以后端 command 为键，而非本地化名称
+                  onTap: () => widget.onOpenTask(
+                    items[i].command.isEmpty
+                        ? items[i].name
+                        : items[i].command,
+                  ),
+                ),
+              ],
+            ],
           ),
         ),
       ],
@@ -220,125 +310,6 @@ class _DashboardHeader extends StatelessWidget {
             ],
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _QueueSummary extends StatefulWidget {
-  const _QueueSummary({
-    required this.queue,
-    required this.loading,
-    required this.error,
-    required this.onOpenTask,
-  });
-  final QueueInfo? queue;
-  final bool loading;
-  final String? error;
-  final ValueChanged<String> onOpenTask;
-
-  @override
-  State<_QueueSummary> createState() => _QueueSummaryState();
-}
-
-class _QueueSummaryState extends State<_QueueSummary> {
-  bool expanded = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = ShadTheme.of(context);
-    final scheme = theme.colorScheme;
-    if (widget.loading && widget.queue == null) {
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.only(top: 36),
-          child: CircularProgressIndicator(),
-        ),
-      );
-    }
-    if (widget.queue == null) {
-      return Padding(
-        padding: const EdgeInsets.only(top: 28),
-        child: Text(widget.error == null ? '暂无队列数据' : '队列加载失败'),
-      );
-    }
-    final groups = [
-      ('运行中', widget.queue!.running, scheme.success, LucideIcons.loaderCircle),
-      ('队列中', widget.queue!.pending, scheme.primary, LucideIcons.listOrdered),
-      (
-        '等待中',
-        widget.queue!.waiting,
-        scheme.mutedForeground,
-        LucideIcons.clock3,
-      ),
-    ];
-    return Surface(
-      padding: const EdgeInsets.all(12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              for (var i = 0; i < groups.length; i++) ...[
-                if (i > 0) const SizedBox(width: 12),
-                _QueueCount(
-                  label: groups[i].$1,
-                  count: groups[i].$2.length,
-                  color: groups[i].$3,
-                ),
-              ],
-            ],
-          ),
-          if (widget.queue!.running.isEmpty &&
-              widget.queue!.pending.isEmpty &&
-              widget.queue!.waiting.isEmpty)
-            Padding(
-              padding: const EdgeInsets.only(top: 10),
-              child: Text('暂无任务', style: theme.textTheme.muted),
-            )
-          else ...[
-            for (final group in groups)
-              if (group.$2.isNotEmpty) ...[
-                const SizedBox(height: 6),
-                const Divider(height: 12),
-                for (
-                  var i = 0;
-                  i <
-                      (expanded
-                          ? group.$2.length
-                          : group.$2.length.clamp(0, 3));
-                  i++
-                )
-                  QueueRow(
-                    name: group.$2[i].name,
-                    detail: group.$2[i].command,
-                    time: group.$2[i].nextRun,
-                    color: group.$3,
-                    icon: group.$4,
-                    // The schema is keyed by the backend command, not the localized label.
-                    onTap: () => widget.onOpenTask(
-                      group.$2[i].command.isEmpty
-                          ? group.$2[i].name
-                          : group.$2[i].command,
-                    ),
-                  ),
-              ],
-            if (groups.any((group) => group.$2.length > 3))
-              Align(
-                alignment: Alignment.centerLeft,
-                child: TextButton.icon(
-                  onPressed: () => setState(() => expanded = !expanded),
-                  icon: Icon(
-                    expanded
-                        ? LucideIcons.chevronsUp
-                        : LucideIcons.chevronsDown,
-                    size: 16,
-                  ),
-                  label: Text(expanded ? '收起队列' : '展开全部'),
-                ),
-              ),
-          ],
-        ],
       ),
     );
   }

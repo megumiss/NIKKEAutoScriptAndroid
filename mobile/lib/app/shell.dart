@@ -590,7 +590,7 @@ class _NkasShellState extends State<NkasShell> {
       toggleLoading: togglingInstance,
       error: instancesError,
       avatarUrl: _avatarUrl,
-      queues: queues,
+      queue: queues[instance],
       queueLoading: loadingQueue,
       queueError: queueError,
       selected: instance,
@@ -598,6 +598,10 @@ class _NkasShellState extends State<NkasShell> {
       onToggle: () => unawaited(_toggleInstance(instance)),
       onSelectInstance: _switchInstance,
       onOpenTask: _openTask,
+      liveLogUri: widget.connectionController.websocketUri(
+        '/ws/${Uri.encodeComponent(instance)}/log',
+      ),
+      accessGranted: _starAccessGranted,
     ),
     NkasPage.tasks => TasksPage(
       instances: instances,
@@ -607,9 +611,6 @@ class _NkasShellState extends State<NkasShell> {
       instancesLoading: loadingInstances,
       instancesError: instancesError,
       onSelectInstance: _switchInstance,
-      queue: queues[instance],
-      queueLoading: loadingQueue,
-      queueError: queueError,
       schema: schema,
       schemaLoading: loadingSchema,
       schemaError: schemaError,
@@ -622,11 +623,6 @@ class _NkasShellState extends State<NkasShell> {
       saveSchedule: (changes) =>
           widget.connectionController.saveSchedule(instance, changes),
       resetSchedule: () => widget.connectionController.resetSchedule(instance),
-      liveLogUri: widget.connectionController.websocketUri(
-        '/ws/${Uri.encodeComponent(instance)}/log',
-      ),
-      running: instanceStates[instance] ?? false,
-      accessGranted: _starAccessGranted,
     ),
     NkasPage.screen => ScreenPage(
       instances: instances,
@@ -925,7 +921,7 @@ class _BottomNav extends StatelessWidget {
                     onTap: () => onSelect(NkasPage.instances),
                   ),
                   _NavItem(
-                    icon: LucideIcons.listOrdered,
+                    icon: LucideIcons.listTodo,
                     label: '任务',
                     selected: page == NkasPage.tasks,
                     onTap: () => onSelect(NkasPage.tasks),

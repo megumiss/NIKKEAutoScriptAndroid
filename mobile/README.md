@@ -49,6 +49,8 @@ AuthKey 仅用于内存中的注册请求；节点状态保存在应用私有目
 
 ## Android 构建
 
+Windows 本地打包、首次环境准备、签名配置、APK 位置和常见问题见 [本地构建说明](BUILD.md)。
+
 需要 Flutter **3.47.2**、Go **1.23.12**、JDK **17**、Android SDK 和 NDK **28.2.13676358**。应用 minSdk 为 **26**。gomobile 固定为 `v0.0.0-20240806205939-81131f6468ab`，Tailscale 固定为 **1.80.3**。
 
 在当前 `mobile` 目录执行：

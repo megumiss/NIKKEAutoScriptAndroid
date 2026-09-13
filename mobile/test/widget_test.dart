@@ -484,7 +484,7 @@ void main() {
   testWidgets('renders real-time logs without prototype rows', (tester) async {
     await _pumpTestApp(tester);
 
-    await tester.tap(find.byTooltip('任务'));
+    await tester.tap(find.byTooltip('实例'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('实时日志'));
     await tester.pumpAndSettle();
@@ -494,23 +494,38 @@ void main() {
     expect(find.text('每日任务：开始执行前哨基地'), findsNothing);
   });
 
-  testWidgets('instances page opens the dashboard directly', (tester) async {
+  testWidgets('instances page splits queue groups into horizontal tabs', (
+    tester,
+  ) async {
     await _pumpTestApp(tester);
 
     await tester.tap(find.byTooltip('实例'));
     await tester.pumpAndSettle();
 
-    // 直接进详情：头部 + 队列摘要，无列表层、无画面卡片、无管理入口
-    expect(find.text('查看实例状态与任务队列'), findsOneWidget);
-    expect(find.text('选择实例查看详情'), findsNothing);
+    // 详情页横向 tab：三段队列带计数 + 实时日志，无画面卡片
+    expect(find.text('查看实例状态、任务队列与实时日志'), findsOneWidget);
     expect(find.text('运行中 1'), findsOneWidget);
     expect(find.text('队列中 1'), findsOneWidget);
     expect(find.text('等待中 0'), findsOneWidget);
-    expect(find.text('收获'), findsOneWidget);
-    expect(find.text('每日任务'), findsOneWidget);
+    expect(find.text('实时日志'), findsOneWidget);
     expect(find.text('实时画面'), findsNothing);
 
+    // 默认运行中 tab
+    expect(find.text('收获'), findsOneWidget);
+    expect(find.text('每日任务'), findsNothing);
+
+    await tester.tap(find.text('队列中 1'));
+    await tester.pumpAndSettle();
+    expect(find.text('每日任务'), findsOneWidget);
+    expect(find.text('收获'), findsNothing);
+
+    await tester.tap(find.text('等待中 0'));
+    await tester.pumpAndSettle();
+    expect(find.text('暂无任务'), findsOneWidget);
+
     // 队列行点击跳任务页对应配置（'Daily' 不在 schema 中，落在任务配置列表）
+    await tester.tap(find.text('队列中 1'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('每日任务'));
     await tester.pumpAndSettle();
     expect(find.text('任务配置'), findsOneWidget);
@@ -518,7 +533,7 @@ void main() {
 
     await tester.tap(find.byTooltip('返回'));
     await tester.pumpAndSettle();
-    expect(find.text('查看实例状态与任务队列'), findsOneWidget);
+    expect(find.text('查看实例状态、任务队列与实时日志'), findsOneWidget);
   });
 
   testWidgets('screen page shows the instance bar and empty state', (
@@ -581,18 +596,18 @@ void main() {
 
         await tester.tap(find.byTooltip('实例'));
         await tester.pumpAndSettle();
-        expect(find.text('查看实例状态与任务队列'), findsOneWidget);
+        expect(find.text('查看实例状态、任务队列与实时日志'), findsOneWidget);
         expect(find.text('运行中 1'), findsOneWidget);
+        await tester.ensureVisible(find.text('实时日志'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('实时日志'));
+        await tester.pumpAndSettle();
 
         await tester.tap(find.byTooltip('任务'));
         await tester.pumpAndSettle();
         expect(find.text('任务配置'), findsOneWidget);
-        for (final tab in ['实时日志', '调度设置']) {
-          await tester.ensureVisible(find.text(tab));
-          await tester.pumpAndSettle();
-          await tester.tap(find.text(tab));
-          await tester.pumpAndSettle();
-        }
+        await tester.tap(find.text('调度设置'));
+        await tester.pumpAndSettle();
         expect(find.text('调度设置'), findsWidgets);
       });
 
