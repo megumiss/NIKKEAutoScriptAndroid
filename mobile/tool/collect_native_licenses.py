@@ -71,7 +71,8 @@ def collect_go():
             })
             value['directories'].add(Path(package['Dir']))
             value['platforms'].add(platform)
-    mobile = json.loads(capture('go', 'list', '-m', '-json', 'golang.org/x/mobile', cwd=module_dir, env=env))
+    # Tool-only modules are not downloaded by go list -deps on a clean runner.
+    mobile = json.loads(capture('go', 'mod', 'download', '-json', 'golang.org/x/mobile', cwd=module_dir, env=env))
     assert mobile['Version'] == MOBILE_VERSION
     modules[mobile['Path']] = {'root': Path(mobile['Dir']), 'version': mobile['Version'],
                                'directories': set(), 'platforms': {'android', 'ios'}}
