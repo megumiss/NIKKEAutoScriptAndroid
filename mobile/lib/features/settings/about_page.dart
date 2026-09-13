@@ -117,6 +117,17 @@ class _AboutPageState extends State<AboutPage> {
               trailing: LucideIcons.externalLink,
               onTap: () => _openUrl(context, _projectIssuesUrl),
             ),
+            _AboutRow(
+              icon: LucideIcons.fileText,
+              title: '开源许可证',
+              subtitle: 'Flutter、原生控制与第三方组件',
+              trailing: LucideIcons.chevronRight,
+              onTap: () => showLicensePage(
+                context: context,
+                applicationName: 'NKAS Mobile',
+                applicationVersion: appVersion,
+              ),
+            ),
           ],
         ),
         const SizedBox(height: 20),

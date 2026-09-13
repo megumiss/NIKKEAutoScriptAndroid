@@ -13,12 +13,14 @@ permissions:
 
 env:
   FLUTTER_VERSION: '3.47.2'
-  MOBILE_DIR: mobile
+  GO_VERSION: '1.23.12'
+  NDK_VERSION: '28.2.13676358'
 
 jobs:
   validate:
-    name: Flutter checks
+    name: Flutter and native checks
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: mobile
@@ -29,14 +31,28 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
           cache: true
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: mobile/native/tsnet/go.sum
       - run: flutter pub get
       - run: flutter analyze
       - run: flutter test
+      - name: Go lifecycle and race tests
+        working-directory: mobile/native/tsnet
+        run: go test -race ./...
+      - name: Check native resources and license inventory
+        run: |
+          python3 -m py_compile tool/build_tsnet.py tool/build_ios_adb.py tool/collect_native_licenses.py tool/verify_native.py
+          python3 -m unittest discover -s tool -p 'test_*.py'
+          python3 tool/collect_native_licenses.py go --check
+          python3 tool/verify_native.py
 
   android:
     name: Android APK
     needs: validate
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     defaults:
       run:
         working-directory: mobile
@@ -51,6 +67,19 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: mobile/native/tsnet/go.sum
+      - name: Build application-scoped tsnet AAR
+        run: |
+          sdkmanager "ndk;${NDK_VERSION}"
+          python3 tool/build_tsnet.py android
+      - run: flutter pub get
+      - name: Kotlin ADB and scrcpy tests
+        working-directory: mobile/android
+        run: bash gradlew :app:testDebugUnitTest --console=plain
+      - run: python3 tool/verify_native.py --android
       - name: Prepare Android signing files
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -69,18 +98,25 @@ jobs:
           keyAlias=$ANDROID_KEY_ALIAS
           keyPassword=$ANDROID_KEY_PASSWORD
           EOF
-      - run: flutter pub get
       - run: flutter build apk --release
+      - run: python3 tool/verify_native.py --apk build/app/outputs/flutter-apk/app-release.apk
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: nkas-android-apk
           path: mobile/build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: nkas-android-tests
+          path: mobile/build/app/reports/tests/testDebugUnitTest/
+          if-no-files-found: ignore
 
   ios:
-    name: iOS IPA
+    name: iOS frameworks, XCTest and IPA
     needs: validate
     runs-on: macos-15
+    timeout-minutes: 120
     defaults:
       run:
         working-directory: mobile
@@ -91,7 +127,37 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
           cache: true
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: mobile/native/tsnet/go.sum
+      - name: Build and verify native XCFrameworks
+        run: |
+          xcodebuild -version
+          cmake --version
+          python3 tool/build_tsnet.py ios
+          python3 tool/build_ios_adb.py
+          python3 tool/collect_native_licenses.py ios --check
+          python3 tool/verify_native.py --ios
       - run: flutter pub get
+      - run: flutter build ios --simulator --debug --no-codesign
+      - name: Run protocol and input XCTest on an available iPhone simulator
+        run: |
+          xcrun simctl list devices available --json > build/ios/simulators.json
+          SIMULATOR_ID=$(python3 - <<'PY'
+          import json
+          from pathlib import Path
+          data = json.loads(Path('build/ios/simulators.json').read_text())
+          phones = [device for runtime, devices in data['devices'].items() if '.iOS-' in runtime
+                    for device in devices if device.get('isAvailable') and device['name'].startswith('iPhone')]
+          if not phones:
+              raise SystemExit('No available iPhone simulator runtime')
+          print(phones[0]['udid'])
+          PY
+          )
+          xcodebuild test -workspace ios/Runner.xcworkspace -scheme Runner -configuration Debug \
+            -destination "platform=iOS Simulator,id=$SIMULATOR_ID" -destination-timeout 120 \
+            -resultBundlePath build/ios/NativeTests.xcresult CODE_SIGNING_ALLOWED=NO
       - name: Install Apple signing assets
         if: ${{ inputs.ios_signed == true }}
         env:
@@ -112,18 +178,21 @@ jobs:
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
           printf '%s' "$IOS_CERTIFICATE_BASE64" | base64 --decode > "$RUNNER_TEMP/signing.p12"
           security import "$RUNNER_TEMP/signing.p12" -k "$KEYCHAIN" -P "$IOS_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
           security list-keychains -d user -s "$KEYCHAIN" login.keychain-db
           mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
           printf '%s' "$IOS_PROVISIONING_PROFILE_BASE64" | base64 --decode > "$RUNNER_TEMP/profile.mobileprovision"
           security cms -D -i "$RUNNER_TEMP/profile.mobileprovision" > "$RUNNER_TEMP/profile.plist"
           PROFILE_UUID=$(/usr/libexec/PlistBuddy -c 'Print:UUID' "$RUNNER_TEMP/profile.plist")
           cp "$RUNNER_TEMP/profile.mobileprovision" "$HOME/Library/MobileDevice/Provisioning Profiles/$PROFILE_UUID.mobileprovision"
+          export IOS_PROFILE_UUID="$PROFILE_UUID"
           echo "IOS_PROFILE_UUID=$PROFILE_UUID" >> "$GITHUB_ENV"
           perl -0pi -e 's/CODE_SIGN_STYLE = Automatic;/CODE_SIGN_STYLE = Manual;\n\t\t\t\tDEVELOPMENT_TEAM = $ENV{IOS_TEAM_ID};\n\t\t\t\tPROVISIONING_PROFILE_SPECIFIER = $ENV{IOS_PROFILE_UUID};/g' ios/Runner.xcodeproj/project.pbxproj
       - name: Build unsigned IPA for personal re-signing
         if: ${{ inputs.ios_signed != true }}
         run: |
           flutter build ios --release --no-codesign
+          python3 tool/verify_native.py --app build/ios/iphoneos/Runner.app
           VERSION=$(awk '/^version:/{print $2}' pubspec.yaml | tr '+' '-')
           mkdir -p build/ios/iphoneos/Payload
           cp -R build/ios/iphoneos/Runner.app build/ios/iphoneos/Payload/
@@ -133,16 +202,16 @@ jobs:
         env:
           IOS_TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
         run: |
-          cat > ios/ExportOptions.plist <<EOF
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0"><dict>
-            <key>method</key><string>ad-hoc</string>
-            <key>teamID</key><string>${IOS_TEAM_ID}</string>
-            <key>signingStyle</key><string>manual</string>
-          </dict></plist>
-          EOF
+          python3 - <<'PY'
+          import os, plistlib
+          from pathlib import Path
+          profile = os.environ['IOS_PROFILE_UUID']
+          options = {'method': 'release-testing', 'teamID': os.environ['IOS_TEAM_ID'], 'signingStyle': 'manual',
+                     'provisioningProfiles': {'com.megumiss.nkas.mobile': profile}}
+          Path('ios/ExportOptions.plist').write_bytes(plistlib.dumps(options))
+          PY
           flutter build ipa --release --export-options-plist=ios/ExportOptions.plist
+          python3 tool/verify_native.py --app build/ios/archive/Runner.xcarchive/Products/Applications/Runner.app
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: nkas-ios-ipa
@@ -150,3 +219,18 @@ jobs:
             mobile/build/ios/iphoneos/*.ipa
             mobile/build/ios/ipa/*.ipa
           if-no-files-found: error
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: nkas-ios-tests
+          path: |
+            mobile/build/ios/NativeTests.xcresult/
+            mobile/build/native-adb/iphoneos/arm64/linked-archives.json
+            mobile/build/native-adb/iphonesimulator/*/linked-archives.json
+          if-no-files-found: ignore
+      - name: Remove temporary signing keychain
+        if: ${{ always() && inputs.ios_signed == true }}
+        run: |
+          if test -f "$RUNNER_TEMP/nkas-build.keychain-db"; then
+            security delete-keychain "$RUNNER_TEMP/nkas-build.keychain-db"
+          fi

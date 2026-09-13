@@ -27,6 +27,7 @@ flutter:
   uses-material-design: true
   assets:
     - assets/nkas.png
+    - assets/licenses/
   fonts:
     - family: NotoSansSC
       fonts:

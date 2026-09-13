@@ -50,6 +50,7 @@ Go 层只导出 Android 友好的简单类型，避免把 `context.Context`、ch
 - `StopAll()`
 - `Status()`
 - `Close()`
+- `Interrupt()`、`ClearState()` 和 `HasPersistedLogin(stateDir)`
 
 行为约定：
 
@@ -203,9 +204,12 @@ CI 包含：
 ## 进度记录（2026-09-13）
 
 - 已提交 `f17674f`：Android ADB AUTH、payload、WRTE/OKAY、关闭处理；27 项 JVM 测试通过。
+- 已提交 `8655cb3`（计划迁移与 Go 核心）、`fde8854`（Android / Flutter 控制）、`8818366`（iOS 原生控制与固定 ADB 构建）。
 - Go 核心及绑定测试通过，包含取消活动连接、重复关闭、监听释放、清除身份及错误脱敏。
 - `tool/build_tsnet.py android` 已生成并验证 armv7、arm64、x86_64 三种 ABI 的 AAR；产物不入库。
-- iOS ADB/scrcpy/VideoToolbox 改动待平台集成与最终审查，Xcode 检查未运行。
+- iOS 已接入 ADB/scrcpy/VideoToolbox、tsnet 与会话恢复；固定源码和嵌入补丁检查通过，Xcode 检查未运行。
 - Android 已接入 tsnet、原生控制会话、前台服务和独立的本机虚拟屏幕身份；33 项 JVM 测试通过，包含握手取消。
 - Flutter 已完成连接设置、控制目标显示、长按/滑动/取消、首帧展示和截图回退；45 项测试通过，analyze 无问题。
-- iOS 构建器、CI、完整许可证清单与交付文档仍在执行。macOS/Xcode 和真机检查尚未运行。
+- iOS 构建器、CI、86 条原生第三方声明和交付文档已补齐；原生构建工具 3 项回归通过。
+- `adb-mobile` 的独立移植胶水缺少顶层许可证，已记录来源状态；对外再分发前需确认授权。
+- 代码与构建配置阶段已完成。后续由用户执行最终工作流和真机验收；macOS/Xcode、Go race 与真机检查尚未在本地运行。见 [验收记录](VALIDATION.md)。
