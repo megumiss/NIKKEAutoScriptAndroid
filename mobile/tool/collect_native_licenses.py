@@ -39,7 +39,7 @@ def license_files(root, directories):
             if directory == root:
                 break
             directory = directory.parent
-    return sorted(found)
+    return sorted(found, key=lambda path: path.relative_to(root).as_posix())
 
 
 def entry(name, version, source, files, root, **extra):

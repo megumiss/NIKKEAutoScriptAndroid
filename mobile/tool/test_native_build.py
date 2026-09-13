@@ -5,6 +5,19 @@ import unittest
 from unittest.mock import patch
 
 from build_ios_adb import apply_source_patch, linked_archives
+from collect_native_licenses import license_files
+
+
+class NativeLicenseInputsTest(unittest.TestCase):
+    def test_license_order_is_independent_of_host_path_case_rules(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            nested = root / 'internal/sync/singleflight'
+            nested.mkdir(parents=True)
+            for path in (root / 'LICENSE', root / 'NOTICE', nested / 'LICENSE'):
+                path.touch()
+            paths = [path.relative_to(root).as_posix() for path in license_files(root, {nested})]
+            self.assertEqual(paths, ['LICENSE', 'NOTICE', 'internal/sync/singleflight/LICENSE'])
 
 
 class NativeLinkInputsTest(unittest.TestCase):
