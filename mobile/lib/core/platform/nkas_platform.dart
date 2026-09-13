@@ -1,10 +1,10 @@
 import 'dart:async';
-import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import 'package:nkas_mobile/core/platform/runtime_platform.dart';
+import 'package:nkas_mobile/core/platform/native_control_settings.dart';
 
 class StarAuthorization {
   const StarAuthorization({
@@ -135,6 +135,7 @@ class SetupNoticeEvent extends NkasPlatformEvent {
 class ScrcpyVideoEvent extends NkasPlatformEvent {
   const ScrcpyVideoEvent({
     required this.state,
+    this.requestId,
     this.textureId,
     this.deviceName,
     this.codecId,
@@ -144,6 +145,7 @@ class ScrcpyVideoEvent extends NkasPlatformEvent {
   });
 
   final String state;
+  final String? requestId;
   final int? textureId;
   final String? deviceName;
   final int? codecId;
@@ -155,6 +157,11 @@ class ScrcpyVideoEvent extends NkasPlatformEvent {
 class NativeNetworkEvent extends NkasPlatformEvent {
   const NativeNetworkEvent(this.state);
   final String state;
+}
+
+class TsnetStateEvent extends NkasPlatformEvent {
+  const TsnetStateEvent(this.status);
+  final TsnetStatus status;
 }
 
 class ScrcpyServerEvent extends NkasPlatformEvent {
@@ -197,7 +204,14 @@ class NativeScrcpyStart {
 }
 
 class NkasPlatform {
-  NkasPlatform._();
+  NkasPlatform._() : _supportedOverride = null;
+
+  @visibleForTesting
+  NkasPlatform.testing({required Stream<NkasPlatformEvent> events})
+    : _supportedOverride = true,
+      _eventStream = events;
+
+  final bool? _supportedOverride;
 
   static final NkasPlatform instance = NkasPlatform._();
   static const _channel = MethodChannel('com.megumiss.nkas/platform');
@@ -207,7 +221,7 @@ class NkasPlatform {
 
   /// Native STAR, ADB, and scrcpy entry points are implemented on Android and
   /// iOS. Android-only setup methods keep their own platform guard below.
-  bool get supported => !kIsWeb && (isAndroid || isIOS);
+  bool get supported => _supportedOverride ?? (!kIsWeb && (isAndroid || isIOS));
 
   bool get _androidSupported => !kIsWeb && isAndroid;
 
@@ -319,20 +333,31 @@ class NkasPlatform {
     });
   }
 
-  Future<Map<Object?, Object?>> nativeAdbConnect(String endpoint) async {
+  Future<Map<Object?, Object?>> nativeAdbConnect(
+    String endpoint, {
+    bool useTailscale = false,
+  }) async {
     if (!supported) throw UnsupportedError('原生 ADB 仅支持 Android 和 iOS');
     final value = await _channel.invokeMethod<Object?>('nativeAdbConnect', {
       'endpoint': endpoint,
+      'useTailscale': useTailscale,
     });
     return _map(value);
   }
 
   Future<String> nativeAdbShell(String command) async {
     if (!supported) throw UnsupportedError('原生 ADB 仅支持 Android 和 iOS');
-    return await _channel.invokeMethod<String>('nativeAdbShell', {'command': command}) ?? '';
+    return await _channel.invokeMethod<String>('nativeAdbShell', {
+          'command': command,
+        }) ??
+        '';
   }
 
-  Future<void> nativeAdbPush(Uint8List data, String remotePath, {int mode = 420}) async {
+  Future<void> nativeAdbPush(
+    Uint8List data,
+    String remotePath, {
+    int mode = 420,
+  }) async {
     if (!supported) throw UnsupportedError('原生 ADB 仅支持 Android 和 iOS');
     await _channel.invokeMethod<void>('nativeAdbPush', {
       'data': data,
@@ -343,7 +368,9 @@ class NkasPlatform {
 
   Future<Uint8List> nativeAdbPull(String remotePath) async {
     if (!supported) throw UnsupportedError('原生 ADB 仅支持 Android 和 iOS');
-    final value = await _channel.invokeMethod<Object?>('nativeAdbPull', {'remotePath': remotePath});
+    final value = await _channel.invokeMethod<Object?>('nativeAdbPull', {
+      'remotePath': remotePath,
+    });
     if (value is Uint8List) return value;
     if (value is List) return Uint8List.fromList(value.cast<int>());
     return Uint8List(0);
@@ -353,6 +380,59 @@ class NkasPlatform {
     if (!supported) return;
     await _channel.invokeMethod<void>('nativeAdbClose');
   }
+
+  Future<NativeControlSettings> nativeControlSettings() async {
+    if (!supported) return const NativeControlSettings();
+    return NativeControlSettings.fromMap(
+      _map(await _channel.invokeMethod<Object?>('getNativeControlSettings')),
+    );
+  }
+
+  Future<void> saveNativeControlSettings(NativeControlSettings settings) async {
+    if (!supported) throw UnsupportedError('原生控制仅支持 Android 和 iOS');
+    await _channel.invokeMethod<void>(
+      'saveNativeControlSettings',
+      settings.toMap(),
+    );
+  }
+
+  Future<TsnetStatus> tsnetStatus() async {
+    if (!supported) return const TsnetStatus();
+    return TsnetStatus.fromMap(
+      _map(await _channel.invokeMethod<Object?>('tsnetStatus')),
+    );
+  }
+
+  Future<TsnetStatus> tsnetConfigure(String authKey) async =>
+      TsnetStatus.fromMap(
+        _map(
+          await _channel.invokeMethod<Object?>('tsnetConfigure', {
+            'authKey': authKey,
+          }),
+        ),
+      );
+
+  Future<TsnetStatus> tsnetConnect() async => TsnetStatus.fromMap(
+    _map(await _channel.invokeMethod<Object?>('tsnetConnect')),
+  );
+
+  Future<Map<Object?, Object?>> tsnetStartForward(
+    String endpoint, {
+    int localPort = 0,
+  }) async => _map(
+    await _channel.invokeMethod<Object?>('tsnetStartForward', {
+      'endpoint': endpoint,
+      'localPort': localPort,
+    }),
+  );
+
+  Future<void> tsnetStopForward(String id) async =>
+      _channel.invokeMethod<void>('tsnetStopForward', {'id': id});
+  Future<void> tsnetStopAll() async =>
+      _channel.invokeMethod<void>('tsnetStopAll');
+  Future<void> tsnetClose() async => _channel.invokeMethod<void>('tsnetClose');
+  Future<void> tsnetClearState() async =>
+      _channel.invokeMethod<void>('tsnetClearState');
 
   Future<bool> initialNoticeShown() async {
     if (!_androidSupported) return false;
@@ -370,6 +450,10 @@ class NkasPlatform {
     bool control = true,
     int maxSize = 0,
     int videoBitRate = 0,
+    String videoCodec = 'h264',
+    String? mode,
+    bool? useTailscale,
+    String? requestId,
   }) async {
     if (!supported) throw UnsupportedError('原生 scrcpy 仅支持 Android 和 iOS');
     final value = await _channel.invokeMethod<Object?>('nativeScrcpyStart', {
@@ -378,23 +462,35 @@ class NkasPlatform {
       'control': control,
       'maxSize': maxSize,
       'videoBitRate': videoBitRate,
+      'videoCodec': videoCodec,
+      'mode': ?mode,
+      'useTailscale': ?useTailscale,
+      'requestId': ?requestId,
     });
     return NativeScrcpyStart.fromMap(_map(value));
   }
 
-  Future<void> nativeScrcpyStop() async {
+  Future<void> nativeScrcpyStop({String? requestId}) async {
     if (!supported) return;
-    await _channel.invokeMethod<void>('nativeScrcpyStop');
+    await _channel.invokeMethod<void>('nativeScrcpyStop', {
+      'requestId': ?requestId,
+    });
   }
 
-  Future<void> nativeScrcpyBack({int action = 0}) async {
+  Future<void> nativeScrcpyBack({int action = 0, String? requestId}) async {
     if (!supported) return;
-    await _channel.invokeMethod<void>('nativeScrcpyBack', {'action': action});
+    await _channel.invokeMethod<void>('nativeScrcpyBack', {
+      'action': action,
+      'requestId': ?requestId,
+    });
   }
 
-  Future<void> nativeScrcpyText(String text) async {
+  Future<void> nativeScrcpyText(String text, {String? requestId}) async {
     if (!supported) return;
-    await _channel.invokeMethod<void>('nativeScrcpyText', {'text': text});
+    await _channel.invokeMethod<void>('nativeScrcpyText', {
+      'text': text,
+      'requestId': ?requestId,
+    });
   }
 
   Future<void> nativeScrcpyKeycode({
@@ -402,6 +498,7 @@ class NkasPlatform {
     required int keycode,
     int repeat = 0,
     int metaState = 0,
+    String? requestId,
   }) async {
     if (!supported) return;
     await _channel.invokeMethod<void>('nativeScrcpyKeycode', {
@@ -409,6 +506,7 @@ class NkasPlatform {
       'keycode': keycode,
       'repeat': repeat,
       'metaState': metaState,
+      'requestId': ?requestId,
     });
   }
 
@@ -422,6 +520,7 @@ class NkasPlatform {
     double pressure = 1,
     int actionButton = 0,
     int buttons = 0,
+    String? requestId,
   }) async {
     if (!supported) return;
     await _channel.invokeMethod<void>('nativeScrcpyTouch', {
@@ -434,6 +533,7 @@ class NkasPlatform {
       'pressure': pressure,
       'actionButton': actionButton,
       'buttons': buttons,
+      'requestId': ?requestId,
     });
   }
 
@@ -466,6 +566,7 @@ class NkasPlatform {
       case 'scrcpyVideo':
         return ScrcpyVideoEvent(
           state: value['state'] as String? ?? 'unknown',
+          requestId: value['requestId'] as String?,
           textureId: (value['textureId'] as num?)?.toInt(),
           deviceName: value['deviceName'] as String?,
           codecId: (value['codecId'] as num?)?.toInt(),
@@ -475,6 +576,8 @@ class NkasPlatform {
         );
       case 'nativeNetwork':
         return NativeNetworkEvent(value['state'] as String? ?? 'unknown');
+      case 'tsnet':
+        return TsnetStateEvent(TsnetStatus.fromMap(value));
       case 'scrcpyServer':
         return ScrcpyServerEvent(
           value['state'] as String? ?? 'unknown',

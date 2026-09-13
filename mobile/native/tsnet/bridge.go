@@ -33,6 +33,7 @@ func (c *Client) StartForward(remoteHost string, remotePort, localPort int) (str
 func (c *Client) StopForward(id string) error            { return c.core.StopForward(id) }
 func (c *Client) StopAll()                               { c.core.StopAll() }
 func (c *Client) Close()                                 { c.core.Close() }
+func (c *Client) Interrupt()                             { c.core.Interrupt() }
 func (c *Client) HasPersistedLogin(stateDir string) bool { return c.core.HasPersistedLogin(stateDir) }
 func (c *Client) SetAndroidNetworkInterfaces(payload, defaultInterface string) error {
 	return c.core.SetAndroidNetworkInterfaces(payload, defaultInterface)

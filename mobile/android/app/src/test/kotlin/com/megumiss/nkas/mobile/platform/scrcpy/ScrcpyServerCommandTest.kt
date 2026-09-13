@@ -6,6 +6,14 @@ import org.junit.Test
 
 class ScrcpyServerCommandTest {
     @Test
+    fun virtualDisplayAndHevcAreExplicitOptions() {
+        val command = ScrcpyServerCommand.build("/data/local/tmp/server.jar", "4.1", 7,
+            ScrcpyServerOptions(newDisplay = true, videoCodec = "h265"))
+        assertTrue(command.contains("new_display=1080x1920/320"))
+        assertTrue(command.contains("video_codec=h265"))
+    }
+
+    @Test
     fun buildsMinimalVideoControlCommand() {
         val command = ScrcpyServerCommand.build(
             remotePath = "/data/local/tmp/scrcpy-server.jar",
@@ -15,7 +23,7 @@ class ScrcpyServerCommandTest {
         )
         assertEquals(
             "CLASSPATH=/data/local/tmp/scrcpy-server.jar app_process / " +
-                "com.genymobile.scrcpy.Server 4.1 scid=1234 tunnel_forward=true audio=false",
+                "com.genymobile.scrcpy.Server 4.1 scid=1234 tunnel_forward=true clipboard_autosync=false audio=false",
             command,
         )
     }

@@ -29,21 +29,24 @@ class NativeAdbClient(
     private val streams = ConcurrentHashMap<Int, AdbStream>()
     private val writeLock = Any()
     private var maxPayload = AdbProtocol.MAX_PAYLOAD
-    private var socket: Socket? = null
+    @Volatile private var socket: Socket? = null
     private var input: DataInputStream? = null
     private var output: OutputStream? = null
     private var reader: Thread? = null
     @Volatile private var closed = true
+    @Volatile private var interrupted = false
     private var keyPair: AdbKeyPair? = null
 
     @Synchronized
     @Throws(IOException::class)
     fun connect() {
+        if (interrupted) throw IOException("ADB connection cancelled")
         if (!closed) return
         val newSocket = Socket()
         socket = newSocket
         closed = false
         try {
+            if (interrupted) throw IOException("ADB connection cancelled")
             newSocket.connect(InetSocketAddress(endpoint.host, endpoint.port), connectTimeoutMs)
             newSocket.soTimeout = connectTimeoutMs
             input = DataInputStream(newSocket.getInputStream())
@@ -59,7 +62,13 @@ class NativeAdbClient(
         }
     }
 
-    fun isConnected(): Boolean = !closed && socket?.isConnected == true && !socket!!.isClosed
+    fun isConnected(): Boolean = socket?.let { !closed && it.isConnected && !it.isClosed } == true
+
+    fun interrupt() {
+        interrupted = true
+        streams.values.forEach { it.forceClose() }
+        runCatching { socket?.close() }
+    }
 
     @Throws(IOException::class)
     fun shell(command: String): String = openStream("shell:$command").use {

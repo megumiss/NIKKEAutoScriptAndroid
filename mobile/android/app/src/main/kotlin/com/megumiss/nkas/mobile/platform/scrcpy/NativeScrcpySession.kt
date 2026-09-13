@@ -24,16 +24,19 @@ class NativeScrcpyLauncher(
         adb.push(serverJar, remotePath)
         val command = ScrcpyServerCommand.build(remotePath, serverVersion, scid, options)
         val serverStream = adb.openShellStream(command)
+        val channels = mutableListOf<AdbStream>()
         try {
             val socketName = ScrcpyServerCommand.socketName(scid)
-            val first = openWithRetry(socketName)
+            val first = openWithRetry(socketName).also(channels::add)
             val video = if (options.video) first else null
             val control = if (options.control) {
-                if (video == null) first else openWithRetry(socketName)
+                if (video == null) first else openWithRetry(socketName).also(channels::add)
             } else null
             val metadata = if (video != null) readVideoMetadata(video) else null
+            if (video == null && first.inputStream.read() != 0) throw IOException("scrcpy dummy byte missing")
             return NativeScrcpySession(scid, command, serverStream, video, control, metadata)
         } catch (error: Exception) {
+            channels.forEach { it.close() }
             serverStream.close()
             throw if (error is IOException) error else IOException("Unable to start scrcpy server", error)
         }
@@ -46,6 +49,7 @@ class NativeScrcpyLauncher(
                 return adb.openAbstractSocket(socketName)
             } catch (error: Exception) {
                 lastError = error
+                if (adb.currentEndpoint() == null || Thread.currentThread().isInterrupted) throw error
                 Thread.sleep(SOCKET_RETRY_DELAY_MS)
             }
         }
@@ -54,7 +58,7 @@ class NativeScrcpyLauncher(
 
     private fun readVideoMetadata(stream: AdbStream): VideoMetadata {
         val input = DataInputStream(stream.inputStream)
-        if (input.read() < 0) throw EOFException("scrcpy dummy byte missing")
+        if (input.read() != 0) throw EOFException("scrcpy dummy byte missing")
         val deviceNameBytes = ByteArray(DEVICE_NAME_LENGTH)
         input.readFully(deviceNameBytes)
         val end = deviceNameBytes.indexOf(0)
@@ -123,28 +127,19 @@ class NativeScrcpySession internal constructor(
                 when (val item = reader.readNext()) {
                     is ScrcpyVideoSessionSize -> {
                         videoDecoder?.close()
-                        videoDecoder = NativeVideoDecoder(videoMetadata!!.codecId, item.width, item.height, surface)
+                        videoDecoder = NativeVideoDecoder(videoMetadata!!.codecId, item.width, item.height, surface,
+                            onFrame = listener::onFrame, onError = listener::onError)
                             .also { it.start() }
                         listener.onSize(item.width, item.height)
                     }
                     is ScrcpyVideoPacket -> {
                         val decoder = videoDecoder ?: continue
                         var queued = false
-                        repeat(20) {
-                            if (decoder.queue(item)) {
-                                queued = true
-                                return@repeat
-                            }
-                            decoder.drain()
-                            Thread.sleep(5L)
+                        var attempts = 0
+                        while (!queued && !closed.get() && attempts++ < 20) {
+                            queued = decoder.queue(item)
                         }
-                        if (!queued) {
-                            if (item.isKeyFrame) throw IOException("scrcpy decoder input stalled on key frame")
-                            continue
-                        }
-                        while (decoder.drain() >= 0) {
-                            // Drain all decoded frames available without blocking.
-                        }
+                        if (!queued && !closed.get()) throw IOException("scrcpy decoder input stalled")
                     }
                 }
             }
@@ -153,6 +148,8 @@ class NativeScrcpySession internal constructor(
         } finally {
             videoDecoder?.close()
             videoDecoder = null
+            surface.release()
+            videoSurface = null
             if (!closed.get()) listener.onStopped()
         }
     }
@@ -160,13 +157,8 @@ class NativeScrcpySession internal constructor(
     override fun close() {
         if (!closed.compareAndSet(false, true)) return
         videoStream?.close()
-        videoThread?.interrupt()
         videoThread?.join(VIDEO_THREAD_JOIN_MS)
         videoThread = null
-        videoDecoder?.close()
-        videoDecoder = null
-        videoSurface?.release()
-        videoSurface = null
         controlStream?.close()
         videoStream?.takeUnless { it === controlStream }?.close()
         serverStream.close()
@@ -176,6 +168,7 @@ class NativeScrcpySession internal constructor(
 
     interface VideoListener {
         fun onSize(width: Int, height: Int)
+        fun onFrame()
         fun onError(error: Throwable)
         fun onStopped()
     }
@@ -186,6 +179,6 @@ class NativeScrcpySession internal constructor(
     }
 
     companion object {
-        private const val VIDEO_THREAD_JOIN_MS = 500L
+        private const val VIDEO_THREAD_JOIN_MS = 2_000L
     }
 }

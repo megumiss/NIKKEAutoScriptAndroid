@@ -14,6 +14,7 @@ import 'package:nkas_mobile/core/widgets/page_inset.dart';
 import 'package:nkas_mobile/core/widgets/page_subtitle.dart';
 import 'package:nkas_mobile/core/widgets/surface.dart';
 import 'package:nkas_mobile/theme.dart';
+import 'package:nkas_mobile/features/settings/native_control_sheet.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({
@@ -122,6 +123,18 @@ class _SettingsPageState extends State<SettingsPage> {
                   ? () => _editBackendAddress(context)
                   : null,
             ),
+            if (NkasPlatform.instance.supported)
+              _SettingRow(
+                icon: LucideIcons.smartphone,
+                title: '控制连接',
+                subtitle: isAndroid
+                    ? '远程设备、本机虚拟屏幕与 Tailscale'
+                    : '远程 Android 与 Tailscale',
+                enabled: widget.starAuthorized,
+                onTap: widget.starAuthorized
+                    ? () => showNativeControlSettings(context)
+                    : null,
+              ),
             _SettingRow(
               icon: LucideIcons.globe2,
               title: '原始 WebUI',

@@ -456,6 +456,16 @@ func (f *Forwarder) GetTailscaleIPv6() string {
 	return ""
 }
 
+// Interrupt cancels a pending enrollment without waiting for server teardown.
+func (f *Forwarder) Interrupt() {
+	f.mu.RLock()
+	cancel := f.connectCancel
+	f.mu.RUnlock()
+	if cancel != nil {
+		cancel()
+	}
+}
+
 // Close stops all forwards and closes the tsnet server. It is idempotent.
 func (f *Forwarder) Close() {
 	f.requestClose()

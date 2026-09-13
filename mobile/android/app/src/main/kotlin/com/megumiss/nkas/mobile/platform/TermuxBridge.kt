@@ -24,7 +24,8 @@ class TermuxBridge(private val context: Context) {
         private const val EXTRA_PENDING_INTENT = "com.termux.RUN_COMMAND_PENDING_INTENT"
         private const val TOKEN = "nkas_result_token"
         private const val COMMAND_TIMEOUT_MS = 12_000L
-        private val callbacks = ConcurrentHashMap<String, (CommandResult) -> Unit>()
+        private data class Callback(val handler: (CommandResult) -> Unit, val sensitive: Boolean)
+        private val callbacks = ConcurrentHashMap<String, Callback>()
         private val timeoutHandler = Handler(Looper.getMainLooper())
 
         internal fun deliver(intent: Intent) {
@@ -35,8 +36,9 @@ class TermuxBridge(private val context: Context) {
             val stderr = bundle?.getString("stderr") ?: intent.getStringExtra("stderr") ?: ""
             val code = bundle?.getInt("exitCode", -1) ?: intent.getIntExtra("exitCode", -1)
             val error = bundle?.getString("errmsg") ?: ""
-            Log.i(TAG, "result token=$token exitCode=$code stdout=${stdout.take(200)} stderr=${stderr.take(200)} errmsg=${error.take(200)}")
-            callback(CommandResult(stdout, if (error.isBlank()) stderr else "$stderr\n$error", code))
+            if (callback.sensitive) Log.i(TAG, "result token=$token exitCode=$code")
+            else Log.i(TAG, "result token=$token exitCode=$code stdout=${stdout.take(200)} stderr=${stderr.take(200)} errmsg=${error.take(200)}")
+            callback.handler(CommandResult(stdout, if (error.isBlank()) stderr else "$stderr\n$error", code))
         }
     }
 
@@ -83,7 +85,11 @@ class TermuxBridge(private val context: Context) {
         val safeCode = code.trim()
         val safeConnectSerial = connectSerial.trim().replace("'", "")
         val command = "adb pair '${safeAddress.replace("'", "")}' '${safeCode.replace("'", "")}'; pair_exit=\$?; printf '\\n[nkas] pair_exit=%s\\n' \"\$pair_exit\"; if [ \"\$pair_exit\" -eq 0 ] && [ -n '$safeConnectSerial' ]; then adb connect '$safeConnectSerial'; fi; exit \"\$pair_exit\""
-        runCommand(command, onResult)
+        runCommand(command, onResult, sensitive = true)
+    }
+
+    fun readAdbIdentity(onResult: (CommandResult) -> Unit) {
+        runCommand("cat \"\$HOME/.android/adbkey\"", onResult, sensitive = true)
     }
 
     fun readNkasSerial(onResult: (CommandResult) -> Unit) {
@@ -134,14 +140,16 @@ class TermuxBridge(private val context: Context) {
         command: String,
         onResult: (CommandResult) -> Unit,
         timeoutMs: Long = COMMAND_TIMEOUT_MS,
+        sensitive: Boolean = false,
     ) {
         val token = UUID.randomUUID().toString()
-        Log.i(TAG, "send token=$token command=${command.take(240)}")
-        callbacks[token] = onResult
+        if (sensitive) Log.i(TAG, "send token=$token private command")
+        else Log.i(TAG, "send token=$token command=${command.take(240)}")
+        callbacks[token] = Callback(onResult, sensitive)
         timeoutHandler.postDelayed({
             val callback = callbacks.remove(token) ?: return@postDelayed
             Log.w(TAG, "timeout token=$token")
-            callback(CommandResult("", "Termux 外部命令等待超时，请确认 Termux 已完全重启且 allow-external-apps=true。", -2))
+            callback.handler(CommandResult("", "Termux 外部命令等待超时，请确认 Termux 已完全重启且 allow-external-apps=true。", -2))
         }, timeoutMs)
         val callbackIntent = Intent(context, TermuxResultReceiver::class.java).putExtra(TOKEN, token)
         val pendingIntent = PendingIntent.getBroadcast(context, token.hashCode(), callbackIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_ONE_SHOT or PendingIntent.FLAG_MUTABLE)

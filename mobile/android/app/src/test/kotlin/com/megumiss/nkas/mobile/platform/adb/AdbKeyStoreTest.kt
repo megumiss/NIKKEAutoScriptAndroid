@@ -10,8 +10,25 @@ import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.StringWriter
+import org.bouncycastle.openssl.jcajce.JcaPEMWriter
 
 class AdbKeyStoreTest {
+    @Test
+    fun importedTermuxIdentityKeepsThePairedPublicKey() {
+        val directory = Files.createTempDirectory("nkas-adb-import").toFile()
+        try {
+            val original = AdbKeyStore(directory.resolve("termux")).loadOrCreate()
+            val pem = StringWriter()
+            JcaPEMWriter(pem).use { it.writeObject(original.privateKey) }
+            val store = AdbKeyStore(directory.resolve("native"))
+            store.importPem(pem.toString())
+            val imported = store.loadOrCreate()
+            assertArrayEquals(original.publicKey.encoded, imported.publicKey.encoded)
+            assertArrayEquals(original.signToken(ByteArray(20) { 5 }), imported.signToken(ByteArray(20) { 5 }))
+        } finally { directory.deleteRecursively() }
+    }
+
     @Test
     fun authSignsTheSuppliedDigestWithoutHashingItAgain() {
         val directory = Files.createTempDirectory("nkas-adb-auth").toFile()

@@ -651,7 +651,6 @@ class _NkasShellState extends State<NkasShell> {
       onSelectInstance: _switchInstance,
       loadScreenshot: () =>
           widget.connectionController.fetchScreenshot(instance),
-      onOpenControl: _openWebUi,
       accessGranted: _starAccessGranted,
     ),
     NkasPage.logs => LogsPage(

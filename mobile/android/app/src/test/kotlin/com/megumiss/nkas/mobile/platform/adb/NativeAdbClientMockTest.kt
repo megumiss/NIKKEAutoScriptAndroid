@@ -3,10 +3,14 @@ package com.megumiss.nkas.mobile.platform.adb
 import java.io.ByteArrayOutputStream
 import java.io.ByteArrayInputStream
 import java.io.DataInputStream
+import java.io.IOException
 import java.net.ServerSocket
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.file.Files
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicReference
 import kotlin.concurrent.thread
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
@@ -15,6 +19,47 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class NativeAdbClientMockTest {
+    @Test(timeout = 10_000)
+    fun interruptCancelsHandshakeWithoutWaitingForSocketTimeout() {
+        val directory = Files.createTempDirectory("nkas-adb-cancel").toFile()
+        val handshake = CountDownLatch(1)
+        val failure = AtomicReference<Throwable>()
+        val clientFailure = AtomicReference<Throwable>()
+        ServerSocket(0).use { server ->
+            server.soTimeout = 5_000
+            val serverThread = thread(isDaemon = true) {
+                try {
+                    server.accept().use { socket ->
+                        socket.soTimeout = 5_000
+                        val input = DataInputStream(socket.getInputStream())
+                        assertEquals(CNXN, AdbProtocol.decode(input).command)
+                        handshake.countDown()
+                        assertEquals(-1, input.read())
+                    }
+                } catch (error: Throwable) { failure.set(error) }
+            }
+            val client = NativeAdbClient(AdbEndpoint("127.0.0.1", server.localPort), AdbKeyStore(directory), 30_000)
+            val clientThread = thread(isDaemon = true) {
+                try { client.connect() } catch (error: Throwable) { clientFailure.set(error) }
+            }
+            try {
+                assertTrue("client did not send CNXN", handshake.await(5, TimeUnit.SECONDS))
+                client.interrupt()
+                clientThread.join(2_000)
+                assertFalse("cancel waited for the 30s handshake timeout", clientThread.isAlive)
+                assertTrue(clientFailure.get() is IOException)
+                assertFalse(client.isConnected())
+                serverThread.join(2_000)
+                assertFalse(serverThread.isAlive)
+                failure.get()?.let { throw AssertionError("mock ADB server failed", it) }
+            } finally {
+                client.interrupt()
+                client.close()
+                directory.deleteRecursively()
+            }
+        }
+    }
+
     @Test
     fun shellReadsRemoteOutput() = withClient(
         clientAction = { it.shell("getprop ro.product.model") },

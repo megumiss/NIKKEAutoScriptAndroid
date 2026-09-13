@@ -195,6 +195,8 @@ class _NkasSetupPageState extends State<NkasSetupPage>
         break;
       case ScrcpyServerEvent():
         break;
+      case TsnetStateEvent():
+        break;
     }
   }
 
@@ -203,7 +205,9 @@ class _NkasSetupPageState extends State<NkasSetupPage>
       final value = await NkasPlatform.instance.setupStatus();
       if (!mounted) return;
       if (!serialFocusNode.hasFocus) {
-        serialController.text = isIOS ? value.serial : value.serial.split(':').last;
+        serialController.text = isIOS
+            ? value.serial
+            : value.serial.split(':').last;
       }
       setState(() {
         status = value;
@@ -343,11 +347,15 @@ class _NkasSetupPageState extends State<NkasSetupPage>
   Future<void> _saveIosSerial() async {
     final endpoint = serialController.text.trim();
     if (endpoint.isEmpty) return;
-    if (!RegExp(r'^(adb://)?(?:\[[0-9a-fA-F:]+\]|[^:]+):\d{1,5}$').hasMatch(endpoint)) {
+    if (!RegExp(
+      r'^(adb://)?(?:\[[0-9a-fA-F:]+\]|[^:]+):\d{1,5}$',
+    ).hasMatch(endpoint)) {
       if (mounted) _show('请输入 host:port 或 adb://host:port');
       return;
     }
-    await NkasPlatform.instance.setSerial(endpoint.startsWith('adb://') ? endpoint : 'adb://$endpoint');
+    await NkasPlatform.instance.setSerial(
+      endpoint.startsWith('adb://') ? endpoint : 'adb://$endpoint',
+    );
     if (mounted) await _refresh();
   }
 

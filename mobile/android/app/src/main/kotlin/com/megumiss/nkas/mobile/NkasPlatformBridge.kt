@@ -2,13 +2,10 @@ package com.megumiss.nkas.mobile
 
 import android.content.Intent
 import android.net.Uri
-import android.net.ConnectivityManager
-import android.net.Network
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
-import android.view.Surface
 import androidx.annotation.Keep
 import com.megumiss.nkas.mobile.platform.AccessGate
 import com.megumiss.nkas.mobile.platform.AdbMdns
@@ -16,22 +13,15 @@ import com.megumiss.nkas.mobile.platform.AdbPairingService
 import com.megumiss.nkas.mobile.platform.BootstrapService
 import com.megumiss.nkas.mobile.platform.GateConfig
 import com.megumiss.nkas.mobile.platform.LogStore
+import com.megumiss.nkas.mobile.platform.NativeControlSession
 import com.megumiss.nkas.mobile.platform.SettingsStore
-import com.megumiss.nkas.mobile.platform.ScrcpySessionService
 import com.megumiss.nkas.mobile.platform.TermuxBridge
 import com.megumiss.nkas.mobile.platform.TermuxInstaller
-import com.megumiss.nkas.mobile.platform.adb.NativeAdbManager
-import com.megumiss.nkas.mobile.platform.scrcpy.NativeScrcpyLauncher
-import com.megumiss.nkas.mobile.platform.scrcpy.NativeScrcpySession
-import com.megumiss.nkas.mobile.platform.scrcpy.ScrcpyServerOptions
-import java.util.concurrent.ExecutorService
-import java.util.concurrent.Executors
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
-import io.flutter.view.TextureRegistry
 import java.util.UUID
 
 /** Bridges the existing Android STAR/Termux flow to the Flutter UI. */
@@ -43,22 +33,10 @@ class NkasPlatformBridge(private val activity: FlutterActivity) :
     private var events: EventChannel.EventSink? = null
     private var installer: TermuxInstaller? = null
     private var connectMdns: AdbMdns? = null
-    private var nativeAdb: NativeAdbManager? = null
-    private var nativeScrcpy: NativeScrcpySession? = null
-    private var textureRegistry: TextureRegistry? = null
-    private var scrcpyTexture: TextureRegistry.SurfaceTextureEntry? = null
-    private var connectivity: ConnectivityManager? = null
-    private var networkCallback: ConnectivityManager.NetworkCallback? = null
-    private var reconnectEndpoint: String? = null
-    private var reconnectOptions: ScrcpyServerOptions? = null
-    private var reconnectArmed = false
-    private val nativeExecutor: ExecutorService = Executors.newSingleThreadExecutor { task ->
-        Thread(task, "nkas-native-platform").apply { isDaemon = true }
-    }
+    private var nativeSession: NativeControlSession? = null
 
     fun register(engine: FlutterEngine) {
-        textureRegistry = engine.renderer
-        registerNetworkCallback()
+        nativeSession = NativeControlSession(activity, engine.renderer, ::emit)
         MethodChannel(engine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler(this)
         EventChannel(engine.dartExecutor.binaryMessenger, EVENTS).setStreamHandler(this)
     }
@@ -91,6 +69,7 @@ class NkasPlatformBridge(private val activity: FlutterActivity) :
     }
 
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
+        if (nativeSession?.handle(call, result) == true) return
         when (call.method) {
             "getStarStatus" -> result.success(currentStar())
             "beginStarVerification" -> beginStar(result)
@@ -137,27 +116,6 @@ class NkasPlatformBridge(private val activity: FlutterActivity) :
             }
             "getNkasSerial" -> readNkasSerial(result)
             "setNkasSerial" -> writeNkasSerial(call, result)
-            "nativeAdbConnect" -> nativeAdbConnect(call, result)
-            "nativeAdbShell" -> nativeAdbShell(call, result)
-            "nativeAdbPush" -> nativeAdbPush(call, result)
-            "nativeAdbPull" -> nativeAdbPull(call, result)
-            "nativeScrcpyStart" -> nativeScrcpyStart(call, result)
-            "nativeScrcpyStop" -> {
-                reconnectArmed = false
-                stopNativeScrcpy()
-                result.success(true)
-            }
-            "nativeScrcpyBack" -> nativeScrcpy?.controlWriter?.pressBack(call.argument<Int>("action") ?: 0)
-                ?.let { result.success(true) } ?: result.error("native_scrcpy", "scrcpy 未启动", null)
-            "nativeScrcpyText" -> nativeScrcpy?.controlWriter?.injectText(call.argument<String>("text").orEmpty())
-                ?.let { result.success(true) } ?: result.error("native_scrcpy", "scrcpy 未启动", null)
-            "nativeScrcpyKeycode" -> nativeScrcpyKeycode(call, result)
-            "nativeScrcpyTouch" -> nativeScrcpyTouch(call, result)
-            "nativeAdbClose" -> {
-                nativeAdb?.close()
-                nativeAdb = null
-                result.success(true)
-            }
             "getInitialNoticeShown" -> result.success(
                 activity.getSharedPreferences(SETUP_PREFS_NAME, 0)
                     .getBoolean(KEY_INITIAL_NOTICE_SHOWN, false),
@@ -337,15 +295,13 @@ class NkasPlatformBridge(private val activity: FlutterActivity) :
     }
 
     fun close() {
-        unregisterNetworkCallback()
-        reconnectArmed = false
-        reconnectEndpoint = null
-        reconnectOptions = null
-        stopNativeScrcpy()
-        nativeAdb?.close()
-        nativeAdb = null
-        nativeExecutor.shutdownNow()
+        connectMdns?.stop()
+        connectMdns = null
+        nativeSession?.close()
+        nativeSession = null
     }
+
+    fun setForeground(active: Boolean) { nativeSession?.setForeground(active) }
 
     private fun writeNkasSerial(call: MethodCall, result: MethodChannel.Result) {
         val serial = call.argument<String>("serial")?.trim().orEmpty()
@@ -355,280 +311,6 @@ class NkasPlatformBridge(private val activity: FlutterActivity) :
                 else result.error("write_nkas_serial", command.stderr.ifBlank { "无法更新 nkas.json 的 Serial" }, null)
             }
         }
-    }
-
-    private fun nativeAdbConnect(call: MethodCall, result: MethodChannel.Result) {
-        val endpoint = call.argument<String>("endpoint")?.trim().orEmpty()
-        if (endpoint.isBlank()) {
-            result.error("native_adb_endpoint", "ADB 地址不能为空", null)
-            return
-        }
-        runCatching {
-            (nativeAdb ?: NativeAdbManager(activity).also { nativeAdb = it }).connect(endpoint)
-        }.fold(
-            onSuccess = { parsed -> result.success(mapOf("endpoint" to parsed.toString())) },
-            onFailure = { error -> result.error("native_adb_connect", error.message ?: "ADB 连接失败", null) },
-        )
-    }
-
-    private fun nativeAdbShell(call: MethodCall, result: MethodChannel.Result) {
-        val command = call.argument<String>("command")?.trim().orEmpty()
-        if (command.isBlank()) {
-            result.error("native_adb_command", "ADB shell 命令不能为空", null)
-            return
-        }
-        runCatching { (nativeAdb ?: throw IllegalStateException("ADB is not connected")).shell(command) }
-            .fold(
-                onSuccess = result::success,
-                onFailure = { error -> result.error("native_adb_shell", error.message ?: "ADB shell 失败", null) },
-            )
-    }
-
-    private fun nativeAdbPush(call: MethodCall, result: MethodChannel.Result) {
-        val data = call.argument<ByteArray>("data")
-        val remotePath = call.argument<String>("remotePath")?.trim().orEmpty()
-        if (data == null || remotePath.isBlank()) {
-            result.error("native_adb_push_args", "ADB push 参数不完整", null)
-            return
-        }
-        val mode = call.argument<Int>("unixMode") ?: 420
-        runCatching { (nativeAdb ?: throw IllegalStateException("ADB is not connected")).push(data, remotePath, mode) }
-            .fold(
-                onSuccess = { result.success(true) },
-                onFailure = { error -> result.error("native_adb_push", error.message ?: "ADB push 失败", null) },
-            )
-    }
-
-    private fun nativeAdbPull(call: MethodCall, result: MethodChannel.Result) {
-        val remotePath = call.argument<String>("remotePath")?.trim().orEmpty()
-        if (remotePath.isBlank()) {
-            result.error("native_adb_pull_args", "ADB pull 路径不能为空", null)
-            return
-        }
-        runCatching { (nativeAdb ?: throw IllegalStateException("ADB is not connected")).pull(remotePath) }
-            .fold(
-                onSuccess = result::success,
-                onFailure = { error -> result.error("native_adb_pull", error.message ?: "ADB pull 失败", null) },
-            )
-    }
-
-    private fun nativeScrcpyStart(call: MethodCall, result: MethodChannel.Result) {
-        val endpoint = call.argument<String>("endpoint")?.trim().orEmpty()
-        if (endpoint.isBlank()) {
-            result.error("native_scrcpy_endpoint", "ADB 地址不能为空", null)
-            return
-        }
-        val options = ScrcpyServerOptions(
-            video = call.argument<Boolean>("video") ?: true,
-            audio = false,
-            control = call.argument<Boolean>("control") ?: true,
-            maxSize = call.argument<Int>("maxSize") ?: 0,
-            videoBitRate = call.argument<Int>("videoBitRate") ?: 0,
-        )
-        if (options.video && textureRegistry == null) {
-            result.error("native_scrcpy_texture", "Flutter Texture 尚未注册", null)
-            return
-        }
-        reconnectEndpoint = endpoint
-        reconnectOptions = options
-        reconnectArmed = true
-        stopNativeScrcpy()
-        scrcpyTexture = if (options.video) textureRegistry!!.createSurfaceTexture() else null
-        val surface = scrcpyTexture?.let { Surface(it.surfaceTexture()) }
-        nativeExecutor.execute {
-            runCatching {
-                val manager = nativeAdb ?: NativeAdbManager(activity).also { nativeAdb = it }
-                manager.connect(endpoint)
-                val jar = activity.assets.open("bin/scrcpy-server-v4.1").use { it.readBytes() }
-                NativeScrcpyLauncher(manager).start(jar, options).also { session ->
-                    nativeScrcpy = session
-                    session.startServerMonitor(serverListener())
-                    if (surface != null) {
-                        session.startVideo(surface, object : NativeScrcpySession.VideoListener {
-                            override fun onSize(width: Int, height: Int) {
-                                emit(mapOf("type" to "scrcpyVideo", "state" to "size", "width" to width, "height" to height))
-                            }
-
-                            override fun onError(error: Throwable) {
-                                emit(mapOf("type" to "scrcpyVideo", "state" to "error", "error" to (error.message ?: "视频解码失败")))
-                            }
-
-                            override fun onStopped() {
-                                emit(mapOf("type" to "scrcpyVideo", "state" to "stopped"))
-                            }
-                        })
-                    }
-                }
-            }.fold(
-                onSuccess = { session ->
-                    main.post {
-                        runCatching { activity.startForegroundService(ScrcpySessionService.start(activity)) }
-                        emit(mapOf(
-                            "type" to "scrcpyVideo",
-                            "state" to "started",
-                            "textureId" to scrcpyTexture?.id(),
-                            "deviceName" to session.videoMetadata?.deviceName,
-                            "codecId" to session.videoMetadata?.codecId,
-                        ))
-                        result.success(mapOf(
-                            "scid" to session.scid,
-                            "command" to session.command,
-                            "deviceName" to session.videoMetadata?.deviceName,
-                            "codecId" to session.videoMetadata?.codecId,
-                            "textureId" to scrcpyTexture?.id(),
-                            "video" to (session.videoStream != null),
-                            "control" to (session.controlStream != null),
-                        ))
-                    }
-                },
-                onFailure = { error ->
-                    if (nativeScrcpy == null) surface?.release()
-                    nativeScrcpy?.close()
-                    nativeScrcpy = null
-                    scrcpyTexture?.release()
-                    scrcpyTexture = null
-                    main.post { result.error("native_scrcpy_start", error.message ?: "scrcpy 启动失败", null) }
-                },
-            )
-        }
-    }
-
-    private fun stopNativeScrcpy() {
-        val hadSession = nativeScrcpy != null || scrcpyTexture != null
-        nativeScrcpy?.close()
-        nativeScrcpy = null
-        scrcpyTexture?.release()
-        scrcpyTexture = null
-        if (hadSession) emit(mapOf("type" to "scrcpyVideo", "state" to "stopped"))
-        if (hadSession) runCatching { activity.startService(ScrcpySessionService.stop(activity)) }
-    }
-
-    private fun reconnectScrcpy() {
-        val endpoint = reconnectEndpoint ?: return
-        val options = reconnectOptions ?: return
-        if (!reconnectArmed || nativeScrcpy != null || nativeExecutor.isShutdown) return
-        emit(mapOf("type" to "scrcpyVideo", "state" to "reconnecting"))
-        nativeExecutor.execute {
-            runCatching {
-                stopNativeScrcpy()
-                scrcpyTexture = if (options.video) textureRegistry?.createSurfaceTexture() else null
-                val surface = scrcpyTexture?.let { Surface(it.surfaceTexture()) }
-                val manager = nativeAdb ?: NativeAdbManager(activity).also { nativeAdb = it }
-                manager.connect(endpoint)
-                val jar = activity.assets.open("bin/scrcpy-server-v4.1").use { it.readBytes() }
-                NativeScrcpyLauncher(manager).start(jar, options).also { session ->
-                    nativeScrcpy = session
-                    session.startServerMonitor(serverListener())
-                    if (surface != null) session.startVideo(surface, videoListener())
-                }
-            }.fold(
-                onSuccess = { session ->
-                    emit(mapOf("type" to "scrcpyVideo", "state" to "started", "textureId" to scrcpyTexture?.id(), "deviceName" to session.videoMetadata?.deviceName, "codecId" to session.videoMetadata?.codecId))
-                },
-                onFailure = { error ->
-                    nativeScrcpy?.close()
-                    nativeScrcpy = null
-                    scrcpyTexture?.release()
-                    scrcpyTexture = null
-                    emit(mapOf("type" to "scrcpyVideo", "state" to "error", "error" to (error.message ?: "scrcpy 重连失败")))
-                },
-            )
-        }
-    }
-
-    private fun videoListener() = object : NativeScrcpySession.VideoListener {
-        override fun onSize(width: Int, height: Int) {
-            emit(mapOf("type" to "scrcpyVideo", "state" to "size", "width" to width, "height" to height))
-        }
-
-        override fun onError(error: Throwable) {
-            emit(mapOf("type" to "scrcpyVideo", "state" to "error", "error" to (error.message ?: "视频解码失败")))
-        }
-
-        override fun onStopped() {
-            emit(mapOf("type" to "scrcpyVideo", "state" to "stopped"))
-        }
-    }
-
-    private fun serverListener() = object : NativeScrcpySession.ServerListener {
-        override fun onLog(line: String) {
-            if (line.isNotBlank()) emit(mapOf("type" to "scrcpyServer", "state" to "log", "message" to line.take(2000)))
-        }
-
-        override fun onExit(error: Throwable?) {
-            if (error != null) {
-                emit(mapOf("type" to "scrcpyServer", "state" to "error", "error" to (error.message ?: "scrcpy server 读取失败")))
-            } else {
-                emit(mapOf("type" to "scrcpyServer", "state" to "exited"))
-            }
-        }
-    }
-
-    private fun registerNetworkCallback() {
-        if (networkCallback != null) return
-        val manager = activity.getSystemService(ConnectivityManager::class.java) ?: return
-        val callback = object : ConnectivityManager.NetworkCallback() {
-            override fun onAvailable(network: Network) {
-                emit(mapOf("type" to "nativeNetwork", "state" to "available"))
-                reconnectScrcpy()
-            }
-
-            override fun onLost(network: Network) {
-                if (nativeScrcpy != null) {
-                    stopNativeScrcpy()
-                    emit(mapOf("type" to "scrcpyVideo", "state" to "error", "error" to "网络连接已断开"))
-                }
-                emit(mapOf("type" to "nativeNetwork", "state" to "lost"))
-            }
-        }
-        runCatching { manager.registerDefaultNetworkCallback(callback) }
-            .onSuccess {
-                connectivity = manager
-                networkCallback = callback
-            }
-    }
-
-    private fun unregisterNetworkCallback() {
-        val manager = connectivity
-        val callback = networkCallback
-        if (manager != null && callback != null) runCatching { manager.unregisterNetworkCallback(callback) }
-        connectivity = null
-        networkCallback = null
-    }
-
-    private fun nativeScrcpyKeycode(call: MethodCall, result: MethodChannel.Result) {
-        val writer = nativeScrcpy?.controlWriter
-        if (writer == null) {
-            result.error("native_scrcpy", "scrcpy 未启动", null)
-            return
-        }
-        writer.injectKeycode(
-            call.argument<Int>("action") ?: 0,
-            call.argument<Int>("keycode") ?: 0,
-            call.argument<Int>("repeat") ?: 0,
-            call.argument<Int>("metaState") ?: 0,
-        )
-        result.success(true)
-    }
-
-    private fun nativeScrcpyTouch(call: MethodCall, result: MethodChannel.Result) {
-        val writer = nativeScrcpy?.controlWriter
-        if (writer == null) {
-            result.error("native_scrcpy", "scrcpy 未启动", null)
-            return
-        }
-        writer.injectTouch(
-            action = call.argument<Int>("action") ?: 0,
-            pointerId = call.argument<Number>("pointerId")?.toLong() ?: 0L,
-            x = call.argument<Int>("x") ?: 0,
-            y = call.argument<Int>("y") ?: 0,
-            screenWidth = call.argument<Int>("screenWidth") ?: 1,
-            screenHeight = call.argument<Int>("screenHeight") ?: 1,
-            pressure = call.argument<Number>("pressure")?.toFloat() ?: 1f,
-            actionButton = call.argument<Int>("actionButton") ?: 0,
-            buttons = call.argument<Int>("buttons") ?: 0,
-        )
-        result.success(true)
     }
 
     private fun downloadTermux(result: MethodChannel.Result) {

@@ -23,4 +23,14 @@ class MainActivity : FlutterActivity() {
         if (::platformBridge.isInitialized) platformBridge.close()
         super.onDestroy()
     }
+
+    override fun onResume() {
+        super.onResume()
+        if (::platformBridge.isInitialized) platformBridge.setForeground(true)
+    }
+
+    override fun onPause() {
+        if (::platformBridge.isInitialized) platformBridge.setForeground(false)
+        super.onPause()
+    }
 }

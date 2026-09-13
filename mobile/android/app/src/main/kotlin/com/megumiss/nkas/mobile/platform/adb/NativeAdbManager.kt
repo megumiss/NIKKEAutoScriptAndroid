@@ -3,55 +3,69 @@ package com.megumiss.nkas.mobile.platform.adb
 import android.content.Context
 import java.io.Closeable
 import java.io.File
+import java.io.IOException
+import java.util.concurrent.atomic.AtomicLong
 
-/** Owns the native ADB session used by future scrcpy and device-control flows. */
 class NativeAdbManager(context: Context) : Closeable {
     private val keyStore = AdbKeyStore(File(context.filesDir, "native-adb"))
-    private var client: NativeAdbClient? = null
-    private var endpoint: AdbEndpoint? = null
+    private val localKeyStore = AdbKeyStore(File(context.filesDir, "native-adb/local"))
+    private val lock = Any()
+    private val generation = AtomicLong()
+    @Volatile private var client: NativeAdbClient? = null
+    @Volatile private var endpoint: AdbEndpoint? = null
 
-    @Synchronized
-    fun connect(rawEndpoint: String): AdbEndpoint {
+    fun connect(rawEndpoint: String, localIdentity: Boolean = false): AdbEndpoint {
         val parsed = AdbEndpoint.parse(rawEndpoint)
-        close()
-        NativeAdbClient(parsed, keyStore).also {
-            it.connect()
-            client = it
+        val token = generation.incrementAndGet()
+        val next = NativeAdbClient(parsed, if (localIdentity) localKeyStore else keyStore)
+        val previous = synchronized(lock) {
+            val previous = client
+            client = next
+            endpoint = null
+            previous
         }
-        endpoint = parsed
-        return parsed
+        previous?.interrupt()
+        previous?.close()
+        try {
+            if (generation.get() != token) throw IOException("ADB connection cancelled")
+            next.connect()
+            synchronized(lock) {
+                if (generation.get() != token) throw IOException("ADB connection cancelled")
+                endpoint = parsed
+            }
+            return parsed
+        } catch (error: Exception) {
+            next.interrupt()
+            next.close()
+            synchronized(lock) { if (client === next) client = null }
+            throw error
+        }
     }
 
-    @Synchronized
-    fun connectLocalForward(localPort: Int): AdbEndpoint =
-        connect("adb://127.0.0.1:$localPort")
-
-    @Synchronized
+    fun connectLocalForward(localPort: Int): AdbEndpoint = connect("127.0.0.1:$localPort")
     fun shell(command: String): String = requireClient().shell(command)
-
-    @Synchronized
     fun openShellStream(command: String): AdbStream = requireClient().openStream("shell:$command")
+    fun openAbstractSocket(name: String): AdbStream = requireClient().openStream("localabstract:$name")
+    fun push(data: ByteArray, remotePath: String, unixMode: Int = 420) = requireClient().push(data, remotePath, unixMode)
+    fun pull(remotePath: String): ByteArray = requireClient().pull(remotePath)
+    fun currentEndpoint(): AdbEndpoint? = endpoint
+    fun importLocalIdentity(pem: String) = localKeyStore.importPem(pem)
 
-    @Synchronized
-    fun openAbstractSocket(name: String): AdbStream =
-        requireClient().openStream("localabstract:$name")
-
-    @Synchronized
-    fun push(data: ByteArray, remotePath: String, unixMode: Int = 420) {
-        requireClient().push(data, remotePath, unixMode)
+    fun interrupt() {
+        generation.incrementAndGet()
+        client?.interrupt()
     }
 
-    @Synchronized
-    fun pull(remotePath: String): ByteArray = requireClient().pull(remotePath)
-
-    @Synchronized
-    fun currentEndpoint(): AdbEndpoint? = endpoint
-
-    @Synchronized
     override fun close() {
-        client?.close()
-        client = null
-        endpoint = null
+        interrupt()
+        val previous = synchronized(lock) {
+            val previous = client
+            client = null
+            endpoint = null
+            previous
+        }
+        previous?.interrupt()
+        previous?.close()
     }
 
     private fun requireClient(): NativeAdbClient =

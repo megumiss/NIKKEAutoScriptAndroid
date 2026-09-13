@@ -206,4 +206,6 @@ CI 包含：
 - Go 核心及绑定测试通过，包含取消活动连接、重复关闭、监听释放、清除身份及错误脱敏。
 - `tool/build_tsnet.py android` 已生成并验证 armv7、arm64、x86_64 三种 ABI 的 AAR；产物不入库。
 - iOS ADB/scrcpy/VideoToolbox 改动待平台集成与最终审查，Xcode 检查未运行。
-- tsnet 平台包装、Flutter 控制入口、CI 和许可证清单仍在执行。
+- Android 已接入 tsnet、原生控制会话、前台服务和独立的本机虚拟屏幕身份；33 项 JVM 测试通过，包含握手取消。
+- Flutter 已完成连接设置、控制目标显示、长按/滑动/取消、首帧展示和截图回退；45 项测试通过，analyze 无问题。
+- iOS 构建器、CI、完整许可证清单与交付文档仍在执行。macOS/Xcode 和真机检查尚未运行。

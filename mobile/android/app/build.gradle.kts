@@ -11,7 +11,7 @@ plugins {
 android {
     namespace = "com.megumiss.nkas.mobile"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+    ndkVersion = "28.2.13676358"
 
     packaging {
         resources.excludes += setOf(
@@ -30,7 +30,7 @@ android {
         applicationId = "com.megumiss.nkas.mobile"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
+        minSdk = 26
         targetSdk = flutter.targetSdkVersion
         // Uses the version code from pubspec.yaml. When using split APKs, 1000 * ABI_VERSION
         // is added automatically by Flutter. (https://developer.android.com/studio/build/configure-apk-splits#configure-APK-versions)
@@ -72,6 +72,7 @@ flutter {
 }
 
 dependencies {
+    implementation(files("../../native/android/nkas-tsnet.aar"))
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("org.bouncycastle:bcpkix-jdk18on:1.85")
     implementation("org.conscrypt:conscrypt-android:2.7.0")
@@ -107,3 +108,12 @@ val downloadScrcpyServer by tasks.registering {
 }
 
 tasks.named("preBuild") { dependsOn(downloadScrcpyServer) }
+
+val verifyTsnetBinding by tasks.registering {
+    doLast {
+        check(file("../../native/android/nkas-tsnet.aar").isFile) {
+            "Missing native tsnet binding. Run python tool/build_tsnet.py android from mobile first."
+        }
+    }
+}
+tasks.named("preBuild") { dependsOn(verifyTsnetBinding) }

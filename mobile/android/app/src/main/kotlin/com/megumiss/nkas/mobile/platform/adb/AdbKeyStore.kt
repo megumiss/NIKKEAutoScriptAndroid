@@ -13,6 +13,13 @@ import java.security.interfaces.RSAPublicKey
 import java.security.spec.PKCS8EncodedKeySpec
 import java.security.spec.X509EncodedKeySpec
 import java.util.Base64
+import java.io.StringReader
+import java.security.interfaces.RSAPrivateCrtKey
+import java.security.spec.RSAPublicKeySpec
+import org.bouncycastle.asn1.pkcs.PrivateKeyInfo
+import org.bouncycastle.openssl.PEMKeyPair
+import org.bouncycastle.openssl.PEMParser
+import org.bouncycastle.openssl.jcajce.JcaPEMKeyConverter
 
 data class AdbKeyPair(
     val privateKey: PrivateKey,
@@ -36,6 +43,25 @@ data class AdbKeyPair(
 
 /** Stores the client identity in app-private storage for ordinary ADB AUTH. */
 class AdbKeyStore(private val directory: File, private val keyName: String = "nkas-mobile") {
+    fun importPem(pem: String) {
+        require(pem.length <= 16 * 1024) { "ADB identity is too large" }
+        val value = PEMParser(StringReader(pem)).use { it.readObject() }
+        val info = when (value) {
+            is PEMKeyPair -> value.privateKeyInfo
+            is PrivateKeyInfo -> value
+            else -> throw IllegalArgumentException("ADB identity is not an RSA private key")
+        }
+        val privateKey = JcaPEMKeyConverter().getPrivateKey(info) as? RSAPrivateCrtKey
+            ?: throw IllegalArgumentException("ADB identity is not an RSA private key")
+        val publicKey = KeyFactory.getInstance("RSA").generatePublic(RSAPublicKeySpec(privateKey.modulus, privateKey.publicExponent))
+        directory.mkdirs()
+        val privateFile = File(directory, "adbkey.pk8")
+        privateFile.writeBytes(privateKey.encoded)
+        privateFile.setReadable(false, false)
+        privateFile.setReadable(true, true)
+        File(directory, "adbkey.pub.der").writeBytes(publicKey.encoded)
+    }
+
     fun loadOrCreate(): AdbKeyPair {
         val privateFile = File(directory, "adbkey.pk8")
         val publicFile = File(directory, "adbkey.pub.der")
