@@ -3,6 +3,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'package:nkas_mobile/core/connection/connection_controller.dart';
+import 'package:nkas_mobile/core/widgets/group_label.dart';
 import 'package:nkas_mobile/core/widgets/icon_box.dart';
 import 'package:nkas_mobile/core/widgets/page_inset.dart';
 import 'package:nkas_mobile/core/widgets/page_subtitle.dart';
@@ -10,7 +11,7 @@ import 'package:nkas_mobile/core/widgets/surface.dart';
 import 'package:nkas_mobile/core/widgets/tag.dart';
 import 'package:nkas_mobile/theme.dart';
 
-const appVersion = '1.0.9';
+const appVersion = '1.1.0';
 
 const _projectRepoUrl = 'https://github.com/megumiss/NIKKEAutoScript';
 const _projectIssuesUrl = 'https://github.com/megumiss/NIKKEAutoScript/issues';
@@ -156,14 +157,10 @@ class _AboutGroup extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = ShadTheme.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.only(left: 3, bottom: 8),
-          child: Text(label, style: theme.textTheme.muted),
-        ),
+        GroupLabel(label),
         Surface(
           padding: EdgeInsets.zero,
           child: Column(

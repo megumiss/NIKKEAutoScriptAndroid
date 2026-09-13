@@ -10,6 +10,7 @@ import 'package:nkas_mobile/core/connection/connection_controller.dart';
 import 'package:nkas_mobile/core/platform/nkas_platform.dart';
 import 'package:nkas_mobile/core/platform/runtime_platform.dart';
 import 'package:nkas_mobile/core/widgets/buttons.dart';
+import 'package:nkas_mobile/core/widgets/group_label.dart';
 import 'package:nkas_mobile/core/widgets/page_inset.dart';
 import 'package:nkas_mobile/core/widgets/page_subtitle.dart';
 import 'package:nkas_mobile/core/widgets/surface.dart';
@@ -415,7 +416,6 @@ class _BackendAddressSheetState extends State<_BackendAddressSheet> {
             autocorrect: false,
             decoration: InputDecoration(
               hintText: 'http://127.0.0.1:12271',
-              border: OutlineInputBorder(),
               suffixIcon: _textController.text.isEmpty
                   ? null
                   : IconButton(
@@ -467,14 +467,10 @@ class _SettingGroup extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = ShadTheme.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.only(left: 3, bottom: 8),
-          child: Text(label, style: theme.textTheme.muted),
-        ),
+        GroupLabel(label),
         Surface(
           padding: EdgeInsets.zero,
           child: Column(
@@ -635,4 +631,3 @@ class _ThemeChoice extends StatelessWidget {
     );
   }
 }
-

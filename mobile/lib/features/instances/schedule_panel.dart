@@ -6,6 +6,7 @@ import 'package:nkas_mobile/core/widgets/buttons.dart';
 import 'package:nkas_mobile/core/widgets/filter_chip.dart';
 import 'package:nkas_mobile/core/widgets/field_select.dart';
 import 'package:nkas_mobile/core/widgets/surface.dart';
+import 'package:nkas_mobile/core/widgets/toggle.dart';
 
 class SchedulePanel extends StatefulWidget {
   const SchedulePanel({
@@ -104,8 +105,7 @@ class _SchedulePanelState extends State<SchedulePanel> {
                       enableLocked: next.enableLocked,
                       cadence: change['cadence']?.toString() ?? next.cadence,
                       cadenceLocked: next.cadenceLocked,
-                      nextRun:
-                          change['next_run']?.toString() ?? next.nextRun,
+                      nextRun: change['next_run']?.toString() ?? next.nextRun,
                       dailyTimes:
                           change['daily_times']?.toString() ?? next.dailyTimes,
                       weeklyDays:
@@ -221,7 +221,8 @@ class _ScheduleRow extends StatelessWidget {
                   ],
                 ),
               ),
-              Switch(
+              NkasSwitch(
+                label: '启用',
                 value: task.enabled,
                 onChanged: disabled || task.enableLocked
                     ? null

@@ -5,8 +5,10 @@ import 'package:nkas_mobile/core/api/schema_info.dart';
 import 'package:nkas_mobile/core/widgets/buttons.dart';
 import 'package:nkas_mobile/core/widgets/icon_box.dart';
 import 'package:nkas_mobile/core/widgets/field_select.dart';
+import 'package:nkas_mobile/core/widgets/group_label.dart';
 import 'package:nkas_mobile/core/widgets/surface.dart';
 import 'package:nkas_mobile/core/widgets/tag.dart';
+import 'package:nkas_mobile/core/widgets/toggle.dart';
 
 class SchemaPanel extends StatefulWidget {
   const SchemaPanel({
@@ -355,12 +357,11 @@ class _SchemaGroup extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(group.name, style: theme.textTheme.h4),
+        GroupLabel(group.name),
         if (group.help.isNotEmpty) ...[
-          const SizedBox(height: 3),
           Text(group.help, style: theme.textTheme.muted),
+          const SizedBox(height: 7),
         ],
-        const SizedBox(height: 7),
         Surface(
           padding: const EdgeInsets.all(12),
           child: Column(
@@ -409,7 +410,8 @@ class _SchemaFieldView extends StatelessWidget {
       return Row(
         children: [
           Expanded(child: label),
-          Switch(
+          NkasSwitch(
+            label: field.title,
             value: field.value == true,
             onChanged: disabled ? null : (value) => onPatch(field.key, value),
           ),

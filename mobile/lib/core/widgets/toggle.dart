@@ -13,43 +13,51 @@ class NkasSwitch extends StatelessWidget {
 
   final String label;
   final bool value;
-  final ValueChanged<bool> onChanged;
+
+  /// null 表示禁用（不可切换）
+  final ValueChanged<bool>? onChanged;
 
   @override
   Widget build(BuildContext context) {
     final scheme = ShadTheme.of(context).colorScheme;
+    final onChanged = this.onChanged;
     return Semantics(
       button: true,
       toggled: value,
       label: '$label，${value ? '已开启' : '已关闭'}',
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTap: () => onChanged(!value),
-        child: SizedBox(
-          width: 44,
-          height: 44,
-          child: Center(
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 150),
-              width: 42,
-              height: 24,
-              padding: const EdgeInsets.all(3),
-              decoration: BoxDecoration(
-                color: value ? scheme.primary : scheme.border,
-                borderRadius: BorderRadius.circular(999),
-              ),
-              child: AnimatedAlign(
+        onTap: onChanged == null ? null : () => onChanged(!value),
+        child: Opacity(
+          opacity: onChanged == null ? .45 : 1,
+          child: SizedBox(
+            width: 44,
+            height: 44,
+            child: Center(
+              child: AnimatedContainer(
                 duration: const Duration(milliseconds: 150),
-                alignment: value ? Alignment.centerRight : Alignment.centerLeft,
-                child: Container(
-                  width: 18,
-                  height: 18,
-                  decoration: const BoxDecoration(
-                    color: Colors.white,
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(color: Color(0x24000000), blurRadius: 3),
-                    ],
+                width: 42,
+                height: 24,
+                padding: const EdgeInsets.all(3),
+                decoration: BoxDecoration(
+                  color: value ? scheme.primary : scheme.border,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: AnimatedAlign(
+                  duration: const Duration(milliseconds: 150),
+                  alignment: value
+                      ? Alignment.centerRight
+                      : Alignment.centerLeft,
+                  child: Container(
+                    width: 18,
+                    height: 18,
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(color: Color(0x24000000), blurRadius: 3),
+                      ],
+                    ),
                   ),
                 ),
               ),

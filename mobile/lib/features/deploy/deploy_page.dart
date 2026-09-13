@@ -8,10 +8,12 @@ import 'package:nkas_mobile/core/connection/connection_controller.dart';
 import 'package:nkas_mobile/core/widgets/buttons.dart';
 import 'package:nkas_mobile/core/widgets/field_select.dart';
 import 'package:nkas_mobile/core/widgets/filter_chip.dart';
+import 'package:nkas_mobile/core/widgets/group_label.dart';
 import 'package:nkas_mobile/core/widgets/page_inset.dart';
 import 'package:nkas_mobile/core/widgets/page_subtitle.dart';
 import 'package:nkas_mobile/core/widgets/surface.dart';
 import 'package:nkas_mobile/core/widgets/tag.dart';
+import 'package:nkas_mobile/core/widgets/toggle.dart';
 import 'package:nkas_mobile/theme.dart';
 
 const _deployWarning = '修改部署配置可能导致更新失败或程序无法启动，修改需要重启后生效，请谨慎操作。';
@@ -368,12 +370,10 @@ class _DeployGroupView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = ShadTheme.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(group.name, style: theme.textTheme.h4),
-        const SizedBox(height: 7),
+        GroupLabel(group.name),
         Surface(
           padding: const EdgeInsets.all(12),
           child: Column(
@@ -445,7 +445,8 @@ class _DeployFieldView extends StatelessWidget {
         return Row(
           children: [
             Expanded(child: label),
-            Switch(
+            NkasSwitch(
+              label: field.title,
               value: value == true,
               onChanged: saving ? null : (next) => onPatch(field, next),
             ),
@@ -808,7 +809,7 @@ class _DeployInputFieldState extends State<_DeployInputField> {
       enabled: widget.enabled,
       keyboardType: widget.number ? TextInputType.number : TextInputType.text,
       onSubmitted: (_) => _submit(),
-      decoration: const InputDecoration(isDense: true),
+      decoration: const InputDecoration(),
     );
   }
 }

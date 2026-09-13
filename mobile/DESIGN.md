@@ -118,7 +118,7 @@ AppBar 只保留页面标题和连接状态 pill。设置子页显示返回按�
 
 ### 分组列表
 
-实例、设置和事件使用共享 surface：外层一个 surface，行间 1px 分隔线，首尾裁切圆角，左右 padding 14px，标题、说明、状态和 chevron 固定列对齐。不把每一行做成独立卡片。
+实例、设置和事件使用共享 surface：外层一个 surface，行间 1px 分隔线，首尾裁切圆角，左右 padding 14px，标题、说明、状态和 chevron 固定列对齐。不把每一行做成独立卡片。分组标签统一为 muted 小标签（左 3 下 8，`GroupLabel`）；布尔开关统一 `NkasSwitch` 胶囊（禁用态降透明度）；表单输入使用主题默认描边样式（不叠加 `OutlineInputBorder`），下拉选择统一 `FieldSelect`，字段标签在输入框上方（粗体标题 + muted 说明）。
 
 ### 底部导航
 

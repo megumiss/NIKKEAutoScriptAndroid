@@ -557,8 +557,6 @@ class _NkasSetupPageState extends State<NkasSetupPage>
                 onSubmitted: (_) => unawaited(_saveIosSerial()),
                 decoration: const InputDecoration(
                   hintText: '远程 Android ADB 地址，例如 100.64.0.2:5555',
-                  isDense: true,
-                  border: OutlineInputBorder(),
                 ),
               ),
               const SizedBox(height: 8),
@@ -964,21 +962,13 @@ class _NkasSetupPageState extends State<NkasSetupPage>
                 focusNode: serialFocusNode,
                 keyboardType: TextInputType.number,
                 onSubmitted: (_) => unawaited(_saveSerial()),
-                decoration: const InputDecoration(
-                  hintText: '无线调试端口',
-                  isDense: true,
-                  border: OutlineInputBorder(),
-                ),
+                decoration: const InputDecoration(hintText: '无线调试端口'),
               ),
               const SizedBox(height: 8),
               TextField(
                 controller: pairCodeController,
                 keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  hintText: '配对码（可留空，在通知中输入）',
-                  isDense: true,
-                  border: OutlineInputBorder(),
-                ),
+                decoration: const InputDecoration(hintText: '配对码（可留空，在通知中输入）'),
               ),
               const SizedBox(height: 8),
               SecondaryButton(

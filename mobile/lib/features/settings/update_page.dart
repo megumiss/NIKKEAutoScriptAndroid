@@ -6,6 +6,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:nkas_mobile/core/api/update_info.dart';
 import 'package:nkas_mobile/core/connection/connection_controller.dart';
 import 'package:nkas_mobile/core/widgets/buttons.dart';
+import 'package:nkas_mobile/core/widgets/group_label.dart';
 import 'package:nkas_mobile/core/widgets/page_inset.dart';
 import 'package:nkas_mobile/core/widgets/page_subtitle.dart';
 import 'package:nkas_mobile/core/widgets/surface.dart';
@@ -240,10 +241,7 @@ class _UpdatePageState extends State<UpdatePage> {
           ),
         ),
         const SizedBox(height: 20),
-        Padding(
-          padding: const EdgeInsets.only(left: 3, bottom: 8),
-          child: Text('更新记录', style: theme.textTheme.muted),
-        ),
+        const GroupLabel('更新记录'),
         Surface(
           padding: EdgeInsets.zero,
           child: history.isEmpty

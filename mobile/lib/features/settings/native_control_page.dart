@@ -8,7 +8,9 @@ import 'package:nkas_mobile/core/platform/native_control_settings.dart';
 import 'package:nkas_mobile/core/platform/nkas_platform.dart';
 import 'package:nkas_mobile/core/platform/runtime_platform.dart';
 import 'package:nkas_mobile/core/widgets/buttons.dart';
+import 'package:nkas_mobile/core/widgets/field_select.dart';
 import 'package:nkas_mobile/core/widgets/floating_action.dart';
+import 'package:nkas_mobile/core/widgets/group_label.dart';
 import 'package:nkas_mobile/core/widgets/page_inset.dart';
 import 'package:nkas_mobile/core/widgets/page_subtitle.dart';
 import 'package:nkas_mobile/core/widgets/surface.dart';
@@ -180,11 +182,12 @@ class _NativeControlPageState extends State<NativeControlPage> {
             key: form,
             child: ListView(
               padding: EdgeInsets.fromLTRB(inset, 5, inset, 92),
-              keyboardDismissBehavior:
-                  ScrollViewKeyboardDismissBehavior.onDrag,
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
               children: [
                 PageSubtitle(
-                  isAndroid ? '远程 Android、本机虚拟屏幕与 Tailscale' : '远程 Android 与 Tailscale',
+                  isAndroid
+                      ? '远程 Android、本机虚拟屏幕与 Tailscale'
+                      : '远程 Android 与 Tailscale',
                 ),
                 if (loading || busy)
                   const Padding(
@@ -193,49 +196,60 @@ class _NativeControlPageState extends State<NativeControlPage> {
                   ),
                 if (!loading) ...[
                   if (isAndroid) ...[
-                    const _GroupLabel('控制设备'),
+                    const GroupLabel('控制设备'),
                     Surface(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 6,
-                      ),
-                      child: DropdownButtonFormField<NativeControlMode>(
-                        initialValue: mode,
-                        decoration: const InputDecoration(
-                          labelText: '控制设备',
-                          border: InputBorder.none,
-                        ),
-                        items: const [
-                          DropdownMenuItem(
-                            value: NativeControlMode.remoteAdb,
-                            child: Text('远程 Android'),
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            '控制设备',
+                            style: TextStyle(fontWeight: FontWeight.w600),
                           ),
-                          DropdownMenuItem(
-                            value: NativeControlMode.localVirtualDisplay,
-                            child: Text('本机虚拟屏幕'),
+                          const SizedBox(height: 7),
+                          FieldSelect(
+                            label: '',
+                            value: mode == NativeControlMode.remoteAdb
+                                ? '远程 Android'
+                                : '本机虚拟屏幕',
+                            options: const [
+                              FieldSelectOption('remote_adb', '远程 Android'),
+                              FieldSelectOption(
+                                'local_virtual_display',
+                                '本机虚拟屏幕',
+                              ),
+                            ],
+                            onChanged: busy
+                                ? null
+                                : (value) => setState(
+                                    () =>
+                                        mode = value == 'local_virtual_display'
+                                        ? NativeControlMode.localVirtualDisplay
+                                        : NativeControlMode.remoteAdb,
+                                  ),
                           ),
                         ],
-                        onChanged: busy
-                            ? null
-                            : (value) => setState(() => mode = value!),
                       ),
                     ),
                     const SizedBox(height: 20),
                   ],
                   if (mode == NativeControlMode.remoteAdb) ...[
-                    const _GroupLabel('远程设备'),
+                    const GroupLabel('远程设备'),
                     Surface(
-                      padding: const EdgeInsets.all(16),
+                      padding: const EdgeInsets.all(12),
                       child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          const Text(
+                            'Android ADB 地址',
+                            style: TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                          const SizedBox(height: 7),
                           TextFormField(
                             controller: endpoint,
                             enabled: !busy,
                             decoration: const InputDecoration(
-                              labelText: 'Android ADB 地址',
                               hintText: '设备地址:5555',
-                              helperText: '支持 host:port 和 adb://host:port',
-                              helperMaxLines: 2,
                               errorMaxLines: 2,
                             ),
                             keyboardType: TextInputType.url,
@@ -263,12 +277,16 @@ class _NativeControlPageState extends State<NativeControlPage> {
                             },
                           ),
                           const SizedBox(height: 4),
+                          Text(
+                            '支持 host:port 和 adb://host:port',
+                            style: theme.textTheme.muted,
+                          ),
+                          const Divider(height: 18),
                           GestureDetector(
                             behavior: HitTestBehavior.opaque,
                             onTap: busy
                                 ? null
-                                : () =>
-                                      setState(() => tailscale = !tailscale),
+                                : () => setState(() => tailscale = !tailscale),
                             child: Row(
                               children: [
                                 Expanded(
@@ -279,7 +297,6 @@ class _NativeControlPageState extends State<NativeControlPage> {
                                       const Text(
                                         '通过 Tailscale 连接',
                                         style: TextStyle(
-                                          fontSize: 14,
                                           fontWeight: FontWeight.w600,
                                         ),
                                       ),
@@ -294,11 +311,10 @@ class _NativeControlPageState extends State<NativeControlPage> {
                                 NkasSwitch(
                                   label: '通过 Tailscale 连接',
                                   value: tailscale,
-                                  onChanged: (value) {
-                                    if (!busy) {
-                                      setState(() => tailscale = value);
-                                    }
-                                  },
+                                  onChanged: busy
+                                      ? null
+                                      : (value) =>
+                                            setState(() => tailscale = value),
                                 ),
                               ],
                             ),
@@ -308,18 +324,22 @@ class _NativeControlPageState extends State<NativeControlPage> {
                     ),
                     if (tailscale) ...[
                       const SizedBox(height: 20),
-                      const _GroupLabel('Tailscale'),
+                      const GroupLabel('Tailscale'),
                       Surface(
-                        padding: const EdgeInsets.all(16),
+                        padding: const EdgeInsets.all(12),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                            const Text(
+                              'Tailscale 节点名称',
+                              style: TextStyle(fontWeight: FontWeight.w600),
+                            ),
+                            const SizedBox(height: 7),
                             TextFormField(
                               controller: hostname,
                               enabled: !busy,
                               autocorrect: false,
                               decoration: const InputDecoration(
-                                labelText: 'Tailscale 节点名称',
                                 errorMaxLines: 3,
                               ),
                               validator: (value) =>
@@ -329,20 +349,26 @@ class _NativeControlPageState extends State<NativeControlPage> {
                                   ? null
                                   : '使用字母、数字和连字符，最多 63 个字符',
                             ),
-                            const SizedBox(height: 12),
+                            const Divider(height: 18),
+                            const Text(
+                              'Tailscale AuthKey',
+                              style: TextStyle(fontWeight: FontWeight.w600),
+                            ),
+                            const SizedBox(height: 7),
                             TextFormField(
                               controller: authKey,
                               enabled: !busy,
                               obscureText: true,
                               autocorrect: false,
                               enableSuggestions: false,
-                              decoration: const InputDecoration(
-                                labelText: 'Tailscale AuthKey',
-                                helperText: '首次注册时填写，注册后可留空',
-                                helperMaxLines: 2,
-                              ),
+                              decoration: const InputDecoration(),
                             ),
-                            const SizedBox(height: 10),
+                            const SizedBox(height: 4),
+                            Text(
+                              '首次注册时填写，注册后可留空',
+                              style: theme.textTheme.muted,
+                            ),
+                            const Divider(height: 18),
                             Text(
                               status.hasPersistedLogin ? '节点已注册' : '节点尚未注册',
                               style: theme.textTheme.muted,
@@ -373,7 +399,7 @@ class _NativeControlPageState extends State<NativeControlPage> {
                     ],
                   ] else
                     Surface(
-                      padding: const EdgeInsets.all(16),
+                      padding: const EdgeInsets.all(12),
                       child: Text(
                         '使用已完成无线调试配对的本机，创建独立虚拟屏幕。可在“初始化 NKAS”中完成配对。',
                         style: theme.textTheme.muted,
@@ -422,15 +448,4 @@ class _NativeControlPageState extends State<NativeControlPage> {
 
   String _message(Object error) =>
       error is PlatformException ? error.message ?? '连接失败' : error.toString();
-}
-
-class _GroupLabel extends StatelessWidget {
-  const _GroupLabel(this.label);
-  final String label;
-
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(left: 3, bottom: 8),
-    child: Text(label, style: ShadTheme.of(context).textTheme.muted),
-  );
 }
