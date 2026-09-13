@@ -30,6 +30,8 @@ final class NkasStarBridge: NSObject, FlutterStreamHandler {
   private let adbClient = NkasIosAdbClient()
   private var scrcpySession: NkasIosScrcpySession?
   private var scrcpyControl: NkasIosScrcpyControl?
+  fileprivate var textureRegistry: FlutterTextureRegistry?
+  private var videoTexture: NkasIosVideoTexture?
 
   func register(binaryMessenger: FlutterBinaryMessenger) {
     guard methodChannel == nil else { return }
@@ -185,6 +187,20 @@ final class NkasStarBridge: NSObject, FlutterStreamHandler {
           )
           self.scrcpySession = session
           self.scrcpyControl = session.controlStream.map(NkasIosScrcpyControl.init)
+          if video, let textureRegistry = self.textureRegistry {
+            let texture = NkasIosVideoTexture(registry: textureRegistry)
+            self.videoTexture = texture
+            try session.startVideo(
+              onSize: { [weak self] width, height in
+                self?.emit(["type": "scrcpyVideo", "state": "size", "width": width, "height": height])
+              },
+              onFrame: { [weak texture] buffer in texture?.publish(buffer) },
+              onError: { [weak self] error in
+                self?.emit(["type": "scrcpyVideo", "state": "failed", "error": error.localizedDescription])
+              },
+              onStopped: { [weak self] in self?.emit(["type": "scrcpyVideo", "state": "stopped"]) }
+            )
+          }
           self.emit(["type": "scrcpyServer", "state": "started", "message": session.command])
           self.emit([
             "type": "scrcpyVideo", "state": "started", "deviceName": session.metadata?.deviceName,
@@ -192,18 +208,14 @@ final class NkasStarBridge: NSObject, FlutterStreamHandler {
           ])
           DispatchQueue.main.async {
             result([
-              "scid": session.scid,
+            "scid": session.scid,
               "command": session.command,
               "deviceName": session.metadata?.deviceName,
               "codecId": session.metadata.map { NSNumber(value: $0.codecId) },
+              "textureId": self.videoTexture?.textureId,
               "video": video,
               "control": control,
             ])
-          }
-          session.startServerMonitor { [weak self] output, error in
-            guard let self else { return }
-            if let error { self.emit(["type": "scrcpyServer", "state": "failed", "error": error.localizedDescription]) }
-            else { self.emit(["type": "scrcpyServer", "state": "stopped", "message": output ?? ""]) }
           }
         } catch {
           DispatchQueue.main.async { result(FlutterError(code: "native_scrcpy_start", message: error.localizedDescription, details: nil)) }
@@ -213,26 +225,30 @@ final class NkasStarBridge: NSObject, FlutterStreamHandler {
       scrcpySession?.close()
       scrcpySession = nil
       scrcpyControl = nil
+      videoTexture?.dispose()
+      videoTexture = nil
       emit(["type": "scrcpyVideo", "state": "stopped"])
       result(true)
     case "nativeScrcpyBack":
       let action = (call.arguments as? [String: Any])?["action"] as? Int ?? 0
-      do { try scrcpyControl?.back(action: action); result(true) }
+      do { guard let scrcpyControl else { throw NkasIosAdbError.notConnected }; try scrcpyControl.back(action: action); result(true) }
       catch { result(FlutterError(code: "native_scrcpy_control", message: error.localizedDescription, details: nil)) }
     case "nativeScrcpyText":
       let text = (call.arguments as? [String: Any])?["text"] as? String ?? ""
-      do { try scrcpyControl?.text(text); result(true) }
+      do { guard let scrcpyControl else { throw NkasIosAdbError.notConnected }; try scrcpyControl.text(text); result(true) }
       catch { result(FlutterError(code: "native_scrcpy_control", message: error.localizedDescription, details: nil)) }
     case "nativeScrcpyKeycode":
       let arguments = call.arguments as? [String: Any]
       do {
-        try scrcpyControl?.keycode(action: arguments?["action"] as? Int ?? 0, keycode: arguments?["keycode"] as? Int ?? 0, repeatCount: arguments?["repeat"] as? Int ?? 0, metaState: arguments?["metaState"] as? Int ?? 0)
+        guard let scrcpyControl else { throw NkasIosAdbError.notConnected }
+        try scrcpyControl.keycode(action: arguments?["action"] as? Int ?? 0, keycode: arguments?["keycode"] as? Int ?? 0, repeatCount: arguments?["repeat"] as? Int ?? 0, metaState: arguments?["metaState"] as? Int ?? 0)
         result(true)
       } catch { result(FlutterError(code: "native_scrcpy_control", message: error.localizedDescription, details: nil)) }
     case "nativeScrcpyTouch":
       let arguments = call.arguments as? [String: Any]
       do {
-        try scrcpyControl?.touch(action: arguments?["action"] as? Int ?? 0, pointerId: UInt64(arguments?["pointerId"] as? Int ?? 0), x: arguments?["x"] as? Int ?? 0, y: arguments?["y"] as? Int ?? 0, width: arguments?["screenWidth"] as? Int ?? 0, height: arguments?["screenHeight"] as? Int ?? 0, pressure: arguments?["pressure"] as? Double ?? 1, actionButton: arguments?["actionButton"] as? Int ?? 0, buttons: arguments?["buttons"] as? Int ?? 0)
+        guard let scrcpyControl else { throw NkasIosAdbError.notConnected }
+        try scrcpyControl.touch(action: arguments?["action"] as? Int ?? 0, pointerId: UInt64(arguments?["pointerId"] as? Int ?? 0), x: arguments?["x"] as? Int ?? 0, y: arguments?["y"] as? Int ?? 0, width: arguments?["screenWidth"] as? Int ?? 0, height: arguments?["screenHeight"] as? Int ?? 0, pressure: arguments?["pressure"] as? Double ?? 1, actionButton: arguments?["actionButton"] as? Int ?? 0, buttons: arguments?["buttons"] as? Int ?? 0)
         result(true)
       } catch { result(FlutterError(code: "native_scrcpy_control", message: error.localizedDescription, details: nil)) }
     default:
@@ -368,6 +384,7 @@ final class NkasStarBridge: NSObject, FlutterStreamHandler {
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
     if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "NkasStarBridge") {
+      NkasStarBridge.shared.textureRegistry = registrar.textures
       NkasStarBridge.shared.register(binaryMessenger: registrar.messenger())
     }
   }

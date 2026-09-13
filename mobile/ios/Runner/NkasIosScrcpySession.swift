@@ -1,3 +1,4 @@
+import CoreVideo
 import Foundation
 
 struct NkasIosScrcpyOptions {
@@ -25,6 +26,8 @@ final class NkasIosScrcpySession {
   private let serverStream: NkasIosAdbStream
   private let adb: NkasIosAdbClient
   private var closed = false
+  private var videoThread: Thread?
+  private var videoDecoder: NkasIosVideoDecoder?
 
   private init(
     adb: NkasIosAdbClient,
@@ -96,12 +99,61 @@ final class NkasIosScrcpySession {
     }
   }
 
+  func startVideo(
+    onSize: @escaping (Int, Int) -> Void,
+    onFrame: @escaping (CVPixelBuffer) -> Void,
+    onError: @escaping (Error) -> Void,
+    onStopped: @escaping () -> Void
+  ) throws {
+    guard let videoStream else { throw NkasIosVideoError.notConfigured }
+    guard videoThread == nil else { return }
+    videoThread = Thread { [weak self] in
+      guard let self else { return }
+      do {
+        var width = 0
+        var height = 0
+        var configuration: Data?
+        let decoder = NkasIosVideoDecoder(onFrame: onFrame)
+        self.videoDecoder = decoder
+        while !self.closed {
+          let header = try videoStream.readExactly(12)
+          let ptsAndFlags = header.uint64BE(at: 0)
+          if ptsAndFlags & (1 << 63) != 0 {
+            width = Int(header.uint32BE(at: 8 - 4))
+            height = Int(header.uint32BE(at: 8))
+            guard width > 0, height > 0 else { throw NkasIosVideoError.invalidConfiguration }
+            onSize(width, height)
+            if let configuration { try decoder.configure(configuration, width: width, height: height) }
+            continue
+          }
+          let length = Int(header.uint32BE(at: 8))
+          guard length >= 0, length <= 32 * 1024 * 1024 else { throw NkasIosVideoError.invalidConfiguration }
+          let payload = try videoStream.readExactly(length)
+          if ptsAndFlags & (1 << 62) != 0 {
+            configuration = payload
+            if width > 0, height > 0 { try decoder.configure(payload, width: width, height: height) }
+          } else {
+            try decoder.decode(payload, ptsUs: ptsAndFlags & ((1 << 61) - 1))
+          }
+        }
+      } catch {
+        if !self.closed { onError(error) }
+      }
+      onStopped()
+    }
+    videoThread?.start()
+  }
+
   func close() {
     guard !closed else { return }
     closed = true
     videoStream?.close()
     if videoStream == nil || videoStream !== controlStream { controlStream?.close() }
     serverStream.close()
+    videoThread?.cancel()
+    videoThread = nil
+    videoDecoder?.close()
+    videoDecoder = nil
   }
 
   private static func buildCommand(remotePath: String, scid: UInt32, options: NkasIosScrcpyOptions) -> String {
@@ -136,5 +188,20 @@ final class NkasIosScrcpySession {
     } catch {
       return NkasIosScrcpyMetadata(deviceName: "Android", codecId: 0)
     }
+  }
+}
+
+private extension Data {
+  func uint32BE(at offset: Int) -> UInt32 {
+    UInt32(self[index(startIndex, offsetBy: offset)]) << 24 |
+      UInt32(self[index(startIndex, offsetBy: offset + 1)]) << 16 |
+      UInt32(self[index(startIndex, offsetBy: offset + 2)]) << 8 |
+      UInt32(self[index(startIndex, offsetBy: offset + 3)])
+  }
+
+  func uint64BE(at offset: Int) -> UInt64 {
+    var value: UInt64 = 0
+    for index in 0..<8 { value = (value << 8) | UInt64(self[self.index(startIndex, offsetBy: offset + index)]) }
+    return value
   }
 }

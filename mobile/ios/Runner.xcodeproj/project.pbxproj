@@ -13,6 +13,8 @@
 		A10000050000000000000001 /* NkasIosScrcpySession.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000060000000000000001 /* NkasIosScrcpySession.swift */; };
 		A10000070000000000000001 /* NkasIosScrcpyControl.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000080000000000000001 /* NkasIosScrcpyControl.swift */; };
 		A10000090000000000000001 /* scrcpy-server-v4.1 in Resources */ = {isa = PBXBuildFile; fileRef = A10000100000000000000001 /* scrcpy-server-v4.1 */; };
+		A10000110000000000000001 /* NkasIosVideoTexture.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000120000000000000001 /* NkasIosVideoTexture.swift */; };
+		A10000130000000000000001 /* NkasIosVideoDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000140000000000000001 /* NkasIosVideoDecoder.swift */; };
 		331C808B294A63AB00263BE5 /* RunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 331C807B294A618700263BE5 /* RunnerTests.swift */; };
 		3B3967161E833CAA004F5970 /* AppFrameworkInfo.plist in Resources */ = {isa = PBXBuildFile; fileRef = 3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */; };
 		74858FAF1ED2DC5600515810 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74858FAE1ED2DC5600515810 /* AppDelegate.swift */; };
@@ -54,6 +56,8 @@
 		A10000060000000000000001 /* NkasIosScrcpySession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NkasIosScrcpySession.swift; sourceTree = "<group>"; };
 		A10000080000000000000001 /* NkasIosScrcpyControl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NkasIosScrcpyControl.swift; sourceTree = "<group>"; };
 		A10000100000000000000001 /* scrcpy-server-v4.1 */ = {isa = PBXFileReference; lastKnownFileType = file; path = "scrcpy-server-v4.1"; sourceTree = "<group>"; };
+		A10000120000000000000001 /* NkasIosVideoTexture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NkasIosVideoTexture.swift; sourceTree = "<group>"; };
+		A10000140000000000000001 /* NkasIosVideoDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NkasIosVideoDecoder.swift; sourceTree = "<group>"; };
 		331C807B294A618700263BE5 /* RunnerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunnerTests.swift; sourceTree = "<group>"; };
 		331C8081294A63A400263BE5 /* RunnerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = RunnerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = AppFrameworkInfo.plist; path = Flutter/AppFrameworkInfo.plist; sourceTree = "<group>"; };
@@ -138,6 +142,8 @@
 				A10000060000000000000001 /* NkasIosScrcpySession.swift */,
 				A10000080000000000000001 /* NkasIosScrcpyControl.swift */,
 				A10000100000000000000001 /* scrcpy-server-v4.1 */,
+				A10000120000000000000001 /* NkasIosVideoTexture.swift */,
+				A10000140000000000000001 /* NkasIosVideoDecoder.swift */,
 				74858FAD1ED2DC5600515810 /* Runner-Bridging-Header.h */,
 			);
 			path = Runner;
@@ -302,6 +308,8 @@
 				A10000030000000000000001 /* NkasIosAdbKeyStore.swift in Sources */,
 				A10000050000000000000001 /* NkasIosScrcpySession.swift in Sources */,
 				A10000070000000000000001 /* NkasIosScrcpyControl.swift in Sources */,
+				A10000110000000000000001 /* NkasIosVideoTexture.swift in Sources */,
+				A10000130000000000000001 /* NkasIosVideoDecoder.swift in Sources */,
 				1498D2341E8E89220040F4C2 /* GeneratedPluginRegistrant.m in Sources */,
 				7884E8682EC3CC0700C636F2 /* SceneDelegate.swift in Sources */,
 			);
