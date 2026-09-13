@@ -49,6 +49,9 @@ class NkasPlatformBridge(private val activity: FlutterActivity) :
     private var scrcpyTexture: TextureRegistry.SurfaceTextureEntry? = null
     private var connectivity: ConnectivityManager? = null
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
+    private var reconnectEndpoint: String? = null
+    private var reconnectOptions: ScrcpyServerOptions? = null
+    private var reconnectArmed = false
     private val nativeExecutor: ExecutorService = Executors.newSingleThreadExecutor { task ->
         Thread(task, "nkas-native-platform").apply { isDaemon = true }
     }
@@ -140,6 +143,7 @@ class NkasPlatformBridge(private val activity: FlutterActivity) :
             "nativeAdbPull" -> nativeAdbPull(call, result)
             "nativeScrcpyStart" -> nativeScrcpyStart(call, result)
             "nativeScrcpyStop" -> {
+                reconnectArmed = false
                 stopNativeScrcpy()
                 result.success(true)
             }
@@ -334,6 +338,9 @@ class NkasPlatformBridge(private val activity: FlutterActivity) :
 
     fun close() {
         unregisterNetworkCallback()
+        reconnectArmed = false
+        reconnectEndpoint = null
+        reconnectOptions = null
         stopNativeScrcpy()
         nativeAdb?.close()
         nativeAdb = null
@@ -422,6 +429,9 @@ class NkasPlatformBridge(private val activity: FlutterActivity) :
             result.error("native_scrcpy_texture", "Flutter Texture 尚未注册", null)
             return
         }
+        reconnectEndpoint = endpoint
+        reconnectOptions = options
+        reconnectArmed = true
         stopNativeScrcpy()
         scrcpyTexture = if (options.video) textureRegistry!!.createSurfaceTexture() else null
         val surface = scrcpyTexture?.let { Surface(it.surfaceTexture()) }
@@ -492,12 +502,59 @@ class NkasPlatformBridge(private val activity: FlutterActivity) :
         if (hadSession) runCatching { activity.startService(ScrcpySessionService.stop(activity)) }
     }
 
+    private fun reconnectScrcpy() {
+        val endpoint = reconnectEndpoint ?: return
+        val options = reconnectOptions ?: return
+        if (!reconnectArmed || nativeScrcpy != null || nativeExecutor.isShutdown) return
+        emit(mapOf("type" to "scrcpyVideo", "state" to "reconnecting"))
+        nativeExecutor.execute {
+            runCatching {
+                stopNativeScrcpy()
+                scrcpyTexture = if (options.video) textureRegistry?.createSurfaceTexture() else null
+                val surface = scrcpyTexture?.let { Surface(it.surfaceTexture()) }
+                val manager = nativeAdb ?: NativeAdbManager(activity).also { nativeAdb = it }
+                manager.connect(endpoint)
+                val jar = activity.assets.open("bin/scrcpy-server-v4.1").use { it.readBytes() }
+                NativeScrcpyLauncher(manager).start(jar, options).also { session ->
+                    nativeScrcpy = session
+                    if (surface != null) session.startVideo(surface, videoListener())
+                }
+            }.fold(
+                onSuccess = { session ->
+                    emit(mapOf("type" to "scrcpyVideo", "state" to "started", "textureId" to scrcpyTexture?.id(), "deviceName" to session.videoMetadata?.deviceName, "codecId" to session.videoMetadata?.codecId))
+                },
+                onFailure = { error ->
+                    nativeScrcpy?.close()
+                    nativeScrcpy = null
+                    scrcpyTexture?.release()
+                    scrcpyTexture = null
+                    emit(mapOf("type" to "scrcpyVideo", "state" to "error", "error" to (error.message ?: "scrcpy 重连失败")))
+                },
+            )
+        }
+    }
+
+    private fun videoListener() = object : NativeScrcpySession.VideoListener {
+        override fun onSize(width: Int, height: Int) {
+            emit(mapOf("type" to "scrcpyVideo", "state" to "size", "width" to width, "height" to height))
+        }
+
+        override fun onError(error: Throwable) {
+            emit(mapOf("type" to "scrcpyVideo", "state" to "error", "error" to (error.message ?: "视频解码失败")))
+        }
+
+        override fun onStopped() {
+            emit(mapOf("type" to "scrcpyVideo", "state" to "stopped"))
+        }
+    }
+
     private fun registerNetworkCallback() {
         if (networkCallback != null) return
         val manager = activity.getSystemService(ConnectivityManager::class.java) ?: return
         val callback = object : ConnectivityManager.NetworkCallback() {
             override fun onAvailable(network: Network) {
                 emit(mapOf("type" to "nativeNetwork", "state" to "available"))
+                reconnectScrcpy()
             }
 
             override fun onLost(network: Network) {
