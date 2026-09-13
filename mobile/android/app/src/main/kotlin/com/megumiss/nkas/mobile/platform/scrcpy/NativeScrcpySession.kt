@@ -6,6 +6,8 @@ import java.io.Closeable
 import java.io.DataInputStream
 import java.io.EOFException
 import java.io.IOException
+import java.io.BufferedReader
+import java.io.InputStreamReader
 import java.util.concurrent.ThreadLocalRandom
 import java.util.concurrent.atomic.AtomicBoolean
 import android.view.Surface
@@ -82,6 +84,7 @@ class NativeScrcpySession internal constructor(
     private var videoThread: Thread? = null
     private var videoDecoder: NativeVideoDecoder? = null
     private var videoSurface: Surface? = null
+    private var serverThread: Thread? = null
     private val closed = AtomicBoolean(false)
 
     fun startVideo(surface: Surface, listener: VideoListener) {
@@ -89,6 +92,25 @@ class NativeScrcpySession internal constructor(
         check(videoThread == null) { "scrcpy video is already started" }
         videoSurface = surface
         videoThread = Thread({ readVideo(surface, listener) }, "nkas-scrcpy-video").apply {
+            isDaemon = true
+            start()
+        }
+    }
+
+    fun startServerMonitor(listener: ServerListener) {
+        check(serverThread == null) { "scrcpy server monitor is already started" }
+        serverThread = Thread({
+            try {
+                BufferedReader(InputStreamReader(serverStream.inputStream, Charsets.UTF_8)).useLines { lines ->
+                    lines.forEach { line ->
+                        if (!closed.get()) listener.onLog(line)
+                    }
+                }
+                if (!closed.get()) listener.onExit(null)
+            } catch (error: Exception) {
+                if (!closed.get()) listener.onExit(error)
+            }
+        }, "nkas-scrcpy-server").apply {
             isDaemon = true
             start()
         }
@@ -148,12 +170,19 @@ class NativeScrcpySession internal constructor(
         controlStream?.close()
         videoStream?.takeUnless { it === controlStream }?.close()
         serverStream.close()
+        serverThread?.interrupt()
+        serverThread = null
     }
 
     interface VideoListener {
         fun onSize(width: Int, height: Int)
         fun onError(error: Throwable)
         fun onStopped()
+    }
+
+    interface ServerListener {
+        fun onLog(line: String)
+        fun onExit(error: Throwable?)
     }
 
     companion object {

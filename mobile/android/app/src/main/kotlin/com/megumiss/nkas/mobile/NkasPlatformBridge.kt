@@ -442,6 +442,7 @@ class NkasPlatformBridge(private val activity: FlutterActivity) :
                 val jar = activity.assets.open("bin/scrcpy-server-v4.1").use { it.readBytes() }
                 NativeScrcpyLauncher(manager).start(jar, options).also { session ->
                     nativeScrcpy = session
+                    session.startServerMonitor(serverListener())
                     if (surface != null) {
                         session.startVideo(surface, object : NativeScrcpySession.VideoListener {
                             override fun onSize(width: Int, height: Int) {
@@ -517,6 +518,7 @@ class NkasPlatformBridge(private val activity: FlutterActivity) :
                 val jar = activity.assets.open("bin/scrcpy-server-v4.1").use { it.readBytes() }
                 NativeScrcpyLauncher(manager).start(jar, options).also { session ->
                     nativeScrcpy = session
+                    session.startServerMonitor(serverListener())
                     if (surface != null) session.startVideo(surface, videoListener())
                 }
             }.fold(
@@ -545,6 +547,20 @@ class NkasPlatformBridge(private val activity: FlutterActivity) :
 
         override fun onStopped() {
             emit(mapOf("type" to "scrcpyVideo", "state" to "stopped"))
+        }
+    }
+
+    private fun serverListener() = object : NativeScrcpySession.ServerListener {
+        override fun onLog(line: String) {
+            if (line.isNotBlank()) emit(mapOf("type" to "scrcpyServer", "state" to "log", "message" to line.take(2000)))
+        }
+
+        override fun onExit(error: Throwable?) {
+            if (error != null) {
+                emit(mapOf("type" to "scrcpyServer", "state" to "error", "error" to (error.message ?: "scrcpy server 读取失败")))
+            } else {
+                emit(mapOf("type" to "scrcpyServer", "state" to "exited"))
+            }
         }
     }
 

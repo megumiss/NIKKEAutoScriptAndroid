@@ -156,6 +156,13 @@ class NativeNetworkEvent extends NkasPlatformEvent {
   final String state;
 }
 
+class ScrcpyServerEvent extends NkasPlatformEvent {
+  const ScrcpyServerEvent(this.state, {this.message, this.error});
+  final String state;
+  final String? message;
+  final String? error;
+}
+
 class NativeScrcpyStart {
   const NativeScrcpyStart({
     required this.scid,
@@ -431,6 +438,12 @@ class NkasPlatform {
         );
       case 'nativeNetwork':
         return NativeNetworkEvent(value['state'] as String? ?? 'unknown');
+      case 'scrcpyServer':
+        return ScrcpyServerEvent(
+          value['state'] as String? ?? 'unknown',
+          message: value['message'] as String?,
+          error: value['error'] as String?,
+        );
       default:
         return const SetupStateEvent('idle', null);
     }

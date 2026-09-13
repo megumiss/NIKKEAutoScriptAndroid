@@ -193,6 +193,8 @@ class _NkasSetupPageState extends State<NkasSetupPage>
         break;
       case NativeNetworkEvent():
         break;
+      case ScrcpyServerEvent():
+        break;
     }
   }
 
