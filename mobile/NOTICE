@@ -30,6 +30,7 @@ Third-party components:
   Apache License 2.0. The iOS build compiles the ADB library and its
   dependencies; it does not build fastboot or filesystem command-line tools.
 * BoringSSL — OpenSSL/SSLeay, ISC and the other notices in its LICENSE.
+* GoogleTest production headers bundled by BoringSSL — BSD 3-Clause License.
 * fmt — MIT License.
 * LZ4 — BSD 2-Clause License for the linked library.
 * Zstandard — BSD 3-Clause License; upstream also offers GPL-2.0 as an alternative.

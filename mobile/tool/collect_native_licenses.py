@@ -102,6 +102,7 @@ def collect_ios():
         ('AOSP libbase', 'android-tools/vendor/libbase', ['NOTICE']),
         ('AOSP liblog', 'android-tools/vendor/logging', ['liblog/NOTICE']),
         ('BoringSSL', 'android-tools/vendor/boringssl', ['LICENSE']),
+        ('GoogleTest headers', 'android-tools/vendor/boringssl', ['third_party/googletest/LICENSE']),
         ('fmt', 'android-tools/vendor/fmtlib', ['LICENSE']),
         ('LZ4', 'external/lz4', ['lib/LICENSE']),
         ('Zstandard', 'external/zstd', ['LICENSE', 'COPYING']),

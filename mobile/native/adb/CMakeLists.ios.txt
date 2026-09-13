@@ -37,6 +37,8 @@ include_directories("${CMAKE_CURRENT_BINARY_DIR}" "${NKAS_GENERATED_PROTO_DIR}"
 include(CMakeLists.libbase.txt)
 include(CMakeLists.adb-ios.txt)
 include(CMakeLists.zip-ios.txt)
+# ZipWriter exposes FRIEND_TEST in its public header.
+target_include_directories(libzip PUBLIC boringssl/third_party/googletest/googletest/include)
 target_include_directories(libadb PRIVATE core/diagnose_usb/include
     "${NKAS_ADB_SOURCE}/external/lz4/lib"
     "${NKAS_ADB_SOURCE}/external/zstd/lib"

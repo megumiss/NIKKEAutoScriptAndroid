@@ -40,7 +40,8 @@ def verify_sources():
                 check(hashlib.sha256(notice['text'].encode('utf-8')).hexdigest() == notice['sha256'],
                       f'License text hash mismatch: {entry["name"]}/{notice["file"]}')
     expected = {'tailscale.com', 'Go runtime', 'tsnet-forwarder mobile adaptation', 'AOSP ADB',
-                'BoringSSL', 'Abseil', 'Protocol Buffers', 'utf8_range', 'LZ4', 'Zstandard', 'Brotli',
+                'BoringSSL', 'GoogleTest headers', 'Abseil', 'Protocol Buffers', 'utf8_range',
+                'LZ4', 'Zstandard', 'Brotli',
                 'scrcpy server', 'Conscrypt Android', 'bcpkix-jdk18on', 'bcprov-jdk18on', 'bcutil-jdk18on'}
     check(expected <= names, f'Missing native notices: {sorted(expected - names)}')
     print(f'Bundled scrcpy and {len(names)} native license entries verified')

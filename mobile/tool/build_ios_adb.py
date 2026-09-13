@@ -126,7 +126,8 @@ def configure(source, build, *options):
 
 
 def compile_target(build, target):
-    run('cmake', '--build', build, '--parallel', '4', '--target', target)
+    # Report independent compilation failures together while preserving a failed exit status.
+    run('cmake', '--build', build, '--parallel', '4', '--target', target, '--', '-k')
 
 
 def linked_archives(build):
