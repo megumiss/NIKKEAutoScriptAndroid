@@ -190,7 +190,8 @@ final class NkasIosAdbClient {
       guard let separator = raw.lastIndex(of: ":"), let port = Int(raw[raw.index(after: separator)...]), port > 0, port <= 65535 else {
         throw NkasIosAdbError.invalidEndpoint(value)
       }
-      host = String(raw[..<separator])
+    let rawHost = String(raw[..<separator])
+    host = rawHost.hasPrefix("[") && rawHost.hasSuffix("]") ? String(rawHost.dropFirst().dropLast()) : rawHost
       self.port = port
     }
   }

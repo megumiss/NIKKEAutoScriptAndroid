@@ -1,4 +1,5 @@
 import Flutter
+import Network
 import Security
 import UIKit
 
@@ -32,6 +33,8 @@ final class NkasStarBridge: NSObject, FlutterStreamHandler {
   private var scrcpyControl: NkasIosScrcpyControl?
   fileprivate var textureRegistry: FlutterTextureRegistry?
   private var videoTexture: NkasIosVideoTexture?
+  private var pathMonitor: NWPathMonitor?
+  private let pathQueue = DispatchQueue(label: "com.megumiss.nkas.network")
 
   func register(binaryMessenger: FlutterBinaryMessenger) {
     guard methodChannel == nil else { return }
@@ -42,6 +45,28 @@ final class NkasStarBridge: NSObject, FlutterStreamHandler {
     let events = FlutterEventChannel(name: eventsName, binaryMessenger: binaryMessenger)
     events.setStreamHandler(self)
     methodChannel = channel
+    startNetworkMonitor()
+    NotificationCenter.default.addObserver(self, selector: #selector(applicationDidEnterBackground), name: UIApplication.didEnterBackgroundNotification, object: nil)
+    NotificationCenter.default.addObserver(self, selector: #selector(applicationDidBecomeActive), name: UIApplication.didBecomeActiveNotification, object: nil)
+  }
+
+  private func startNetworkMonitor() {
+    guard pathMonitor == nil else { return }
+    let monitor = NWPathMonitor()
+    pathMonitor = monitor
+    monitor.pathUpdateHandler = { [weak self] path in
+      let state = path.status == .satisfied ? "connected" : "disconnected"
+      self?.emit(["type": "nativeNetwork", "state": state])
+    }
+    monitor.start(queue: pathQueue)
+  }
+
+  @objc private func applicationDidEnterBackground() {
+    emit(["type": "nativeNetwork", "state": "background"])
+  }
+
+  @objc private func applicationDidBecomeActive() {
+    emit(["type": "nativeNetwork", "state": "foreground"])
   }
 
   func handle(url: URL) {

@@ -42,7 +42,7 @@ final class NkasIosVideoDecoder {
     decompressionSession?.invalidate()
     var callback = VTDecompressionOutputCallbackRecord(
       decompressionOutputCallback: { refCon, _, status, _, imageBuffer, _, _ in
-        guard status == noErr, let refCon, let imageBuffer else { return }
+        guard status == noErr, let refCon, let imageBuffer = imageBuffer as? CVPixelBuffer else { return }
         Unmanaged<NkasIosVideoDecoder>.fromOpaque(refCon).takeUnretainedValue().onFrame(imageBuffer)
       },
       decompressionOutputRefCon: UnsafeMutableRawPointer(Unmanaged.passUnretained(self).toOpaque())

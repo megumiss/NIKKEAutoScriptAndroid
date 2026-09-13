@@ -182,7 +182,7 @@ final class NkasIosScrcpySession {
     do {
       _ = try stream.readExactly(1)
       let rawName = try stream.readExactly(64)
-      let name = String(data: rawName.prefix { $0 != 0 }, encoding: .utf8) ?? "Android"
+      let name = String(data: rawName.prefix(while: { $0 != 0 }), encoding: .utf8) ?? "Android"
       let codec = try stream.readExactly(4).reduce(UInt32(0)) { ($0 << 8) | UInt32($1) }
       return NkasIosScrcpyMetadata(deviceName: name, codecId: codec)
     } catch {
