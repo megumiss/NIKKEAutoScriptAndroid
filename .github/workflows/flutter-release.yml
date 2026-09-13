@@ -26,9 +26,6 @@ jobs:
     name: Flutter and native checks
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    defaults:
-      run:
-        working-directory: mobile
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
@@ -39,12 +36,12 @@ jobs:
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version: ${{ env.GO_VERSION }}
-          cache-dependency-path: mobile/native/tsnet/go.sum
+          cache-dependency-path: native/tsnet/go.sum
       - run: flutter pub get
       - run: flutter analyze
       - run: flutter test
       - name: Go lifecycle and race tests
-        working-directory: mobile/native/tsnet
+        working-directory: native/tsnet
         run: go test -race ./...
       - name: Check native resources and license inventory
         run: |
@@ -59,9 +56,6 @@ jobs:
     needs: validate
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    defaults:
-      run:
-        working-directory: mobile
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
@@ -78,7 +72,7 @@ jobs:
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version: ${{ env.GO_VERSION }}
-          cache-dependency-path: mobile/native/tsnet/go.sum
+          cache-dependency-path: native/tsnet/go.sum
       - name: Build application-scoped tsnet AAR
         run: |
           sdkmanager "ndk;${NDK_VERSION}"
@@ -87,7 +81,7 @@ jobs:
       - name: Prepare Flutter Android build files
         run: flutter build apk --debug --config-only
       - name: Kotlin ADB and scrcpy tests
-        working-directory: mobile/android
+        working-directory: android
         run: bash gradlew :app:testDebugUnitTest --console=plain
       - run: python3 tool/verify_native.py --android
       - name: Prepare Android signing files
@@ -113,13 +107,13 @@ jobs:
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: nkas-android-apk
-          path: mobile/build/app/outputs/flutter-apk/app-release.apk
+          path: build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
           name: nkas-android-tests
-          path: mobile/build/app/reports/tests/testDebugUnitTest/
+          path: build/app/reports/tests/testDebugUnitTest/
           if-no-files-found: ignore
 
   ios:
@@ -127,9 +121,6 @@ jobs:
     needs: validate
     runs-on: macos-15
     timeout-minutes: 120
-    defaults:
-      run:
-        working-directory: mobile
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
@@ -140,7 +131,7 @@ jobs:
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version: ${{ env.GO_VERSION }}
-          cache-dependency-path: mobile/native/tsnet/go.sum
+          cache-dependency-path: native/tsnet/go.sum
       - name: Build and verify native XCFrameworks
         run: |
           xcodebuild -version
@@ -226,17 +217,17 @@ jobs:
         with:
           name: nkas-ios-ipa
           path: |
-            mobile/build/ios/iphoneos/*.ipa
-            mobile/build/ios/ipa/*.ipa
+            build/ios/iphoneos/*.ipa
+            build/ios/ipa/*.ipa
           if-no-files-found: error
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
           name: nkas-ios-tests
           path: |
-            mobile/build/ios/NativeTests.xcresult/
-            mobile/build/native-adb/iphoneos/arm64/linked-archives.json
-            mobile/build/native-adb/iphonesimulator/*/linked-archives.json
+            build/ios/NativeTests.xcresult/
+            build/native-adb/iphoneos/arm64/linked-archives.json
+            build/native-adb/iphonesimulator/*/linked-archives.json
           if-no-files-found: ignore
       - name: Remove temporary signing keychain
         if: ${{ always() && inputs.ios_signed == true }}
