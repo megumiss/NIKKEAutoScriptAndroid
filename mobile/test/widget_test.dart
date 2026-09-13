@@ -14,6 +14,7 @@ import 'package:nkas_mobile/app/app.dart';
 import 'package:nkas_mobile/core/api/api_client.dart';
 import 'package:nkas_mobile/core/connection/connection_controller.dart';
 import 'package:nkas_mobile/core/settings/backend_settings.dart';
+import 'package:nkas_mobile/features/settings/about_page.dart';
 
 class _MemoryBackendSettings implements BackendSettings {
   String? value;
@@ -420,7 +421,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('NKAS Mobile'), findsOneWidget);
-    expect(find.text('1.0.4'), findsWidgets);
+    expect(find.text(appVersion), findsWidgets);
     expect(find.text('NIKKEAutoScript 移动控制端'), findsOneWidget);
     expect(find.text('项目仓库'), findsOneWidget);
     expect(find.text('问题反馈'), findsOneWidget);

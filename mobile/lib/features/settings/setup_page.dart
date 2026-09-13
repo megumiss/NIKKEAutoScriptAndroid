@@ -7,6 +7,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:nkas_mobile/core/platform/nkas_platform.dart';
 import 'package:nkas_mobile/core/platform/runtime_platform.dart';
 import 'package:nkas_mobile/core/widgets/buttons.dart';
+import 'package:nkas_mobile/core/widgets/floating_action.dart';
 import 'package:nkas_mobile/core/widgets/page_inset.dart';
 import 'package:nkas_mobile/core/widgets/page_subtitle.dart';
 import 'package:nkas_mobile/core/widgets/surface.dart';
@@ -490,7 +491,7 @@ class _NkasSetupPageState extends State<NkasSetupPage>
           bottom: 12,
           child: SafeArea(
             top: false,
-            child: _SetupFloatingAction(
+            child: NkasFloatingAction(
               label: _actionLabel,
               icon: _actionIcon,
               enabled: !_actionDisabled,
@@ -1199,39 +1200,6 @@ class _IosSetupStep extends StatelessWidget {
         ),
         if (complete) Icon(LucideIcons.check, size: 18, color: scheme.success),
       ],
-    );
-  }
-}
-
-class _SetupFloatingAction extends StatelessWidget {
-  const _SetupFloatingAction({
-    required this.label,
-    required this.icon,
-    required this.enabled,
-    required this.onPressed,
-  });
-
-  final String label;
-  final IconData icon;
-  final bool enabled;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = ShadTheme.of(context).colorScheme;
-    return Material(
-      color: Colors.transparent,
-      elevation: 8,
-      shadowColor: scheme.primary.withValues(alpha: .28),
-      borderRadius: BorderRadius.circular(13),
-      child: SizedBox(
-        width: double.infinity,
-        child: PrimaryButton(
-          icon: icon,
-          label: label,
-          onPressed: enabled ? onPressed : null,
-        ),
-      ),
     );
   }
 }

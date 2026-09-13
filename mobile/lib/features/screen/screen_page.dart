@@ -9,7 +9,6 @@ import 'package:nkas_mobile/core/api/instance_info.dart';
 import 'package:nkas_mobile/core/api/screenshot_frame.dart';
 import 'package:nkas_mobile/core/platform/nkas_platform.dart';
 import 'package:nkas_mobile/core/platform/native_control_settings.dart';
-import 'package:nkas_mobile/features/settings/native_control_page.dart';
 import 'package:nkas_mobile/features/screen/native_video_surface.dart';
 import 'package:nkas_mobile/core/widgets/avatar.dart';
 import 'package:nkas_mobile/core/widgets/buttons.dart';
@@ -30,6 +29,7 @@ class ScreenPage extends StatelessWidget {
     required this.onSelectInstance,
     required this.loadScreenshot,
     required this.accessGranted,
+    required this.onOpenNativeControl,
     super.key,
   });
   final List<InstanceInfo> instances;
@@ -41,6 +41,7 @@ class ScreenPage extends StatelessWidget {
   final ValueChanged<String> onSelectInstance;
   final Future<ScreenshotFrame?> Function() loadScreenshot;
   final bool accessGranted;
+  final VoidCallback onOpenNativeControl;
 
   @override
   Widget build(BuildContext context) {
@@ -118,6 +119,7 @@ class ScreenPage extends StatelessWidget {
                 key: ValueKey(selected),
                 loadScreenshot: loadScreenshot,
                 accessGranted: accessGranted,
+                onOpenNativeControl: onOpenNativeControl,
               ),
             ),
           ),
@@ -182,11 +184,13 @@ class ScreenPanel extends StatefulWidget {
   const ScreenPanel({
     required this.loadScreenshot,
     required this.accessGranted,
+    this.onOpenNativeControl,
     this.platform,
     super.key,
   });
   final Future<ScreenshotFrame?> Function() loadScreenshot;
   final bool accessGranted;
+  final VoidCallback? onOpenNativeControl;
   final NkasPlatform? platform;
   @override
   State<ScreenPanel> createState() => _ScreenPanelState();
@@ -398,12 +402,7 @@ class _ScreenPanelState extends State<ScreenPanel> {
     }
   }
 
-  Future<void> _configure() async {
-    await _stopNative();
-    if (!mounted) return;
-    await openNativeControlSettings(context, platform: platform);
-    if (mounted && widget.accessGranted) await _startNativeVideo();
-  }
+  void _configure() => widget.onOpenNativeControl?.call();
 
   Future<void> _key(int code) async {
     final id = requestId;

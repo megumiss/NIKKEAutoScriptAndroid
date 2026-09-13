@@ -159,27 +159,15 @@ void main() {
       final connection = Completer<Object?>();
       _mockPlatform(calls, connection: connection);
       final platform = NkasPlatform.testing(events: const Stream.empty());
-      await tester.pumpWidget(
-        host(
-          Builder(
-            builder: (context) => TextButton(
-              onPressed: () =>
-                  openNativeControlSettings(context, platform: platform),
-              child: const Text('设置'),
-            ),
-          ),
-        ),
-      );
-      await tester.tap(find.text('设置'));
+      await tester.pumpWidget(host(NativeControlPage(platform: platform)));
       await tester.pumpAndSettle();
-      expect(find.byType(NativeControlPage), findsOneWidget);
       expect(find.byType(BottomSheet), findsNothing);
-      expect(find.text('设置'), findsNothing);
       await tester.enterText(
         find.byType(TextFormField).last,
         'test-registration-key',
       );
       await tester.ensureVisible(find.text('验证连接'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('验证连接'));
       await tester.pump();
       await tester.pump();
@@ -188,123 +176,93 @@ void main() {
         hasLength(1),
       );
       expect(find.text('test-registration-key'), findsNothing);
-      expect(
-        tester
-            .widget<IconButton>(
-              find.ancestor(
-                of: find.byTooltip('返回'),
-                matching: find.byType(IconButton),
-              ),
-            )
-            .onPressed,
-        isNull,
-      );
-      await tester.binding.handlePopRoute();
-      await tester.pump();
-      expect(find.text('控制连接'), findsOneWidget);
       await tester.ensureVisible(find.text('取消连接'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('取消连接'));
       await tester.pumpAndSettle();
       expect(find.text('连接已取消'), findsOneWidget);
       expect(tester.takeException(), isNull);
-      await tester.tap(find.byTooltip('返回'));
-      await tester.pumpAndSettle();
-      expect(find.text('控制连接'), findsNothing);
-      expect(find.text('设置'), findsOneWidget);
     },
   );
 
-  testWidgets(
-    'connection page saves before returning and system back leaves edits unsaved',
-    (tester) async {
-      final calls = <MethodCall>[];
-      _mockPlatform(calls);
-      final platform = NkasPlatform.testing(events: const Stream.empty());
-      bool? saved;
-      await tester.pumpWidget(
-        host(
-          Builder(
-            builder: (context) => TextButton(
-              onPressed: () async {
-                saved = await openNativeControlSettings(
-                  context,
-                  platform: platform,
-                );
-              },
-              child: const Text('设置'),
-            ),
-          ),
-        ),
-      );
-      await tester.tap(find.text('设置'));
-      await tester.pumpAndSettle();
-      await tester.enterText(
-        find.byType(TextFormField).first,
-        'adb://192.168.31.219:5555',
-      );
-      await tester.tap(find.text('通过 Tailscale 连接'));
-      await tester.pumpAndSettle();
-      await tester.ensureVisible(find.text('保存'));
-      await tester.tap(find.text('保存'));
-      await tester.pumpAndSettle();
-      expect(saved, isTrue);
-      expect(find.byType(NativeControlPage), findsNothing);
-      final save = calls.singleWhere(
-        (call) => call.method == 'saveNativeControlSettings',
-      );
-      expect((save.arguments as Map)['endpoint'], 'adb://192.168.31.219:5555');
-      expect((save.arguments as Map)['tailscaleEnabled'], isFalse);
-      expect(calls.where((call) => call.method == 'tsnetConnect'), isEmpty);
-
-      await tester.tap(find.text('设置'));
-      await tester.pumpAndSettle();
-      await tester.enterText(find.byType(TextFormField).first, 'unsaved:5555');
-      await tester.binding.handlePopRoute();
-      await tester.pumpAndSettle();
-      expect(saved, isFalse);
-      expect(find.text('设置'), findsOneWidget);
-      expect(
-        calls.where((call) => call.method == 'saveNativeControlSettings'),
-        hasLength(1),
-      );
-      expect(tester.takeException(), isNull);
-    },
-  );
-
-  testWidgets('screen stops control for settings and reconnects on return', (
+  testWidgets('connection page saves and closes; leaving keeps edits unsaved', (
     tester,
   ) async {
     final calls = <MethodCall>[];
     _mockPlatform(calls);
     final platform = NkasPlatform.testing(events: const Stream.empty());
-    await tester.pumpWidget(
-      host(
-        ScreenPanel(
-          platform: platform,
-          accessGranted: true,
-          loadScreenshot: () async => null,
-        ),
+    var closed = 0;
+    Widget page() => host(
+      NativeControlPage(platform: platform, onClose: () => closed++),
+    );
+    await tester.pumpWidget(page());
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byType(TextFormField).first,
+      'adb://192.168.31.219:5555',
+    );
+    await tester.tap(find.text('通过 Tailscale 连接'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('保存'));
+    await tester.pumpAndSettle();
+    expect(closed, 1);
+    final save = calls.singleWhere(
+      (call) => call.method == 'saveNativeControlSettings',
+    );
+    expect((save.arguments as Map)['endpoint'], 'adb://192.168.31.219:5555');
+    expect((save.arguments as Map)['tailscaleEnabled'], isFalse);
+    expect(calls.where((call) => call.method == 'tsnetConnect'), isEmpty);
+
+    await tester.pumpWidget(page());
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextFormField).first, 'unsaved:5555');
+    await tester.pumpWidget(const SizedBox.shrink());
+    expect(closed, 1);
+    expect(
+      calls.where((call) => call.method == 'saveNativeControlSettings'),
+      hasLength(1),
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('screen stops control when leaving and reconnects on return', (
+    tester,
+  ) async {
+    final calls = <MethodCall>[];
+    _mockPlatform(calls);
+    final platform = NkasPlatform.testing(events: const Stream.empty());
+    var opened = 0;
+    Widget screen() => host(
+      ScreenPanel(
+        platform: platform,
+        accessGranted: true,
+        loadScreenshot: () async => null,
+        onOpenNativeControl: () => opened++,
       ),
     );
+    await tester.pumpWidget(screen());
     await tester.pump();
     final firstStart = calls.singleWhere(
       (call) => call.method == 'nativeScrcpyStart',
     );
     final firstId = (firstStart.arguments as Map)['requestId'];
     await tester.tap(find.byTooltip('控制连接设置'));
-    await tester.pumpAndSettle();
-    expect(find.byType(NativeControlPage), findsOneWidget);
-    expect(find.byType(BottomSheet), findsNothing);
-    final stop = calls.singleWhere((call) => call.method == 'nativeScrcpyStop');
-    expect((stop.arguments as Map)['requestId'], firstId);
+    await tester.pump();
+    expect(opened, 1);
     expect(
       calls.where((call) => call.method == 'nativeScrcpyStart'),
       hasLength(1),
     );
 
-    await tester.tap(find.byTooltip('返回'));
+    // shell 切页会销毁画面页：当前控制会话随之停止
+    await tester.pumpWidget(host(NativeControlPage(platform: platform)));
     await tester.pumpAndSettle();
-    expect(find.byType(NativeControlPage), findsNothing);
+    final stop = calls.singleWhere((call) => call.method == 'nativeScrcpyStop');
+    expect((stop.arguments as Map)['requestId'], firstId);
+
+    // 返回画面页后按当前配置重新连接
+    await tester.pumpWidget(screen());
+    await tester.pump();
     final starts = calls
         .where((call) => call.method == 'nativeScrcpyStart')
         .toList();

@@ -13,8 +13,8 @@ import 'package:nkas_mobile/core/widgets/buttons.dart';
 import 'package:nkas_mobile/core/widgets/page_inset.dart';
 import 'package:nkas_mobile/core/widgets/page_subtitle.dart';
 import 'package:nkas_mobile/core/widgets/surface.dart';
+import 'package:nkas_mobile/core/widgets/toggle.dart';
 import 'package:nkas_mobile/theme.dart';
-import 'package:nkas_mobile/features/settings/native_control_page.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({
@@ -28,6 +28,7 @@ class SettingsPage extends StatefulWidget {
     required this.onOpenSetup,
     required this.onOpenUpdate,
     required this.onOpenAbout,
+    required this.onOpenNativeControl,
     super.key,
   });
   final ThemeMode themeMode;
@@ -40,6 +41,7 @@ class SettingsPage extends StatefulWidget {
   final VoidCallback onOpenSetup;
   final VoidCallback onOpenUpdate;
   final VoidCallback onOpenAbout;
+  final VoidCallback onOpenNativeControl;
 
   @override
   State<SettingsPage> createState() => _SettingsPageState();
@@ -132,7 +134,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     : '远程 Android 与 Tailscale',
                 enabled: widget.starAuthorized,
                 onTap: widget.starAuthorized
-                    ? () => openNativeControlSettings(context)
+                    ? widget.onOpenNativeControl
                     : null,
               ),
             _SettingRow(
@@ -180,7 +182,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 ignoring: !widget.starAuthorized,
                 child: Opacity(
                   opacity: widget.starAuthorized ? 1 : .45,
-                  child: _SettingsSwitch(
+                  child: NkasSwitch(
                     label: '后台通知',
                     value: widget.notifications,
                     onChanged: widget.onNotificationsChanged,
@@ -625,59 +627,3 @@ class _ThemeChoice extends StatelessWidget {
   }
 }
 
-class _SettingsSwitch extends StatelessWidget {
-  const _SettingsSwitch({
-    required this.label,
-    required this.value,
-    required this.onChanged,
-  });
-
-  final String label;
-  final bool value;
-  final ValueChanged<bool> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = ShadTheme.of(context).colorScheme;
-    return Semantics(
-      button: true,
-      toggled: value,
-      label: '$label，${value ? '已开启' : '已关闭'}',
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: () => onChanged(!value),
-        child: SizedBox(
-          width: 44,
-          height: 44,
-          child: Center(
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 150),
-              width: 42,
-              height: 24,
-              padding: const EdgeInsets.all(3),
-              decoration: BoxDecoration(
-                color: value ? scheme.primary : scheme.border,
-                borderRadius: BorderRadius.circular(999),
-              ),
-              child: AnimatedAlign(
-                duration: const Duration(milliseconds: 150),
-                alignment: value ? Alignment.centerRight : Alignment.centerLeft,
-                child: Container(
-                  width: 18,
-                  height: 18,
-                  decoration: const BoxDecoration(
-                    color: Colors.white,
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(color: Color(0x24000000), blurRadius: 3),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}

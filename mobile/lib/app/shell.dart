@@ -24,6 +24,7 @@ import 'package:nkas_mobile/features/deploy/deploy_page.dart';
 import 'package:nkas_mobile/features/overview/overview_page.dart';
 import 'package:nkas_mobile/features/settings/settings_page.dart';
 import 'package:nkas_mobile/features/settings/setup_page.dart';
+import 'package:nkas_mobile/features/settings/native_control_page.dart';
 import 'package:nkas_mobile/features/settings/star_verify_page.dart';
 import 'package:nkas_mobile/features/settings/about_page.dart';
 import 'package:nkas_mobile/features/settings/update_page.dart';
@@ -40,6 +41,7 @@ enum NkasPage {
   setup,
   update,
   about,
+  nativeControl,
 }
 
 class NkasShell extends StatefulWidget {
@@ -101,6 +103,17 @@ class _NkasShellState extends State<NkasShell> {
   bool loadingSchema = false;
   String? schemaError;
   String? taskKey;
+
+  /// 切页滑动方向：1 从右进入（前进/向右切换），-1 从左进入（返回/向左切换）
+  double _navDirection = 1;
+  static const _rootPages = [
+    NkasPage.overview,
+    NkasPage.instances,
+    NkasPage.screen,
+    NkasPage.logs,
+    NkasPage.deploy,
+    NkasPage.settings,
+  ];
 
   @override
   void initState() {
@@ -448,7 +461,34 @@ class _NkasShellState extends State<NkasShell> {
                     Expanded(
                       child: Stack(
                         children: [
-                          Positioned.fill(child: _pageBody()),
+                          Positioned.fill(
+                            child: AnimatedSwitcher(
+                              duration: const Duration(milliseconds: 220),
+                              switchInCurve: Curves.easeOutCubic,
+                              switchOutCurve: Curves.easeOutCubic,
+                              transitionBuilder: (child, animation) =>
+                                  ClipRect(
+                                    child: SlideTransition(
+                                      position: Tween<Offset>(
+                                        begin: Offset(_navDirection, 0),
+                                        end: Offset.zero,
+                                      ).animate(animation),
+                                      child: FadeTransition(
+                                        opacity: animation,
+                                        child: child,
+                                      ),
+                                    ),
+                                  ),
+                              layoutBuilder: (current, previous) => Stack(
+                                fit: StackFit.expand,
+                                children: [...previous, ?current],
+                              ),
+                              child: KeyedSubtree(
+                                key: ValueKey(page),
+                                child: _pageBody(),
+                              ),
+                            ),
+                          ),
                           // 未通过 STAR 验证时，设置以外的页面盖遮罩，
                           // 底部导航保持可用，可经遮罩按钮或导航前往验证页
                           if (!_starAccessGranted &&
@@ -494,6 +534,7 @@ class _NkasShellState extends State<NkasShell> {
           instanceLayer == InstanceLayer.liveLogs);
 
   bool _handleBack() {
+    _navDirection = -1;
     if (page == NkasPage.instances) {
       if (instanceLayer == InstanceLayer.tasks && taskKey != null) {
         setState(() => taskKey = null);
@@ -549,13 +590,15 @@ class _NkasShellState extends State<NkasShell> {
     NkasPage.setup => '初始化',
     NkasPage.update => '更新',
     NkasPage.about => '关于',
+    NkasPage.nativeControl => '控制连接',
   };
 
   bool get _isSettingsSubpage =>
       page == NkasPage.starVerify ||
       page == NkasPage.setup ||
       page == NkasPage.update ||
-      page == NkasPage.about;
+      page == NkasPage.about ||
+      page == NkasPage.nativeControl;
 
   Widget _pageBody() => switch (page) {
     NkasPage.overview => OverviewPage(
@@ -652,6 +695,7 @@ class _NkasShellState extends State<NkasShell> {
       loadScreenshot: () =>
           widget.connectionController.fetchScreenshot(instance),
       accessGranted: _starAccessGranted,
+      onOpenNativeControl: () => _pushPage(NkasPage.nativeControl),
     ),
     NkasPage.logs => LogsPage(
       connectionController: widget.connectionController,
@@ -671,6 +715,7 @@ class _NkasShellState extends State<NkasShell> {
       onOpenSetup: () => unawaited(_openSetup()),
       onOpenUpdate: () => _pushPage(NkasPage.update),
       onOpenAbout: () => _pushPage(NkasPage.about),
+      onOpenNativeControl: () => _pushPage(NkasPage.nativeControl),
     ),
     NkasPage.starVerify => StarVerifyPage(
       onOpenSetup: () => unawaited(_openSetup()),
@@ -685,6 +730,10 @@ class _NkasShellState extends State<NkasShell> {
     ),
     NkasPage.about => AboutPage(
       connectionController: widget.connectionController,
+    ),
+    NkasPage.nativeControl => NativeControlPage(
+      platform: NkasPlatform.instance,
+      onClose: _handleBack,
     ),
   };
 
@@ -701,6 +750,9 @@ class _NkasShellState extends State<NkasShell> {
   }
 
   void _selectRootPage(NkasPage value) {
+    final from = _rootPages.indexOf(page);
+    final to = _rootPages.indexOf(value);
+    _navDirection = from >= 0 && to >= 0 && to < from ? -1 : 1;
     setState(() {
       pageStack
         ..clear()
@@ -716,6 +768,7 @@ class _NkasShellState extends State<NkasShell> {
 
   void _pushPage(NkasPage value) {
     if (page == value) return;
+    _navDirection = 1;
     if (value == NkasPage.instances) {
       setState(() {
         pageStack.add(value);

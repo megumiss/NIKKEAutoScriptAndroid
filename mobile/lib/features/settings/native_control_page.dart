@@ -7,24 +7,19 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:nkas_mobile/core/platform/native_control_settings.dart';
 import 'package:nkas_mobile/core/platform/nkas_platform.dart';
 import 'package:nkas_mobile/core/platform/runtime_platform.dart';
+import 'package:nkas_mobile/core/widgets/buttons.dart';
+import 'package:nkas_mobile/core/widgets/floating_action.dart';
 import 'package:nkas_mobile/core/widgets/page_inset.dart';
-
-Future<bool> openNativeControlSettings(
-  BuildContext context, {
-  NkasPlatform? platform,
-}) async =>
-    await Navigator.of(context).push<bool>(
-      MaterialPageRoute(
-        settings: const RouteSettings(name: '/settings/control'),
-        builder: (_) =>
-            NativeControlPage(platform: platform ?? NkasPlatform.instance),
-      ),
-    ) ??
-    false;
+import 'package:nkas_mobile/core/widgets/page_subtitle.dart';
+import 'package:nkas_mobile/core/widgets/surface.dart';
+import 'package:nkas_mobile/core/widgets/toggle.dart';
 
 class NativeControlPage extends StatefulWidget {
-  const NativeControlPage({required this.platform, super.key});
+  const NativeControlPage({required this.platform, this.onClose, super.key});
   final NkasPlatform platform;
+
+  /// 保存成功后由 shell 返回上一页
+  final VoidCallback? onClose;
   @override
   State<NativeControlPage> createState() => _NativeControlPageState();
 }
@@ -114,7 +109,7 @@ class _NativeControlPageState extends State<NativeControlPage> {
         busy = false;
         message = 'Tailscale 身份已保存，可连接设备';
       });
-      if (!register) Navigator.pop(context, true);
+      if (!register) widget.onClose?.call();
     } catch (exception) {
       if (mounted) {
         setState(() {
@@ -178,64 +173,61 @@ class _NativeControlPageState extends State<NativeControlPage> {
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
     final inset = nkasPageInset(context);
-    return PopScope<bool>(
-      canPop: !busy,
-      child: Scaffold(
-        backgroundColor: theme.colorScheme.background,
-        appBar: AppBar(
-          backgroundColor: theme.colorScheme.background,
-          foregroundColor: theme.colorScheme.foreground,
-          elevation: 0,
-          scrolledUnderElevation: 0,
-          centerTitle: false,
-          title: Text('控制连接', style: theme.textTheme.h2),
-          leading: IconButton(
-            tooltip: '返回',
-            icon: const Icon(LucideIcons.arrowLeft, size: 20),
-            onPressed: busy ? null : () => Navigator.pop(context, false),
-          ),
-        ),
-        body: SafeArea(
-          top: false,
-          child: Align(
-            alignment: Alignment.topCenter,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 480),
-              child: SingleChildScrollView(
-                padding: EdgeInsets.fromLTRB(inset, 12, inset, 24),
-                keyboardDismissBehavior:
-                    ScrollViewKeyboardDismissBehavior.onDrag,
-                child: Form(
-                  key: form,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      if (loading)
-                        const LinearProgressIndicator()
-                      else ...[
-                        if (isAndroid) ...[
-                          DropdownButtonFormField<NativeControlMode>(
-                            initialValue: mode,
-                            decoration: const InputDecoration(
-                              labelText: '控制设备',
-                            ),
-                            items: const [
-                              DropdownMenuItem(
-                                value: NativeControlMode.remoteAdb,
-                                child: Text('远程 Android'),
-                              ),
-                              DropdownMenuItem(
-                                value: NativeControlMode.localVirtualDisplay,
-                                child: Text('本机虚拟屏幕'),
-                              ),
-                            ],
-                            onChanged: busy
-                                ? null
-                                : (value) => setState(() => mode = value!),
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: Form(
+            key: form,
+            child: ListView(
+              padding: EdgeInsets.fromLTRB(inset, 5, inset, 92),
+              keyboardDismissBehavior:
+                  ScrollViewKeyboardDismissBehavior.onDrag,
+              children: [
+                PageSubtitle(
+                  isAndroid ? '远程 Android、本机虚拟屏幕与 Tailscale' : '远程 Android 与 Tailscale',
+                ),
+                if (loading || busy)
+                  const Padding(
+                    padding: EdgeInsets.only(bottom: 8),
+                    child: LinearProgressIndicator(minHeight: 2),
+                  ),
+                if (!loading) ...[
+                  if (isAndroid) ...[
+                    const _GroupLabel('控制设备'),
+                    Surface(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 6,
+                      ),
+                      child: DropdownButtonFormField<NativeControlMode>(
+                        initialValue: mode,
+                        decoration: const InputDecoration(
+                          labelText: '控制设备',
+                          border: InputBorder.none,
+                        ),
+                        items: const [
+                          DropdownMenuItem(
+                            value: NativeControlMode.remoteAdb,
+                            child: Text('远程 Android'),
                           ),
-                          const SizedBox(height: 16),
+                          DropdownMenuItem(
+                            value: NativeControlMode.localVirtualDisplay,
+                            child: Text('本机虚拟屏幕'),
+                          ),
                         ],
-                        if (mode == NativeControlMode.remoteAdb) ...[
+                        onChanged: busy
+                            ? null
+                            : (value) => setState(() => mode = value!),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                  ],
+                  if (mode == NativeControlMode.remoteAdb) ...[
+                    const _GroupLabel('远程设备'),
+                    Surface(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        children: [
                           TextFormField(
                             controller: endpoint,
                             enabled: !busy,
@@ -270,18 +262,58 @@ class _NativeControlPageState extends State<NativeControlPage> {
                               return null;
                             },
                           ),
-                          const SizedBox(height: 12),
-                          SwitchListTile.adaptive(
-                            contentPadding: EdgeInsets.zero,
-                            title: const Text('通过 Tailscale 连接'),
-                            subtitle: const Text('访问 tailnet 中的设备，仅影响当前应用'),
-                            value: tailscale,
-                            onChanged: busy
+                          const SizedBox(height: 4),
+                          GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: busy
                                 ? null
-                                : (value) => setState(() => tailscale = value),
+                                : () =>
+                                      setState(() => tailscale = !tailscale),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      const Text(
+                                        '通过 Tailscale 连接',
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 3),
+                                      Text(
+                                        '访问 tailnet 中的设备，仅影响当前应用',
+                                        style: theme.textTheme.muted,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                NkasSwitch(
+                                  label: '通过 Tailscale 连接',
+                                  value: tailscale,
+                                  onChanged: (value) {
+                                    if (!busy) {
+                                      setState(() => tailscale = value);
+                                    }
+                                  },
+                                ),
+                              ],
+                            ),
                           ),
-                          if (tailscale) ...[
-                            const SizedBox(height: 12),
+                        ],
+                      ),
+                    ),
+                    if (tailscale) ...[
+                      const SizedBox(height: 20),
+                      const _GroupLabel('Tailscale'),
+                      Surface(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
                             TextFormField(
                               controller: hostname,
                               enabled: !busy,
@@ -297,7 +329,7 @@ class _NativeControlPageState extends State<NativeControlPage> {
                                   ? null
                                   : '使用字母、数字和连字符，最多 63 个字符',
                             ),
-                            const SizedBox(height: 16),
+                            const SizedBox(height: 12),
                             TextFormField(
                               controller: authKey,
                               enabled: !busy,
@@ -310,78 +342,95 @@ class _NativeControlPageState extends State<NativeControlPage> {
                                 helperMaxLines: 2,
                               ),
                             ),
-                            const SizedBox(height: 12),
+                            const SizedBox(height: 10),
                             Text(
                               status.hasPersistedLogin ? '节点已注册' : '节点尚未注册',
                               style: theme.textTheme.muted,
                             ),
-                            Wrap(
-                              spacing: 8,
+                            const SizedBox(height: 10),
+                            Row(
                               children: [
-                                TextButton(
+                                SecondaryButton(
+                                  icon: LucideIcons.plug,
+                                  label: '验证连接',
                                   onPressed: busy
                                       ? null
                                       : () => _save(register: true),
-                                  child: const Text('验证连接'),
                                 ),
-                                TextButton(
+                                const SizedBox(width: 8),
+                                SecondaryButton(
+                                  icon: LucideIcons.trash2,
+                                  label: '清除身份',
                                   onPressed: busy || !status.hasPersistedLogin
                                       ? null
                                       : _clearState,
-                                  child: const Text('清除身份'),
                                 ),
                               ],
                             ),
                           ],
-                        ] else
-                          const Text(
-                            '使用已完成无线调试配对的本机，创建独立虚拟屏幕。可在“初始化 NKAS”中完成配对。',
-                          ),
-                        if (busy)
-                          const Padding(
-                            padding: EdgeInsets.symmetric(vertical: 12),
-                            child: LinearProgressIndicator(),
-                          ),
-                        if (error != null)
-                          Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            child: Text(
-                              error!,
-                              style: TextStyle(
-                                color: theme.colorScheme.destructive,
-                              ),
-                            ),
-                          ),
-                        if (message != null)
-                          Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                            child: Text(message!),
-                          ),
-                        const SizedBox(height: 12),
-                        FilledButton(
-                          onPressed: busy ? null : () => _save(),
-                          style: FilledButton.styleFrom(
-                            minimumSize: const Size(0, 48),
-                          ),
-                          child: const Text('保存'),
                         ),
-                        if (busy)
-                          TextButton(
-                            onPressed: _cancelConnection,
-                            child: const Text('取消连接'),
-                          ),
-                      ],
+                      ),
                     ],
-                  ),
-                ),
-              ),
+                  ] else
+                    Surface(
+                      padding: const EdgeInsets.all(16),
+                      child: Text(
+                        '使用已完成无线调试配对的本机，创建独立虚拟屏幕。可在“初始化 NKAS”中完成配对。',
+                        style: theme.textTheme.muted,
+                      ),
+                    ),
+                  if (error != null) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      error!,
+                      style: TextStyle(color: theme.colorScheme.destructive),
+                    ),
+                  ],
+                  if (message != null) ...[
+                    const SizedBox(height: 12),
+                    Text(message!, style: theme.textTheme.muted),
+                  ],
+                  if (busy)
+                    Center(
+                      child: TextButton(
+                        onPressed: _cancelConnection,
+                        child: const Text('取消连接'),
+                      ),
+                    ),
+                ],
+              ],
             ),
           ),
         ),
-      ),
+        Positioned(
+          left: inset,
+          right: inset,
+          bottom: 12,
+          child: SafeArea(
+            top: false,
+            child: NkasFloatingAction(
+              label: busy ? '正在保存…' : '保存',
+              icon: busy ? LucideIcons.loaderCircle : LucideIcons.check,
+              enabled: !busy && !loading,
+              onPressed: () => _save(),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
   String _message(Object error) =>
       error is PlatformException ? error.message ?? '连接失败' : error.toString();
+}
+
+class _GroupLabel extends StatelessWidget {
+  const _GroupLabel(this.label);
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(left: 3, bottom: 8),
+    child: Text(label, style: ShadTheme.of(context).textTheme.muted),
+  );
 }
