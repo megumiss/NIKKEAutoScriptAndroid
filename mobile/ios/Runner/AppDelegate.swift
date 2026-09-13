@@ -86,6 +86,10 @@ final class NkasStarBridge: NSObject, FlutterStreamHandler {
       UserDefaults.standard.removeObject(forKey: licenseKey)
       UserDefaults.standard.removeObject(forKey: oauthStateKey)
       result(currentStar())
+    case "nativeAdbConnect", "nativeAdbShell", "nativeAdbPush", "nativeAdbPull",
+         "nativeAdbClose", "nativeScrcpyStart", "nativeScrcpyStop",
+         "nativeScrcpyBack", "nativeScrcpyText", "nativeScrcpyKeycode", "nativeScrcpyTouch":
+      result(FlutterError(code: "unsupported_platform", message: "原生 ADB/scrcpy 仅支持 Android", details: nil))
     default:
       result(FlutterMethodNotImplemented)
     }
