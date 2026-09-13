@@ -118,10 +118,10 @@ final class NkasIosAdbClient {
     try send(command: .open, arg0: localId, arg1: 0, payload: Data(destination.utf8) + Data([0]))
     while true {
       let packet = try readPacket()
-      if packet.command == .okay && packet.arg0 == localId {
-        return NkasIosAdbStream(client: self, localId: localId, remoteId: packet.arg1)
+      if packet.command == .okay && packet.arg1 == localId {
+        return NkasIosAdbStream(client: self, localId: localId, remoteId: packet.arg0)
       }
-      if packet.command == .clse && packet.arg0 == localId {
+      if packet.command == .clse && packet.arg1 == localId {
         throw NkasIosAdbError.rejected(destination)
       }
     }
