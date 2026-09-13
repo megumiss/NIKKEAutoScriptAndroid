@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -204,8 +205,8 @@ class NkasPlatform {
 
   Stream<NkasPlatformEvent>? _eventStream;
 
-  /// Native STAR verification is implemented on Android and iOS. Android-only
-  /// setup methods keep their own platform guard below.
+  /// Native STAR, ADB, and scrcpy entry points are implemented on Android and
+  /// iOS. Android-only setup methods keep their own platform guard below.
   bool get supported => !kIsWeb && (isAndroid || isIOS);
 
   bool get _androidSupported => !kIsWeb && isAndroid;
@@ -294,12 +295,12 @@ class NkasPlatform {
   }
 
   Future<String> getSerial() async {
-    if (!_androidSupported) return '';
+    if (!supported) return '';
     return await _channel.invokeMethod<String>('getSerial') ?? '';
   }
 
   Future<void> setSerial(String serial) async {
-    if (!_androidSupported) return;
+    if (!supported) return;
     await _channel.invokeMethod<void>('setSerial', <String, Object?>{
       'serial': serial,
     });
@@ -315,6 +316,41 @@ class NkasPlatform {
     await _channel.invokeMethod<void>('setNkasSerial', <String, Object?>{
       'serial': serial,
     });
+  }
+
+  Future<Map<Object?, Object?>> nativeAdbConnect(String endpoint) async {
+    if (!supported) throw UnsupportedError('原生 ADB 仅支持 Android 和 iOS');
+    final value = await _channel.invokeMethod<Object?>('nativeAdbConnect', {
+      'endpoint': endpoint,
+    });
+    return _map(value);
+  }
+
+  Future<String> nativeAdbShell(String command) async {
+    if (!supported) throw UnsupportedError('原生 ADB 仅支持 Android 和 iOS');
+    return await _channel.invokeMethod<String>('nativeAdbShell', {'command': command}) ?? '';
+  }
+
+  Future<void> nativeAdbPush(Uint8List data, String remotePath, {int mode = 0o644}) async {
+    if (!supported) throw UnsupportedError('原生 ADB 仅支持 Android 和 iOS');
+    await _channel.invokeMethod<void>('nativeAdbPush', {
+      'data': data,
+      'remotePath': remotePath,
+      'mode': mode,
+    });
+  }
+
+  Future<Uint8List> nativeAdbPull(String remotePath) async {
+    if (!supported) throw UnsupportedError('原生 ADB 仅支持 Android 和 iOS');
+    final value = await _channel.invokeMethod<Object?>('nativeAdbPull', {'remotePath': remotePath});
+    if (value is Uint8List) return value;
+    if (value is List) return Uint8List.fromList(value.cast<int>());
+    return Uint8List(0);
+  }
+
+  Future<void> nativeAdbClose() async {
+    if (!supported) return;
+    await _channel.invokeMethod<void>('nativeAdbClose');
   }
 
   Future<bool> initialNoticeShown() async {
@@ -334,7 +370,7 @@ class NkasPlatform {
     int maxSize = 0,
     int videoBitRate = 0,
   }) async {
-    if (!_androidSupported) throw UnsupportedError('原生 scrcpy 仅支持 Android');
+    if (!supported) throw UnsupportedError('原生 scrcpy 仅支持 Android 和 iOS');
     final value = await _channel.invokeMethod<Object?>('nativeScrcpyStart', {
       'endpoint': endpoint,
       'video': video,
@@ -346,17 +382,17 @@ class NkasPlatform {
   }
 
   Future<void> nativeScrcpyStop() async {
-    if (!_androidSupported) return;
+    if (!supported) return;
     await _channel.invokeMethod<void>('nativeScrcpyStop');
   }
 
   Future<void> nativeScrcpyBack({int action = 0}) async {
-    if (!_androidSupported) return;
+    if (!supported) return;
     await _channel.invokeMethod<void>('nativeScrcpyBack', {'action': action});
   }
 
   Future<void> nativeScrcpyText(String text) async {
-    if (!_androidSupported) return;
+    if (!supported) return;
     await _channel.invokeMethod<void>('nativeScrcpyText', {'text': text});
   }
 
@@ -366,7 +402,7 @@ class NkasPlatform {
     int repeat = 0,
     int metaState = 0,
   }) async {
-    if (!_androidSupported) return;
+    if (!supported) return;
     await _channel.invokeMethod<void>('nativeScrcpyKeycode', {
       'action': action,
       'keycode': keycode,
@@ -386,7 +422,7 @@ class NkasPlatform {
     int actionButton = 0,
     int buttons = 0,
   }) async {
-    if (!_androidSupported) return;
+    if (!supported) return;
     await _channel.invokeMethod<void>('nativeScrcpyTouch', {
       'action': action,
       'pointerId': pointerId,

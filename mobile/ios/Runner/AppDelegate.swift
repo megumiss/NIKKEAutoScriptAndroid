@@ -27,6 +27,7 @@ final class NkasStarBridge: NSObject, FlutterStreamHandler {
   private var methodChannel: FlutterMethodChannel?
   private var eventSink: FlutterEventSink?
   private var pendingEvents: [[String: Any]] = []
+  private let adbClient = NkasIosAdbClient()
 
   func register(binaryMessenger: FlutterBinaryMessenger) {
     guard methodChannel == nil else { return }
@@ -94,8 +95,72 @@ final class NkasStarBridge: NSObject, FlutterStreamHandler {
       let serial = (arguments?["serial"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
       UserDefaults.standard.set(serial, forKey: serialKey)
       result(serial)
-    case "nativeAdbConnect", "nativeAdbShell", "nativeAdbPush", "nativeAdbPull",
-         "nativeAdbClose", "nativeScrcpyStart", "nativeScrcpyStop",
+    case "nativeAdbConnect":
+      let arguments = call.arguments as? [String: Any]
+      let endpoint = (arguments?["endpoint"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+      guard !endpoint.isEmpty else {
+        result(FlutterError(code: "native_adb_endpoint", message: "ADB 地址不能为空", details: nil))
+        return
+      }
+      DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+        do {
+          try self?.adbClient.connect(endpoint: endpoint)
+          DispatchQueue.main.async { result(["endpoint": endpoint]) }
+        } catch {
+          DispatchQueue.main.async { result(FlutterError(code: "native_adb_connect", message: error.localizedDescription, details: nil)) }
+        }
+      }
+    case "nativeAdbShell":
+      let arguments = call.arguments as? [String: Any]
+      let command = (arguments?["command"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+      guard !command.isEmpty else {
+        result(FlutterError(code: "native_adb_command", message: "ADB shell 命令不能为空", details: nil))
+        return
+      }
+      DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+        do {
+          let output = try self?.adbClient.shell(command) ?? ""
+          DispatchQueue.main.async { result(output) }
+        } catch {
+          DispatchQueue.main.async { result(FlutterError(code: "native_adb_shell", message: error.localizedDescription, details: nil)) }
+        }
+      }
+    case "nativeAdbClose":
+      adbClient.close()
+      result(true)
+    case "nativeAdbPush":
+      let arguments = call.arguments as? [String: Any]
+      let remotePath = (arguments?["remotePath"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+      let typedData = arguments?["data"] as? FlutterStandardTypedData
+      let mode = UInt32(arguments?["mode"] as? Int ?? 0o644)
+      guard !remotePath.isEmpty, let typedData else {
+        result(FlutterError(code: "native_adb_push", message: "push 参数无效", details: nil))
+        return
+      }
+      DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+        do {
+          try self?.adbClient.push(typedData.data, remotePath: remotePath, mode: mode)
+          DispatchQueue.main.async { result(true) }
+        } catch {
+          DispatchQueue.main.async { result(FlutterError(code: "native_adb_push", message: error.localizedDescription, details: nil)) }
+        }
+      }
+    case "nativeAdbPull":
+      let arguments = call.arguments as? [String: Any]
+      let remotePath = (arguments?["remotePath"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+      guard !remotePath.isEmpty else {
+        result(FlutterError(code: "native_adb_pull", message: "pull 路径不能为空", details: nil))
+        return
+      }
+      DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+        do {
+          let data = try self?.adbClient.pull(remotePath: remotePath) ?? Data()
+          DispatchQueue.main.async { result(FlutterStandardTypedData(bytes: data)) }
+        } catch {
+          DispatchQueue.main.async { result(FlutterError(code: "native_adb_pull", message: error.localizedDescription, details: nil)) }
+        }
+      }
+    case "nativeScrcpyStart", "nativeScrcpyStop",
          "nativeScrcpyBack", "nativeScrcpyText", "nativeScrcpyKeycode", "nativeScrcpyTouch":
       result(FlutterError(code: "ios_backend_unavailable", message: "iOS 原生 ADB/scrcpy 后端尚未链接", details: nil))
     default:
