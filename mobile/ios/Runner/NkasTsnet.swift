@@ -58,7 +58,10 @@ final class NkasTsnetClient {
 
   func startForward(_ endpoint: NkasIosAdbEndpoint, localPort: Int = 0) throws -> [String: Any] {
     try connect()
-    let result = try client.startForward(endpoint.host, remotePort: endpoint.port, localPort: localPort)
+    // A nonnull string return keeps gomobile's NSError parameter explicit in Swift.
+    var error: NSError?
+    let result = client.startForward(endpoint.host, remotePort: endpoint.port, localPort: localPort, error: &error)
+    if let error { throw error }
     guard let value = try JSONSerialization.jsonObject(with: Data(result.utf8)) as? [String: Any] else {
       throw NkasIosAdbError.protocolError("Tailscale 转发响应无效")
     }

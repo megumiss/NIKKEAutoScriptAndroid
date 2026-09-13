@@ -8,6 +8,11 @@ on:
         required: false
         default: false
         type: boolean
+      ios_only:
+        description: 'Build only iOS for native build troubleshooting'
+        required: false
+        default: false
+        type: boolean
 permissions:
   contents: read
 
@@ -50,6 +55,7 @@ jobs:
 
   android:
     name: Android APK
+    if: ${{ inputs.ios_only != true }}
     needs: validate
     runs-on: ubuntu-latest
     timeout-minutes: 60
