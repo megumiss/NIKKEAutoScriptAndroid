@@ -11,6 +11,7 @@ final class NkasStarBridge: NSObject, FlutterStreamHandler {
   private let repository = "megumiss/NIKKEAutoScript"
   private let licenseKey = "nkas_license"
   private let oauthStateKey = "nkas_oauth_state"
+  private let serialKey = "nkas_serial"
   private let publicKeyPEM = """
   -----BEGIN PUBLIC KEY-----
   MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAqt+mvxSSyA4rsWro38Q1
@@ -86,6 +87,13 @@ final class NkasStarBridge: NSObject, FlutterStreamHandler {
       UserDefaults.standard.removeObject(forKey: licenseKey)
       UserDefaults.standard.removeObject(forKey: oauthStateKey)
       result(currentStar())
+    case "getSerial":
+      result(UserDefaults.standard.string(forKey: serialKey) ?? "")
+    case "setSerial":
+      let arguments = call.arguments as? [String: Any]
+      let serial = (arguments?["serial"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+      UserDefaults.standard.set(serial, forKey: serialKey)
+      result(serial)
     case "nativeAdbConnect", "nativeAdbShell", "nativeAdbPush", "nativeAdbPull",
          "nativeAdbClose", "nativeScrcpyStart", "nativeScrcpyStop",
          "nativeScrcpyBack", "nativeScrcpyText", "nativeScrcpyKeycode", "nativeScrcpyTouch":
