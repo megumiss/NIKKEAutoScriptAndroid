@@ -268,7 +268,7 @@ final class NkasStarBridge: NSObject, FlutterStreamHandler {
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
     if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "NkasStarBridge") {
-      NkasStarBridge.shared.textureRegistry = registrar.textures
+      NkasStarBridge.shared.textureRegistry = registrar.textures()
       NkasStarBridge.shared.register(binaryMessenger: registrar.messenger())
     }
   }
