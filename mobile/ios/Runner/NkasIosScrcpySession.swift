@@ -6,6 +6,7 @@ struct NkasIosScrcpyOptions {
   let control: Bool
   let maxSize: Int
   let videoBitRate: Int
+  var videoCodec = "h264"
 }
 
 struct NkasIosScrcpyMetadata {
@@ -13,157 +14,152 @@ struct NkasIosScrcpyMetadata {
   let codecId: UInt32
 }
 
-/// Owns the remote scrcpy server and its ADB streams. Video decoding is kept
-/// as a separate layer so a connection can still be used for control while a
-/// decoder is restarting.
 final class NkasIosScrcpySession {
   let scid: UInt32
   let command: String
   let metadata: NkasIosScrcpyMetadata?
   let videoStream: NkasIosAdbStream?
   let controlStream: NkasIosAdbStream?
-
   private let serverStream: NkasIosAdbStream
-  private let adb: NkasIosAdbClient
+  private let lock = NSLock()
   private var closed = false
-  private var videoThread: Thread?
-  private var videoDecoder: NkasIosVideoDecoder?
+  private var videoStarted = false
 
-  private init(
-    adb: NkasIosAdbClient,
-    scid: UInt32,
-    command: String,
-    serverStream: NkasIosAdbStream,
-    videoStream: NkasIosAdbStream?,
-    controlStream: NkasIosAdbStream?,
-    metadata: NkasIosScrcpyMetadata?
-  ) {
-    self.adb = adb
+  private var isClosed: Bool {
+    lock.lock()
+    defer { lock.unlock() }
+    return closed
+  }
+
+  private init(scid: UInt32, command: String, server: NkasIosAdbStream,
+               video: NkasIosAdbStream?, control: NkasIosAdbStream?, metadata: NkasIosScrcpyMetadata) {
     self.scid = scid
     self.command = command
-    self.serverStream = serverStream
-    self.videoStream = videoStream
-    self.controlStream = controlStream
+    serverStream = server
+    videoStream = video
+    controlStream = control
     self.metadata = metadata
   }
 
-  static func start(
-    adb: NkasIosAdbClient,
-    serverJar: Data,
-    options: NkasIosScrcpyOptions
-  ) throws -> NkasIosScrcpySession {
-    guard !serverJar.isEmpty else { throw NkasIosAdbError.remote("scrcpy-server 资源为空") }
+  static func start(adb: NkasIosAdbClient, serverJar: Data, options: NkasIosScrcpyOptions) throws -> NkasIosScrcpySession {
+    guard !serverJar.isEmpty, options.video || options.control,
+          (0...65535).contains(options.maxSize), options.videoBitRate >= 0,
+          options.videoBitRate <= Int(Int32.max), ["h264", "h265"].contains(options.videoCodec) else {
+      throw NkasIosAdbError.protocolError("scrcpy 启动参数无效")
+    }
     let scid = UInt32.random(in: 1..<0x7fff_ffff)
-    let remotePath = "/data/local/tmp/nkas-scrcpy-server.jar"
+    let remotePath = "/data/local/tmp/nkas-scrcpy-\(String(scid, radix: 16)).jar"
     try adb.push(serverJar, remotePath: remotePath)
     let command = buildCommand(remotePath: remotePath, scid: scid, options: options)
-    let serverStream = try adb.openShellStream(command)
+    let server = try adb.openShellStream(command)
+    var sockets: [NkasIosAdbStream] = []
     do {
-      let socketName = String(format: "scrcpy_%08x", scid)
-      let first = try openWithRetry(adb: adb, name: socketName)
-      let videoStream = options.video ? first : nil
-      let controlStream: NkasIosAdbStream?
-      if options.control {
-        controlStream = videoStream == nil ? first : try openWithRetry(adb: adb, name: socketName)
-      } else {
-        controlStream = nil
+      let name = String(format: "scrcpy_%08x", scid)
+      let first = try openWithRetry(adb: adb, name: name)
+      sockets.append(first)
+      guard try first.readExactly(1) == Data([0]) else {
+        throw NkasIosAdbError.protocolError("scrcpy socket 握手失败")
       }
-      let metadata = videoStream.map(readMetadata)
-      return NkasIosScrcpySession(
-        adb: adb,
-        scid: scid,
-        command: command,
-        serverStream: serverStream,
-        videoStream: videoStream,
-        controlStream: controlStream,
-        metadata: metadata
-      )
+      let video = options.video ? first : nil
+      let control: NkasIosAdbStream?
+      if options.control {
+        control = options.video ? try openWithRetry(adb: adb, name: name) : first
+        if let control, control !== first { sockets.append(control) }
+      } else {
+        control = nil
+      }
+      let rawName = try first.readExactly(64)
+      let deviceName = String(decoding: rawName.prefix(while: { $0 != 0 }), as: UTF8.self)
+      let codecId = options.video ? UInt32(try first.readExactly(4).bigEndianInteger(at: 0, count: 4)) : 0
+      if options.video && codecId != 0x68323634 && codecId != 0x68323635 {
+        throw NkasIosVideoError.unsupportedCodec
+      }
+      return NkasIosScrcpySession(scid: scid, command: command, server: server, video: video,
+                                  control: control, metadata: .init(deviceName: deviceName, codecId: codecId))
     } catch {
-      serverStream.close()
+      sockets.forEach { $0.close() }
+      server.close()
       throw error
     }
   }
 
-  func startServerMonitor(_ callback: @escaping (String?, Error?) -> Void) {
+  func startServerMonitor(onOutput: @escaping (String) -> Void, onExit: @escaping (Error?) -> Void) {
     DispatchQueue.global(qos: .utility).async { [weak self] in
       guard let self else { return }
       do {
-        let data = try self.serverStream.readToClose()
-        if !self.closed {
-          let output = String(data: data, encoding: .utf8)
-          callback(output, nil)
+        while let data = try self.serverStream.readChunk() {
+          guard !self.isClosed else { return }
+          onOutput(String(decoding: data, as: UTF8.self))
         }
+        if !self.isClosed { onExit(nil) }
       } catch {
-        if !self.closed { callback(nil, error) }
+        if !self.isClosed { onExit(error) }
       }
     }
   }
 
-  func startVideo(
-    onSize: @escaping (Int, Int) -> Void,
-    onFrame: @escaping (CVPixelBuffer) -> Void,
-    onError: @escaping (Error) -> Void,
-    onStopped: @escaping () -> Void
-  ) throws {
-    guard let videoStream else { throw NkasIosVideoError.notConfigured }
-    guard videoThread == nil else { return }
-    videoThread = Thread { [weak self] in
+  func startVideo(onSize: @escaping (Int, Int) -> Void, onFrame: @escaping (CVPixelBuffer) -> Void,
+                  onError: @escaping (Error) -> Void, onStopped: @escaping () -> Void) throws {
+    guard let videoStream, let metadata else { throw NkasIosVideoError.notConfigured }
+    lock.lock()
+    guard !closed, !videoStarted else { lock.unlock(); return }
+    videoStarted = true
+    lock.unlock()
+    Thread { [weak self] in
       guard let self else { return }
       do {
+        let decoder = try NkasIosVideoDecoder(codecId: metadata.codecId, onFrame: { buffer in
+          if !self.isClosed { onFrame(buffer) }
+        }, onError: onError)
+        defer { decoder.close() }
         var width = 0
         var height = 0
-        var configuration: Data?
-        let decoder = NkasIosVideoDecoder(onFrame: onFrame)
-        self.videoDecoder = decoder
-        while !self.closed {
-          let header = try videoStream.readExactly(12)
-          let ptsAndFlags = header.uint64BE(at: 0)
-          if ptsAndFlags & (1 << 63) != 0 {
-            width = Int(header.uint32BE(at: 8 - 4))
-            height = Int(header.uint32BE(at: 8))
-            guard width > 0, height > 0 else { throw NkasIosVideoError.invalidConfiguration }
+        var waitingForKeyFrame = true
+        while !self.isClosed {
+          let header = try NkasScrcpyVideoHeader(videoStream.readExactly(12, timeout: nil))
+          switch header {
+          case .size(let newWidth, let newHeight):
+            decoder.close()
+            width = newWidth
+            height = newHeight
+            waitingForKeyFrame = true
             onSize(width, height)
-            if let configuration { try decoder.configure(configuration, width: width, height: height) }
-            continue
-          }
-          let length = Int(header.uint32BE(at: 8))
-          guard length >= 0, length <= 32 * 1024 * 1024 else { throw NkasIosVideoError.invalidConfiguration }
-          let payload = try videoStream.readExactly(length)
-          if ptsAndFlags & (1 << 62) != 0 {
-            configuration = payload
-            if width > 0, height > 0 { try decoder.configure(payload, width: width, height: height) }
-          } else {
-            try decoder.decode(payload, ptsUs: ptsAndFlags & ((1 << 61) - 1))
+          case .packet(let length, let pts, let configuration, let keyFrame):
+            let payload = try videoStream.readExactly(length)
+            guard width > 0, height > 0 else { throw NkasIosVideoError.invalidConfiguration }
+            if configuration {
+              try decoder.configure(payload, width: width, height: height)
+              waitingForKeyFrame = true
+            } else if keyFrame || !waitingForKeyFrame {
+              try decoder.decode(payload, ptsUs: pts)
+              waitingForKeyFrame = false
+            }
           }
         }
       } catch {
-        if !self.closed { onError(error) }
+        if !self.isClosed { onError(error) }
       }
-      onStopped()
-    }
-    videoThread?.start()
+      if !self.isClosed { onStopped() }
+    }.start()
   }
 
   func close() {
-    guard !closed else { return }
+    lock.lock()
+    guard !closed else { lock.unlock(); return }
     closed = true
+    lock.unlock()
     videoStream?.close()
-    if videoStream == nil || videoStream !== controlStream { controlStream?.close() }
+    if controlStream !== videoStream { controlStream?.close() }
     serverStream.close()
-    videoThread?.cancel()
-    videoThread = nil
-    videoDecoder?.close()
-    videoDecoder = nil
-    adb.close()
   }
 
-  private static func buildCommand(remotePath: String, scid: UInt32, options: NkasIosScrcpyOptions) -> String {
+  static func buildCommand(remotePath: String, scid: UInt32, options: NkasIosScrcpyOptions) -> String {
     var args = [
       "CLASSPATH=\(remotePath)", "app_process", "/", "com.genymobile.scrcpy.Server", "4.1",
-      "scid=\(String(format: "%x", scid))", "tunnel_forward=true",
+      "scid=\(String(scid, radix: 16))", "tunnel_forward=true", "audio=false",
+      "video_codec=\(options.videoCodec)", "log_level=warn", "clipboard_autosync=false",
     ]
     if !options.video { args.append("video=false") }
-    args.append("audio=false")
     if !options.control { args.append("control=false") }
     if options.maxSize > 0 { args.append("max_size=\(options.maxSize)") }
     if options.videoBitRate > 0 { args.append("video_bit_rate=\(options.videoBitRate)") }
@@ -171,38 +167,13 @@ final class NkasIosScrcpySession {
   }
 
   private static func openWithRetry(adb: NkasIosAdbClient, name: String) throws -> NkasIosAdbStream {
-    var lastError: Error?
-    for _ in 0..<100 {
+    let deadline = Date().addingTimeInterval(10)
+    var lastError: Error = NkasIosAdbError.remote("scrcpy 服务未就绪")
+    repeat {
       do { return try adb.openLocalAbstract(name) }
-      catch { lastError = error; Thread.sleep(forTimeInterval: 0.1) }
-    }
-    throw lastError ?? NkasIosAdbError.remote("无法连接 scrcpy socket")
-  }
-
-  private static func readMetadata(_ stream: NkasIosAdbStream) -> NkasIosScrcpyMetadata {
-    do {
-      _ = try stream.readExactly(1)
-      let rawName = try stream.readExactly(64)
-      let name = String(data: rawName.prefix(while: { $0 != 0 }), encoding: .utf8) ?? "Android"
-      let codec = try stream.readExactly(4).reduce(UInt32(0)) { ($0 << 8) | UInt32($1) }
-      return NkasIosScrcpyMetadata(deviceName: name, codecId: codec)
-    } catch {
-      return NkasIosScrcpyMetadata(deviceName: "Android", codecId: 0)
-    }
-  }
-}
-
-private extension Data {
-  func uint32BE(at offset: Int) -> UInt32 {
-    UInt32(self[index(startIndex, offsetBy: offset)]) << 24 |
-      UInt32(self[index(startIndex, offsetBy: offset + 1)]) << 16 |
-      UInt32(self[index(startIndex, offsetBy: offset + 2)]) << 8 |
-      UInt32(self[index(startIndex, offsetBy: offset + 3)])
-  }
-
-  func uint64BE(at offset: Int) -> UInt64 {
-    var value: UInt64 = 0
-    for index in 0..<8 { value = (value << 8) | UInt64(self[self.index(startIndex, offsetBy: offset + index)]) }
-    return value
+      catch NkasIosAdbError.remote(let message) { lastError = NkasIosAdbError.remote(message) }
+      Thread.sleep(forTimeInterval: 0.1)
+    } while Date() < deadline
+    throw lastError
   }
 }

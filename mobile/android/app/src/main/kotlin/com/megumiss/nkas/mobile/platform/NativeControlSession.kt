@@ -121,18 +121,18 @@ class NativeControlSession(
                     desired = null
                     val token = interrupt()
                     execute(call.method, result) {
-                        ensureCurrent(token); stop()
+                        ensureCurrent(token); stop(closeTsnet = false)
                         try {
                             val endpoint = AdbEndpoint.parse(call.argument<String>("endpoint").orEmpty())
                             val useTailscale = call.argument<Boolean>("useTailscale") == true
                             if (useTailscale) startService()
                             val route = if (useTailscale) route(endpoint) else endpoint.toString()
                             ensureCurrent(token)
-                            adb.connect(route)
+                            adb.connect(route, isCancelled = { !isCurrent(token) })
                             ensureCurrent(token)
                             tsnetStatus()
                             mapOf("endpoint" to endpoint.toString())
-                        } catch (error: Exception) { stop(); throw error }
+                        } catch (error: Exception) { stop(closeTsnet = false); throw error }
                     }
                 }
                 "nativeAdbShell" -> execute(call.method, result) {
@@ -174,7 +174,7 @@ class NativeControlSession(
 
     private fun start(request: Request, token: Long): Map<String, Any?> {
         ensureCurrent(token)
-        stop()
+        stop(closeTsnet = false)
         ensureCurrent(token)
         check(foreground && (networkAvailable || request.mode == "local_virtual_display")) { "等待前台网络恢复" }
         activeRequest = request
@@ -194,7 +194,7 @@ class NativeControlSession(
             tsnetStatus()
             ensureCurrent(token)
             if (request.mode == "local_virtual_display") importLocalIdentity(token)
-            adb.connect(route, localIdentity = request.mode == "local_virtual_display")
+            adb.connect(route, localIdentity = request.mode == "local_virtual_display", isCancelled = { !isCurrent(token) })
             ensureCurrent(token)
             val jar = app.assets.open("bin/scrcpy-server-v4.1").use { it.readBytes() }
             val running = NativeScrcpyLauncher(adb).start(jar, request.options)

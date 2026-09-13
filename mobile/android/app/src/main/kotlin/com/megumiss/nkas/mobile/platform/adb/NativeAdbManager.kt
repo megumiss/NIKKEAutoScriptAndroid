@@ -14,7 +14,7 @@ class NativeAdbManager(context: Context) : Closeable {
     @Volatile private var client: NativeAdbClient? = null
     @Volatile private var endpoint: AdbEndpoint? = null
 
-    fun connect(rawEndpoint: String, localIdentity: Boolean = false): AdbEndpoint {
+    fun connect(rawEndpoint: String, localIdentity: Boolean = false, isCancelled: () -> Boolean = { false }): AdbEndpoint {
         val parsed = AdbEndpoint.parse(rawEndpoint)
         val token = generation.incrementAndGet()
         val next = NativeAdbClient(parsed, if (localIdentity) localKeyStore else keyStore)
@@ -27,7 +27,7 @@ class NativeAdbManager(context: Context) : Closeable {
         previous?.interrupt()
         previous?.close()
         try {
-            if (generation.get() != token) throw IOException("ADB connection cancelled")
+            if (generation.get() != token || isCancelled()) throw IOException("ADB connection cancelled")
             next.connect()
             synchronized(lock) {
                 if (generation.get() != token) throw IOException("ADB connection cancelled")

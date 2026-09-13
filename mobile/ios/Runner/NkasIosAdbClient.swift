@@ -1,55 +1,75 @@
 import Foundation
+import Network
 
-final class NkasIosAdbClient {
-  private var input: InputStream?
-  private var output: OutputStream?
-  private var nextLocalId: UInt32 = 1
-  private let lock = NSLock()
-  private var keyPair: NkasIosAdbKeyPair?
+struct NkasIosAdbEndpoint {
+  let host: String
+  let port: Int
+  var serial: String { "\(host.contains(":") ? "[\(host)]" : host):\(port)" }
 
-  func connect(endpoint: String) throws {
-    let parsed = try Endpoint(endpoint)
-    close()
-
-    var inputStream: InputStream?
-    var outputStream: OutputStream?
-    Stream.getStreamsToHost(withName: parsed.host, port: parsed.port, inputStream: &inputStream, outputStream: &outputStream)
-    guard let inputStream, let outputStream else {
-      throw NkasIosAdbError.connection("无法创建 ADB TCP 流")
+  init(_ value: String) throws {
+    let value = value.trimmingCharacters(in: .whitespacesAndNewlines)
+    let raw = value.hasPrefix("adb://") ? String(value.dropFirst(6)) : value
+    guard let colon = raw.lastIndex(of: ":"),
+          let port = Int(raw[raw.index(after: colon)...]), (1...65535).contains(port) else {
+      throw NkasIosAdbError.invalidEndpoint(value)
     }
-    inputStream.open()
-    outputStream.open()
-    self.input = inputStream
-    self.output = outputStream
+    let rawHost = String(raw[..<colon])
+    let bracketed = rawHost.hasPrefix("[") && rawHost.hasSuffix("]")
+    let host = bracketed ? String(rawHost.dropFirst().dropLast()) : rawHost
+    guard !host.isEmpty,
+          host.rangeOfCharacter(from: .whitespacesAndNewlines) == nil,
+          !host.contains(where: { "/?#@\0[]".contains($0) }),
+          (!host.contains(":") || bracketed) else {
+      throw NkasIosAdbError.invalidEndpoint(value)
+    }
+    self.host = host
+    self.port = port
+  }
+}
 
-    keyPair = try NkasIosAdbKeyStore.loadOrCreate()
-    try send(command: .cnxn, arg0: 0x01000000, arg1: 256 * 1024, payload: Data("host::features=shell_v2\0".utf8))
-    var signatureSent = false
-    while true {
-      let packet = try readPacket()
-      switch packet.command {
-      case .cnxn:
-        return
-      case .auth:
-        guard packet.arg0 == 1, let keyPair else {
-          throw NkasIosAdbError.authentication
-        }
-        if !signatureSent {
-          try send(command: .auth, arg0: 2, arg1: 0, payload: try keyPair.sign(packet.payload))
-          signatureSent = true
-        } else {
-          try send(command: .auth, arg0: 3, arg1: 0, payload: keyPair.adbPublicKey)
-        }
-      default:
-        continue
-      }
+// adb-mobile owns the device transport, RSA/TLS authentication and ADB flow
+// control. Every service below has its own local smart socket.
+final class NkasIosAdbClient {
+  private let lock = NSLock()
+  private var endpoint: NkasIosAdbEndpoint?
+  private var port = 0
+  private var sockets: [UUID: NkasIosAdbSocket] = [:]
+  private var revision = 0
+  private var interrupted = false
+
+  func connect(endpoint value: String, isCancelled: () -> Bool = { false }) throws {
+    let parsed = try NkasIosAdbEndpoint(value)
+    close()
+    lock.lock()
+    interrupted = false
+    let token = revision
+    lock.unlock()
+    guard !isCancelled() else { throw NkasIosAdbError.notConnected }
+    let serverPort = try NkasAdbRuntime.shared.start()
+    guard serverPort > 0 else { throw NkasIosAdbError.connection("ADB 服务未启动") }
+    let socket = try newSocket(port: serverPort, token: token)
+    defer { socket.close() }
+    lock.lock()
+    guard revision == token, !interrupted else { lock.unlock(); throw NkasIosAdbError.notConnected }
+    port = serverPort
+    endpoint = parsed
+    lock.unlock()
+    var response = ""
+    do {
+      try socket.request("host:connect:\(parsed.serial)")
+      response = try socket.readProtocolString()
+      let probe = try transport()
+      probe.close()
+    } catch {
+      close()
+      throw NkasIosAdbError.connection(response.isEmpty ? error.localizedDescription : response)
     }
   }
 
   func shell(_ command: String) throws -> String {
-    let stream = try open("shell:\(command)")
-    let data = try stream.readToClose()
-    return String(data: data, encoding: .utf8) ?? ""
+    let stream = try openShellStream(command)
+    defer { stream.close() }
+    return String(decoding: try stream.readToClose(), as: UTF8.self)
   }
 
   func openLocalAbstract(_ name: String) throws -> NkasIosAdbStream {
@@ -61,263 +81,301 @@ final class NkasIosAdbClient {
   }
 
   func push(_ data: Data, remotePath: String, mode: UInt32 = 0o644) throws {
-    guard remotePath.hasPrefix("/") else { throw NkasIosAdbError.invalidPath(remotePath) }
+    try validatePath(remotePath)
     let stream = try open("sync:")
     defer { stream.close() }
     let path = Data("\(remotePath),\(mode)".utf8)
-    try stream.writeSync(id: "SEND", length: UInt32(path.count))
-    try stream.writeExactly(path)
+    try stream.write(syncHeader("SEND", UInt32(path.count)) + path)
     var offset = 0
     while offset < data.count {
       let count = min(64 * 1024, data.count - offset)
-      try stream.writeSync(id: "DATA", length: UInt32(count))
-      try stream.writeExactly(data.subdata(in: offset..<(offset + count)))
+      try stream.write(syncHeader("DATA", UInt32(count)) + data.subdata(in: offset..<(offset + count)))
       offset += count
     }
-    try stream.writeSync(id: "DONE", length: UInt32(Date().timeIntervalSince1970))
-    try stream.expectSyncOkay(operation: "push")
+    try stream.write(syncHeader("DONE", UInt32(clamping: Int(Date().timeIntervalSince1970))))
+    let header = try stream.readExactly(8)
+    let id = String(decoding: header.prefix(4), as: UTF8.self)
+    let length = header.uint32LE(at: 4)
+    if id == "FAIL" { throw try syncFailure(stream, length: length) }
+    guard id == "OKAY", length == 0 else { throw NkasIosAdbError.protocolError("ADB push 响应无效") }
   }
 
   func pull(remotePath: String) throws -> Data {
-    guard remotePath.hasPrefix("/") else { throw NkasIosAdbError.invalidPath(remotePath) }
+    try validatePath(remotePath)
     let stream = try open("sync:")
     defer { stream.close() }
     let path = Data(remotePath.utf8)
-    try stream.writeSync(id: "RECV", length: UInt32(path.count))
-    try stream.writeExactly(path)
+    try stream.write(syncHeader("RECV", UInt32(path.count)) + path)
     var result = Data()
     while true {
-      let id = try stream.readASCII(4)
-      let length = try stream.readUInt32LE()
+      let header = try stream.readExactly(8)
+      let id = String(decoding: header.prefix(4), as: UTF8.self)
+      let length = header.uint32LE(at: 4)
       switch id {
       case "DATA":
-        guard length <= 16 * 1024 * 1024 else { throw NkasIosAdbError.protocolError("ADB pull 数据块过大") }
+        guard length <= 64 * 1024, result.count + Int(length) <= 128 * 1024 * 1024 else {
+          throw NkasIosAdbError.protocolError("ADB pull 数据超出限制")
+        }
         result.append(try stream.readExactly(Int(length)))
       case "DONE":
         return result
       case "FAIL":
-        let message = String(data: try stream.readExactly(Int(length)), encoding: .utf8) ?? "未知错误"
-        throw NkasIosAdbError.remote(message)
+        throw try syncFailure(stream, length: length)
       default:
-        throw NkasIosAdbError.protocolError("ADB pull 返回未知同步命令：\(id)")
+        throw NkasIosAdbError.protocolError("未知 ADB 同步响应：\(id)")
       }
     }
   }
 
   func close() {
-    input?.close()
-    output?.close()
-    input = nil
-    output = nil
-  }
-
-  private func open(_ destination: String) throws -> NkasIosAdbStream {
-    guard input != nil, output != nil else { throw NkasIosAdbError.notConnected }
-    let localId = nextLocalId
-    nextLocalId &+= 1
-    try send(command: .open, arg0: localId, arg1: 0, payload: Data(destination.utf8) + Data([0]))
-    while true {
-      let packet = try readPacket()
-      if packet.command == .okay && packet.arg1 == localId {
-        return NkasIosAdbStream(client: self, localId: localId, remoteId: packet.arg0)
-      }
-      if packet.command == .clse && packet.arg1 == localId {
-        throw NkasIosAdbError.rejected(destination)
-      }
-      if packet.command == .wrte {
-        try send(command: .okay, arg0: packet.arg1, arg1: packet.arg0, payload: Data())
-      }
-    }
-  }
-
-  fileprivate func write(localId: UInt32, remoteId: UInt32, data: Data) throws {
-    try send(command: .wrte, arg0: localId, arg1: remoteId, payload: data)
-    _ = try readPacket(expected: .okay)
-  }
-
-  fileprivate func readPacket(expected: Command? = nil) throws -> Packet {
-    let header = try readExactly(24)
-    let command = Command(rawValue: header.uint32LE(at: 0))
-    let arg0 = header.uint32LE(at: 4)
-    let arg1 = header.uint32LE(at: 8)
-    let length = Int(header.uint32LE(at: 12))
-    guard let command else { throw NkasIosAdbError.protocolError("未知 ADB 命令") }
-    let payload = try readExactly(length)
-    if let expected, command != expected { throw NkasIosAdbError.protocolError("ADB 响应不是预期类型") }
-    return Packet(command: command, arg0: arg0, arg1: arg1, payload: payload)
-  }
-
-  private func send(command: Command, arg0: UInt32, arg1: UInt32, payload: Data) throws {
-    var packet = Data()
-    packet.append(contentsOf: command.rawValue.bytesLE)
-    packet.append(contentsOf: arg0.bytesLE)
-    packet.append(contentsOf: arg1.bytesLE)
-    packet.append(contentsOf: UInt32(payload.count).bytesLE)
-    packet.append(contentsOf: UInt32(payload.reduce(0) { $0 &+ UInt32($1) }).bytesLE)
-    packet.append(contentsOf: (command.rawValue ^ 0xFFFFFFFF).bytesLE)
-    packet.append(payload)
-    try writeExactly(packet)
-  }
-
-  private func readExactly(_ count: Int) throws -> Data {
-    var result = Data()
-    result.reserveCapacity(count)
-    while result.count < count {
-      var buffer = [UInt8](repeating: 0, count: count - result.count)
-      let read = input?.read(&buffer, maxLength: buffer.count) ?? -1
-      if read <= 0 { throw NkasIosAdbError.connection("ADB 连接已断开") }
-      result.append(contentsOf: buffer.prefix(read))
-    }
-    return result
-  }
-
-  private func writeExactly(_ data: Data) throws {
     lock.lock()
-    defer { lock.unlock() }
-    var offset = 0
-    while offset < data.count {
-      let written = data.withUnsafeBytes { raw in
-        output?.write(raw.bindMemory(to: UInt8.self).baseAddress!.advanced(by: offset), maxLength: data.count - offset) ?? -1
-      }
-      if written <= 0 { throw NkasIosAdbError.connection("ADB 写入失败") }
-      offset += written
+    revision &+= 1
+    interrupted = true
+    let active = Array(sockets.values)
+    sockets.removeAll()
+    let previous = endpoint
+    let serverPort = port
+    endpoint = nil
+    port = 0
+    lock.unlock()
+    active.forEach { $0.close() }
+    if let previous, let socket = try? NkasIosAdbSocket(port: serverPort) {
+      defer { socket.close() }
+      do {
+        try socket.connect(timeout: 1)
+        try socket.request("host:disconnect:\(previous.serial)", timeout: 1)
+      } catch { /* The transport is also closed when its tsnet forward is stopped. */ }
     }
   }
 
-  private struct Endpoint {
-    let host: String
-    let port: Int
+  func interrupt() {
+    lock.lock()
+    revision &+= 1
+    interrupted = true
+    let active = Array(sockets.values)
+    lock.unlock()
+    active.forEach { $0.close() }
+  }
 
-    init(_ value: String) throws {
-      let raw = value.hasPrefix("adb://") ? String(value.dropFirst(6)) : value
-      guard let separator = raw.lastIndex(of: ":"), let port = Int(raw[raw.index(after: separator)...]), port > 0, port <= 65535 else {
-        throw NkasIosAdbError.invalidEndpoint(value)
-      }
-    let rawHost = String(raw[..<separator])
-    host = rawHost.hasPrefix("[") && rawHost.hasSuffix("]") ? String(rawHost.dropFirst().dropLast()) : rawHost
-      self.port = port
+  private func newSocket(port: Int, token: Int) throws -> NkasIosAdbSocket {
+    let socket = try NkasIosAdbSocket(port: port)
+    let id = socket.id
+    socket.onClose = { [weak self] in
+      guard let self else { return }
+      self.lock.lock()
+      self.sockets.removeValue(forKey: id)
+      self.lock.unlock()
+    }
+    lock.lock()
+    guard revision == token, !interrupted else {
+      lock.unlock()
+      throw NkasIosAdbError.notConnected
+    }
+    sockets[id] = socket
+    lock.unlock()
+    do { try socket.connect(); return socket }
+    catch { socket.close(); throw error }
+  }
+
+  private func transport() throws -> NkasIosAdbSocket {
+    lock.lock()
+    let current = interrupted ? nil : endpoint
+    let serverPort = port
+    let token = revision
+    lock.unlock()
+    guard let current else { throw NkasIosAdbError.notConnected }
+    let socket = try newSocket(port: serverPort, token: token)
+    do {
+      try socket.request("host:transport:\(current.serial)")
+      return socket
+    } catch {
+      socket.close()
+      throw error
     }
   }
 
-  fileprivate enum Command: UInt32 {
-    case cnxn = 0x4E584E43
-    case auth = 0x48545541
-    case open = 0x4E45504F
-    case okay = 0x59414B4F
-    case clse = 0x45534C43
-    case wrte = 0x45545257
+  private func open(_ service: String) throws -> NkasIosAdbStream {
+    let socket = try transport()
+    do {
+      try socket.request(service)
+      return NkasIosAdbStream(socket: socket, onClose: {})
+    } catch {
+      socket.close()
+      throw error
+    }
   }
 
-  fileprivate struct Packet {
-    let command: Command
-    let arg0: UInt32
-    let arg1: UInt32
-    let payload: Data
+  private func validatePath(_ path: String) throws {
+    guard path.hasPrefix("/"), !path.contains("\0"), path.utf8.count <= 1024 else {
+      throw NkasIosAdbError.invalidPath(path)
+    }
+  }
+
+  private func syncHeader(_ id: String, _ value: UInt32) -> Data {
+    var length = value.littleEndian
+    return Data(id.utf8) + withUnsafeBytes(of: &length) { Data($0) }
+  }
+
+  private func syncFailure(_ stream: NkasIosAdbStream, length: UInt32) throws -> NkasIosAdbError {
+    guard length <= 64 * 1024 else { return .protocolError("ADB 错误响应过大") }
+    return .remote(String(decoding: try stream.readExactly(Int(length)), as: UTF8.self))
   }
 }
 
 final class NkasIosAdbStream {
-  private weak var client: NkasIosAdbClient?
-  private let localId: UInt32
-  private let remoteId: UInt32
+  private let socket: NkasIosAdbSocket
+  private let onClose: () -> Void
+  private let lock = NSLock()
   private var closed = false
-  private var pendingData = Data()
 
-  fileprivate init(client: NkasIosAdbClient, localId: UInt32, remoteId: UInt32) {
-    self.client = client
-    self.localId = localId
-    self.remoteId = remoteId
+  fileprivate init(socket: NkasIosAdbSocket, onClose: @escaping () -> Void) {
+    self.socket = socket
+    self.onClose = onClose
   }
 
-  func write(_ data: Data) throws {
-    guard !closed, let client else { throw NkasIosAdbError.notConnected }
-    try client.write(localId: localId, remoteId: remoteId, data: data)
+  func write(_ data: Data) throws { try socket.write(data) }
+
+  func readExactly(_ count: Int, timeout: TimeInterval? = 15) throws -> Data {
+    try socket.readExactly(count, timeout: timeout)
   }
 
-  func readToClose() throws -> Data {
-    guard let client else { throw NkasIosAdbError.notConnected }
-    var output = Data()
-    while !closed {
-      let packet = try client.readPacket()
-      guard packet.arg0 == remoteId else {
-        if packet.command == .wrte {
-          try client.send(command: .okay, arg0: packet.arg1, arg1: packet.arg0, payload: Data())
-        }
-        continue
-      }
-      switch packet.command {
-      case .wrte:
-        output.append(packet.payload)
-        try client.write(localId: localId, remoteId: remoteId, data: Data())
-      case .clse:
-        closed = true
-      default:
-        break
+  func readToClose(limit: Int = 8 * 1024 * 1024) throws -> Data {
+    var result = Data()
+    while let data = try socket.read(maxLength: 64 * 1024, timeout: nil) {
+      guard result.count + data.count <= limit else { throw NkasIosAdbError.protocolError("ADB 输出超出限制") }
+      result.append(data)
+    }
+    return result
+  }
+
+  func readChunk() throws -> Data? { try socket.read(maxLength: 64 * 1024, timeout: nil) }
+
+  func close() {
+    lock.lock()
+    guard !closed else { lock.unlock(); return }
+    closed = true
+    lock.unlock()
+    socket.close()
+    onClose()
+  }
+}
+
+private final class NkasIosAdbSocket {
+  let id = UUID()
+  var onClose: (() -> Void)?
+  private let connection: NWConnection
+  private let lock = NSLock()
+  private var closed = false
+  private static let queue = DispatchQueue(label: "com.megumiss.nkas.adb.socket", attributes: .concurrent)
+
+  init(port: Int) throws {
+    guard (1...65535).contains(port), let networkPort = NWEndpoint.Port(rawValue: UInt16(port)) else {
+      throw NkasIosAdbError.notConnected
+    }
+    connection = NWConnection(host: "127.0.0.1", port: networkPort, using: .tcp)
+  }
+
+  func connect(timeout: TimeInterval = 10) throws {
+    lock.lock()
+    let active = !closed
+    lock.unlock()
+    guard active else { throw NkasIosAdbError.notConnected }
+    let result = NkasSocketResult<Void>()
+    connection.stateUpdateHandler = { state in
+      switch state {
+      case .ready: result.finish(.success(()))
+      case .failed(let error): result.finish(.failure(error))
+      case .cancelled: result.finish(.failure(NkasIosAdbError.notConnected))
+      default: break
       }
     }
-    return output
+    connection.start(queue: Self.queue)
+    do { try result.wait(timeout: timeout) }
+    catch { close(); throw error }
+    connection.stateUpdateHandler = nil
+  }
+
+  func request(_ service: String, timeout: TimeInterval = 15) throws {
+    let bytes = Data(service.utf8)
+    guard !bytes.isEmpty, bytes.count <= 0xffff, !service.contains("\0") else {
+      throw NkasIosAdbError.protocolError("无效的 ADB 服务请求")
+    }
+    try write(Data(String(format: "%04x", bytes.count).utf8) + bytes, timeout: timeout)
+    let status = String(decoding: try readExactly(4, timeout: timeout), as: UTF8.self)
+    if status == "FAIL" { throw NkasIosAdbError.remote(try readProtocolString(timeout: timeout)) }
+    guard status == "OKAY" else { throw NkasIosAdbError.protocolError("无效的 ADB 服务响应") }
+  }
+
+  func readProtocolString(timeout: TimeInterval = 15) throws -> String {
+    let header = String(decoding: try readExactly(4, timeout: timeout), as: UTF8.self)
+    guard let length = Int(header, radix: 16), (0...0xffff).contains(length) else {
+      throw NkasIosAdbError.protocolError("无效的 ADB 服务响应长度")
+    }
+    return String(decoding: try readExactly(length, timeout: timeout), as: UTF8.self)
+  }
+
+  func write(_ data: Data, timeout: TimeInterval = 15) throws {
+    let result = NkasSocketResult<Void>()
+    connection.send(content: data, completion: .contentProcessed { error in
+      if let error { result.finish(.failure(error)) }
+      else { result.finish(.success(())) }
+    })
+    do { try result.wait(timeout: timeout) }
+    catch { close(); throw error }
+  }
+
+  func readExactly(_ count: Int, timeout: TimeInterval? = 15) throws -> Data {
+    guard (0...32 * 1024 * 1024).contains(count) else { throw NkasIosAdbError.protocolError("ADB 数据长度无效") }
+    var result = Data()
+    while result.count < count {
+      guard let chunk = try read(maxLength: count - result.count, timeout: timeout) else {
+        throw NkasIosAdbError.connection("ADB 连接已断开")
+      }
+      result.append(chunk)
+    }
+    return result
+  }
+
+  func read(maxLength: Int, timeout: TimeInterval?) throws -> Data? {
+    let result = NkasSocketResult<Data?>()
+    connection.receive(minimumIncompleteLength: 1, maximumLength: maxLength) { data, _, _, error in
+      if let error { result.finish(.failure(error)) }
+      else { result.finish(.success(data?.isEmpty == false ? data : nil)) }
+    }
+    do { return try result.wait(timeout: timeout) }
+    catch { close(); throw error }
   }
 
   func close() {
+    lock.lock()
+    guard !closed else { lock.unlock(); return }
     closed = true
+    lock.unlock()
+    connection.cancel()
+    onClose?()
+  }
+}
+
+private final class NkasSocketResult<Value> {
+  private let lock = NSLock()
+  private let done = DispatchSemaphore(value: 0)
+  private var result: Result<Value, Error>?
+
+  func finish(_ value: Result<Value, Error>) {
+    lock.lock()
+    guard result == nil else { lock.unlock(); return }
+    result = value
+    lock.unlock()
+    done.signal()
   }
 
-  fileprivate func writeSync(id: String, length: UInt32) throws {
-    guard id.utf8.count == 4 else { throw NkasIosAdbError.protocolError("同步命令长度无效") }
-    try writeExactly(Data(id.utf8))
-    try writeExactly(length.bytesLEData)
-  }
-
-  fileprivate func expectSyncOkay(operation: String) throws {
-    let id = try readASCII(4)
-    let length = try readUInt32LE()
-    guard id == "OKAY" else {
-      let message = String(data: try readExactly(Int(length)), encoding: .utf8) ?? id
-      throw NkasIosAdbError.remote("ADB \(operation) 失败：\(message)")
-    }
-    if length > 0 { _ = try readExactly(Int(length)) }
-  }
-
-  fileprivate func readASCII(_ count: Int) throws -> String {
-    String(data: try readExactly(count), encoding: .ascii) ?? ""
-  }
-
-  fileprivate func readUInt32LE() throws -> UInt32 {
-    try readExactly(4).uint32LE(at: 0)
-  }
-
-  func readExactly(_ count: Int) throws -> Data {
-    guard let client else { throw NkasIosAdbError.notConnected }
-    var result = Data()
-    while result.count < count {
-      if !pendingData.isEmpty {
-        let needed = count - result.count
-        let take = min(needed, pendingData.count)
-        result.append(pendingData.prefix(take))
-        pendingData.removeFirst(take)
-        continue
-      }
-      let packet = try client.readPacket()
-      guard packet.command == .wrte, packet.arg0 == remoteId else {
-        if packet.command == .clse { closed = true }
-        if packet.command == .wrte {
-          try client.send(command: .okay, arg0: packet.arg1, arg1: packet.arg0, payload: Data())
-        }
-        continue
-      }
-      pendingData.append(packet.payload)
-      try client.send(command: .okay, arg0: localId, arg1: remoteId, payload: Data())
-    }
-    return result.prefix(count)
-  }
-
-  fileprivate func writeExactly(_ data: Data) throws {
-    var offset = 0
-    while offset < data.count {
-      let count = min(64 * 1024, data.count - offset)
-      try write(data.subdata(in: offset..<(offset + count)))
-      offset += count
-    }
+  func wait(timeout: TimeInterval?) throws -> Value {
+    let deadline = timeout.map { DispatchTime.now() + $0 } ?? .distantFuture
+    if done.wait(timeout: deadline) == .timedOut { throw NkasIosAdbError.connection("ADB 本地服务请求超时") }
+    lock.lock()
+    let value = result!
+    lock.unlock()
+    return try value.get()
   }
 }
 
@@ -325,9 +383,7 @@ enum NkasIosAdbError: LocalizedError {
   case invalidEndpoint(String)
   case invalidPath(String)
   case connection(String)
-  case authentication
   case notConnected
-  case rejected(String)
   case remote(String)
   case protocolError(String)
 
@@ -336,26 +392,13 @@ enum NkasIosAdbError: LocalizedError {
     case .invalidEndpoint(let value): return "无效的 ADB 地址：\(value)"
     case .invalidPath(let value): return "无效的 ADB 路径：\(value)"
     case .connection(let message), .protocolError(let message), .remote(let message): return message
-    case .authentication: return "ADB 设备拒绝了 iOS 客户端密钥，请在设备上确认授权"
     case .notConnected: return "ADB 尚未连接"
-    case .rejected(let destination): return "ADB 服务被设备拒绝：\(destination)"
     }
   }
 }
 
-private extension UInt32 {
-  var bytesLE: [UInt8] {
-    [UInt8(self & 0xff), UInt8((self >> 8) & 0xff), UInt8((self >> 16) & 0xff), UInt8((self >> 24) & 0xff)]
-  }
-
-  var bytesLEData: Data { Data(bytesLE) }
-}
-
 private extension Data {
   func uint32LE(at offset: Int) -> UInt32 {
-    UInt32(self[index(startIndex, offsetBy: offset)]) |
-      UInt32(self[index(startIndex, offsetBy: offset + 1)]) << 8 |
-      UInt32(self[index(startIndex, offsetBy: offset + 2)]) << 16 |
-      UInt32(self[index(startIndex, offsetBy: offset + 3)]) << 24
+    (0..<4).reduce(UInt32(0)) { $0 | UInt32(self[index(startIndex, offsetBy: offset + $1)]) << ($1 * 8) }
   }
 }

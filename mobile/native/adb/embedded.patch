@@ -1,0 +1,174 @@
+--- a/client/main.cpp
++++ b/client/main.cpp
+@@ -39,6 +39,7 @@
+ #include "transport_fd.cpp"
+ #include "transport_usb.cpp"
+ #include "transport_local.cpp"
++#include "nkas_embedded.inc"
+ 
+ static void setup_daemon_logging() {
+     const std::string log_file_path(GetLogFilePath());
+@@ -101,28 +102,19 @@
+     // act like Ctrl-C.
+     signal(SIGBREAK, [](int) { raise(SIGINT); });
+ #endif
+-    signal(SIGINT, [](int) { fdevent_run_on_looper([]() { exit(0); }); });
+ 
+     if (one_device) {
+         transport_set_one_device(one_device);
+     }
+ 
+-    const char* reject_kill_server = getenv("ADB_REJECT_KILL_SERVER");
+-    if (reject_kill_server && strcmp(reject_kill_server, "1") == 0) {
+-        adb_set_reject_kill_server(true);
+-    }
+-
+-    const char* leak = getenv("ADB_LEAK");
+-    if (leak && strcmp(leak, "1") == 0) {
+-        intentionally_leak();
+-    }
++    adb_set_reject_kill_server(true);
++
+ 
+     if (is_daemon) {
+         close_stdin();
+         setup_daemon_logging();
+     }
+ 
+-    atexit(adb_server_cleanup);
+ 
+     init_reconnect_handler();
+ 
+@@ -137,9 +129,6 @@
+         adb_notify_device_scan_complete();
+     // }
+ 
+-    if (!getenv("ADB_EMU") || strcmp(getenv("ADB_EMU"), "0") != 0) {
+-        local_init(android::base::StringPrintf("tcp:%d", DEFAULT_ADB_LOCAL_TRANSPORT_PORT));
+-    }
+ 
+     std::string error;
+ 
+@@ -151,7 +140,7 @@
+     while (install_listener(socket_spec, kSmartSocketConnectTo, nullptr, INSTALL_LISTENER_DISABLED,
+                             nullptr, &error) != INSTALL_STATUS_OK) {
+         if (std::chrono::steady_clock::now() - start > 0.5s) {
+-            LOG(FATAL) << "could not install *smartsocket* listener: " << error;
++            throw std::runtime_error("Could not install ADB smart-socket listener: " + error);
+         }
+ 
+         std::this_thread::sleep_for(100ms);
+@@ -207,7 +196,7 @@
+         // We don't accept() client connections until this point: this way, clients
+         // can't see wonky state early in startup even if they're connecting directly
+         // to the server instead of going through the adb program.
+-        fdevent_run_on_looper([] { enable_server_sockets(); });
++        fdevent_run_on_looper([] { enable_server_sockets(); nkas_adb_ready(); });
+     });
+     notify_thread.detach();
+ 
+@@ -232,86 +221,8 @@
+ }
+ 
+ 
+-/**
+- * Rewrite launch_server to launch in thread but not by new process
+- */
+-void fdevent_reset_porting(void) {
+-    fdevent_reset();
+-}
+-
+-void clear_listener_list(void) {
+-    listener_list.clear();
+-}
+-
+-void clear_transport_list(void) {
+-    std::lock_guard<std::recursive_mutex> lock(transport_lock);
+-    for (auto t : transport_list) {
+-        t->Kick();
+-    }
+-    transport_list.clear();
+-    pending_list.clear();
+-}
+-
+-void launch_server_thread(int pipe_write, const char *thread_socket_spec) {
+-    // Launch server with pipe
+-    fcntl(pipe_write, F_SETFD, 0);
+-    printf("[adb_porting] launch_server_main: %d\n", pipe_write);
+-
+-    // We don't need to do clear or reset at first time
+-    static bool not_first = false;
+-    if (not_first == true) {
+-        clear_transport_list();
+-        fdevent_reset_porting();
+-    }
+-    not_first = true;
+-
+-    // Start main server
+-    adb_server_main(false, thread_socket_spec, nullptr, pipe_write);
+-}
+-
+-int launch_server(const std::string& socket_spec, const char* one_device) {
+-    static char *thread_socket_spec;
+-    static int pipe_server[2];
+-
+-	printf("[adb_porting] socket %s\n", socket_spec.c_str());
+-    thread_socket_spec = strdup(socket_spec.c_str());
+-
+-    // Reset last used pipe
+-    pipe(pipe_server);
+-
+-    // set up a pipe so the child can tell us when it is ready.
+-    if (pipe_server[0] < 0 || pipe_server[1] < 0) {
+-        fprintf(stderr, "pipe failed in launch_server, errno: %d\n", errno);
+-        return -1;
+-    }
+-
+-    std::string path = android::base::GetExecutablePath();
+-
+-    // launch server in new thread
+-    std::thread adb_thread([]() {
+-        launch_server_thread(pipe_server[1], thread_socket_spec);
+-    });
+-    adb_thread.detach();
+-
+-    // parent side
+-    printf("[adb_porting] launch_server pipe_write: %d\n", pipe_server[0]);
+-    printf("[adb_porting] launch_server pipe_read: %d\n", pipe_server[1]);
+-
+-    // wait for the "OK\n" message from the child
+-    char temp[3] = {};
+-    int ret = adb_read(pipe_server[0], temp, 3);
+-    int saved_errno = errno;
+-    if (ret < 0) {
+-        fprintf(stderr, "[adb_porting] could not read ok from ADB Server, errno = %d\n", saved_errno);
+-        return -1;
+-    }
+-    if (ret != 3 || temp[0] != 'O' || temp[1] != 'K' || temp[2] != '\n') {
+-        ReportServerStartupFailure(0);
+-        return -1;
+-    }
+-
+-    return 0;
+-}
++// Server startup is owned by nkas_adb_start_server, never the command-line client.
++int launch_server(const std::string&, const char*) { return -1; }
+ 
+ extern "C" {
+ 
+--- a/client/adb_client.cpp
++++ b/client/adb_client.cpp
+@@ -1,3 +1,4 @@
++#include <stdexcept>
+ /*
+  * Copyright (C) 2015 The Android Open Source Project
+  *
+@@ -461,7 +462,7 @@
+     putc('\n', stderr);
+     fflush(stderr);
+ 
+-    exit(EXIT_FAILURE);
++    throw std::runtime_error("ADB client command failed");
+ }
+ 
+ void error_exit(const char* fmt, ...) {

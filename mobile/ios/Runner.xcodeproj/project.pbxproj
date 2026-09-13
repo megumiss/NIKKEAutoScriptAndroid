@@ -9,7 +9,6 @@
 /* Begin PBXBuildFile section */
 		1498D2341E8E89220040F4C2 /* GeneratedPluginRegistrant.m in Sources */ = {isa = PBXBuildFile; fileRef = 1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */; };
 		A10000010000000000000001 /* NkasIosAdbClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000020000000000000001 /* NkasIosAdbClient.swift */; };
-		A10000030000000000000001 /* NkasIosAdbKeyStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000040000000000000001 /* NkasIosAdbKeyStore.swift */; };
 		A10000050000000000000001 /* NkasIosScrcpySession.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000060000000000000001 /* NkasIosScrcpySession.swift */; };
 		A10000070000000000000001 /* NkasIosScrcpyControl.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000080000000000000001 /* NkasIosScrcpyControl.swift */; };
 		A10000090000000000000001 /* scrcpy-server-v4.1 in Resources */ = {isa = PBXBuildFile; fileRef = A10000100000000000000001 /* scrcpy-server-v4.1 */; };
@@ -23,6 +22,12 @@
 		97C146FC1CF9000F007C117D /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FA1CF9000F007C117D /* Main.storyboard */; };
 		97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FD1CF9000F007C117D /* Assets.xcassets */; };
 		97C147011CF9000F007C117D /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FF1CF9000F007C117D /* LaunchScreen.storyboard */; };
+		A20000010000000000000001 /* NkasAdbRuntime.mm in Sources */ = {isa = PBXBuildFile; fileRef = A20000020000000000000001 /* NkasAdbRuntime.mm */; };
+		A20000030000000000000001 /* NkasNativeSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000040000000000000001 /* NkasNativeSession.swift */; };
+		A20000050000000000000001 /* NkasScrcpyProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000060000000000000001 /* NkasScrcpyProtocol.swift */; };
+		A20000090000000000000001 /* AdbMobile.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = A20000100000000000000001 /* AdbMobile.xcframework */; };
+		A30000010000000000000001 /* NkasTsnet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000020000000000000001 /* NkasTsnet.swift */; };
+		A30000030000000000000001 /* NkasTsnet.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = A30000040000000000000001 /* NkasTsnet.xcframework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -52,7 +57,6 @@
 		1498D2321E8E86230040F4C2 /* GeneratedPluginRegistrant.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = GeneratedPluginRegistrant.h; sourceTree = "<group>"; };
 		1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = GeneratedPluginRegistrant.m; sourceTree = "<group>"; };
 		A10000020000000000000001 /* NkasIosAdbClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NkasIosAdbClient.swift; sourceTree = "<group>"; };
-		A10000040000000000000001 /* NkasIosAdbKeyStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NkasIosAdbKeyStore.swift; sourceTree = "<group>"; };
 		A10000060000000000000001 /* NkasIosScrcpySession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NkasIosScrcpySession.swift; sourceTree = "<group>"; };
 		A10000080000000000000001 /* NkasIosScrcpyControl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NkasIosScrcpyControl.swift; sourceTree = "<group>"; };
 		A10000100000000000000001 /* scrcpy-server-v4.1 */ = {isa = PBXFileReference; lastKnownFileType = file; path = "scrcpy-server-v4.1"; sourceTree = "<group>"; };
@@ -73,6 +77,13 @@
 		97C146FD1CF9000F007C117D /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		97C147001CF9000F007C117D /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		97C147021CF9000F007C117D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		A20000020000000000000001 /* NkasAdbRuntime.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = NkasAdbRuntime.mm; sourceTree = "<group>"; };
+		A20000040000000000000001 /* NkasNativeSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NkasNativeSession.swift; sourceTree = "<group>"; };
+		A20000060000000000000001 /* NkasScrcpyProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NkasScrcpyProtocol.swift; sourceTree = "<group>"; };
+		A20000080000000000000001 /* NkasAdbRuntime.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = NkasAdbRuntime.h; sourceTree = "<group>"; };
+		A20000100000000000000001 /* AdbMobile.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = "../native/apple/AdbMobile.xcframework"; sourceTree = SOURCE_ROOT; };
+		A30000020000000000000001 /* NkasTsnet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NkasTsnet.swift; sourceTree = "<group>"; };
+		A30000040000000000000001 /* NkasTsnet.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = "../native/apple/NkasTsnet.xcframework"; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -80,6 +91,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A20000090000000000000001 /* AdbMobile.xcframework in Frameworks */,
+				A30000030000000000000001 /* NkasTsnet.xcframework in Frameworks */,
 				78A318202AECB46A00862997 /* FlutterGeneratedPluginSwiftPackage in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -112,6 +125,8 @@
 			children = (
 				9740EEB11CF90186004384FC /* Flutter */,
 				97C146F01CF9000F007C117D /* Runner */,
+				A20000100000000000000001 /* AdbMobile.xcframework */,
+				A30000040000000000000001 /* NkasTsnet.xcframework */,
 				97C146EF1CF9000F007C117D /* Products */,
 				331C8082294A63A400263BE5 /* RunnerTests */,
 			);
@@ -138,12 +153,16 @@
 				74858FAE1ED2DC5600515810 /* AppDelegate.swift */,
 				7884E8672EC3CC0400C636F2 /* SceneDelegate.swift */,
 				A10000020000000000000001 /* NkasIosAdbClient.swift */,
-				A10000040000000000000001 /* NkasIosAdbKeyStore.swift */,
 				A10000060000000000000001 /* NkasIosScrcpySession.swift */,
 				A10000080000000000000001 /* NkasIosScrcpyControl.swift */,
 				A10000100000000000000001 /* scrcpy-server-v4.1 */,
 				A10000120000000000000001 /* NkasIosVideoTexture.swift */,
 				A10000140000000000000001 /* NkasIosVideoDecoder.swift */,
+				A20000020000000000000001 /* NkasAdbRuntime.mm */,
+				A20000040000000000000001 /* NkasNativeSession.swift */,
+				A30000020000000000000001 /* NkasTsnet.swift */,
+				A20000060000000000000001 /* NkasScrcpyProtocol.swift */,
+				A20000080000000000000001 /* NkasAdbRuntime.h */,
 				74858FAD1ED2DC5600515810 /* Runner-Bridging-Header.h */,
 			);
 			path = Runner;
@@ -303,9 +322,12 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A20000010000000000000001 /* NkasAdbRuntime.mm in Sources */,
+				A20000030000000000000001 /* NkasNativeSession.swift in Sources */,
+				A30000010000000000000001 /* NkasTsnet.swift in Sources */,
+				A20000050000000000000001 /* NkasScrcpyProtocol.swift in Sources */,
 				74858FAF1ED2DC5600515810 /* AppDelegate.swift in Sources */,
 				A10000010000000000000001 /* NkasIosAdbClient.swift in Sources */,
-				A10000030000000000000001 /* NkasIosAdbKeyStore.swift in Sources */,
 				A10000050000000000000001 /* NkasIosScrcpySession.swift in Sources */,
 				A10000070000000000000001 /* NkasIosScrcpyControl.swift in Sources */,
 				A10000110000000000000001 /* NkasIosVideoTexture.swift in Sources */,
@@ -351,7 +373,7 @@
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
-				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
 				CLANG_CXX_LIBRARY = "libc++";
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_ARC = YES;
@@ -413,6 +435,7 @@
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.megumiss.nkas.mobile;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				OTHER_LDFLAGS = ("$(inherited)", "-lc++", "-lz", "-lresolv", "-framework", "CoreFoundation", "-framework", "Security");
 				SWIFT_OBJC_BRIDGING_HEADER = "Runner/Runner-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
 				VERSIONING_SYSTEM = "apple-generic";
@@ -472,7 +495,7 @@
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = AppIcon;
 				CLANG_ANALYZER_NONNULL = YES;
-				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
 				CLANG_CXX_LIBRARY = "libc++";
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_ARC = YES;
@@ -530,7 +553,7 @@
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = AppIcon;
 				CLANG_ANALYZER_NONNULL = YES;
-				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
 				CLANG_CXX_LIBRARY = "libc++";
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_ARC = YES;
@@ -594,6 +617,7 @@
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.megumiss.nkas.mobile;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				OTHER_LDFLAGS = ("$(inherited)", "-lc++", "-lz", "-lresolv", "-framework", "CoreFoundation", "-framework", "Security");
 				SWIFT_OBJC_BRIDGING_HEADER = "Runner/Runner-Bridging-Header.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
@@ -616,6 +640,7 @@
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.megumiss.nkas.mobile;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				OTHER_LDFLAGS = ("$(inherited)", "-lc++", "-lz", "-lresolv", "-framework", "CoreFoundation", "-framework", "Security");
 				SWIFT_OBJC_BRIDGING_HEADER = "Runner/Runner-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
 				VERSIONING_SYSTEM = "apple-generic";

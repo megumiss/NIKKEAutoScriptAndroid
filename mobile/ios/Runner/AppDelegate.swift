@@ -28,16 +28,17 @@ final class NkasStarBridge: NSObject, FlutterStreamHandler {
   private var methodChannel: FlutterMethodChannel?
   private var eventSink: FlutterEventSink?
   private var pendingEvents: [[String: Any]] = []
-  private let adbClient = NkasIosAdbClient()
-  private var scrcpySession: NkasIosScrcpySession?
-  private var scrcpyControl: NkasIosScrcpyControl?
-  fileprivate var textureRegistry: FlutterTextureRegistry?
-  private var videoTexture: NkasIosVideoTexture?
+  private lazy var nativeSession = NkasNativeSession { [weak self] event in self?.emit(event) }
+  fileprivate var textureRegistry: FlutterTextureRegistry? {
+    didSet { nativeSession.textureRegistry = textureRegistry }
+  }
   private var pathMonitor: NWPathMonitor?
   private let pathQueue = DispatchQueue(label: "com.megumiss.nkas.network")
+  private var pathSignature: String?
 
   func register(binaryMessenger: FlutterBinaryMessenger) {
     guard methodChannel == nil else { return }
+    _ = nativeSession
     let channel = FlutterMethodChannel(name: channelName, binaryMessenger: binaryMessenger)
     channel.setMethodCallHandler { [weak self] call, result in
       self?.handle(call: call, result: result)
@@ -55,17 +56,25 @@ final class NkasStarBridge: NSObject, FlutterStreamHandler {
     let monitor = NWPathMonitor()
     pathMonitor = monitor
     monitor.pathUpdateHandler = { [weak self] path in
+      guard let self else { return }
       let state = path.status == .satisfied ? "connected" : "disconnected"
-      self?.emit(["type": "nativeNetwork", "state": state])
+      let interfaces = path.availableInterfaces.filter { path.usesInterfaceType($0.type) }.map { $0.index }.sorted()
+      let signature = "\(state):\(interfaces):\(path.isExpensive)"
+      guard self.pathSignature != signature else { return }
+      self.pathSignature = signature
+      self.emit(["type": "nativeNetwork", "state": state])
+      self.nativeSession.networkChanged(state)
     }
     monitor.start(queue: pathQueue)
   }
 
   @objc private func applicationDidEnterBackground() {
+    nativeSession.setForeground(false)
     emit(["type": "nativeNetwork", "state": "background"])
   }
 
   @objc private func applicationDidBecomeActive() {
+    nativeSession.setForeground(true)
     emit(["type": "nativeNetwork", "state": "foreground"])
   }
 
@@ -123,161 +132,10 @@ final class NkasStarBridge: NSObject, FlutterStreamHandler {
       let arguments = call.arguments as? [String: Any]
       let serial = (arguments?["serial"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
       UserDefaults.standard.set(serial, forKey: serialKey)
+      UserDefaults.standard.set(serial, forKey: "nkas_control_endpoint")
       result(serial)
-    case "nativeAdbConnect":
-      let arguments = call.arguments as? [String: Any]
-      let endpoint = (arguments?["endpoint"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-      guard !endpoint.isEmpty else {
-        result(FlutterError(code: "native_adb_endpoint", message: "ADB 地址不能为空", details: nil))
-        return
-      }
-      DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-        do {
-          try self?.adbClient.connect(endpoint: endpoint)
-          DispatchQueue.main.async { result(["endpoint": endpoint]) }
-        } catch {
-          DispatchQueue.main.async { result(FlutterError(code: "native_adb_connect", message: error.localizedDescription, details: nil)) }
-        }
-      }
-    case "nativeAdbShell":
-      let arguments = call.arguments as? [String: Any]
-      let command = (arguments?["command"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-      guard !command.isEmpty else {
-        result(FlutterError(code: "native_adb_command", message: "ADB shell 命令不能为空", details: nil))
-        return
-      }
-      DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-        do {
-          let output = try self?.adbClient.shell(command) ?? ""
-          DispatchQueue.main.async { result(output) }
-        } catch {
-          DispatchQueue.main.async { result(FlutterError(code: "native_adb_shell", message: error.localizedDescription, details: nil)) }
-        }
-      }
-    case "nativeAdbClose":
-      adbClient.close()
-      result(true)
-    case "nativeAdbPush":
-      let arguments = call.arguments as? [String: Any]
-      let remotePath = (arguments?["remotePath"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-      let typedData = arguments?["data"] as? FlutterStandardTypedData
-      let mode = UInt32(arguments?["mode"] as? Int ?? 0o644)
-      guard !remotePath.isEmpty, let typedData else {
-        result(FlutterError(code: "native_adb_push", message: "push 参数无效", details: nil))
-        return
-      }
-      DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-        do {
-          try self?.adbClient.push(typedData.data, remotePath: remotePath, mode: mode)
-          DispatchQueue.main.async { result(true) }
-        } catch {
-          DispatchQueue.main.async { result(FlutterError(code: "native_adb_push", message: error.localizedDescription, details: nil)) }
-        }
-      }
-    case "nativeAdbPull":
-      let arguments = call.arguments as? [String: Any]
-      let remotePath = (arguments?["remotePath"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-      guard !remotePath.isEmpty else {
-        result(FlutterError(code: "native_adb_pull", message: "pull 路径不能为空", details: nil))
-        return
-      }
-      DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-        do {
-          let data = try self?.adbClient.pull(remotePath: remotePath) ?? Data()
-          DispatchQueue.main.async { result(FlutterStandardTypedData(bytes: data)) }
-        } catch {
-          DispatchQueue.main.async { result(FlutterError(code: "native_adb_pull", message: error.localizedDescription, details: nil)) }
-        }
-      }
-    case "nativeScrcpyStart":
-      let arguments = call.arguments as? [String: Any]
-      let endpoint = (arguments?["endpoint"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-      let video = arguments?["video"] as? Bool ?? true
-      let control = arguments?["control"] as? Bool ?? true
-      let maxSize = arguments?["maxSize"] as? Int ?? 0
-      let videoBitRate = arguments?["videoBitRate"] as? Int ?? 0
-      DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-        guard let self else { return }
-        do {
-          if !endpoint.isEmpty { try self.adbClient.connect(endpoint: endpoint) }
-          guard let serverURL = Bundle.main.url(forResource: "scrcpy-server-v4.1", withExtension: nil) else {
-            throw NkasIosAdbError.remote("iOS 包内缺少 scrcpy-server-v4.1")
-          }
-          let serverData = try Data(contentsOf: serverURL)
-          self.scrcpySession?.close()
-          let session = try NkasIosScrcpySession.start(
-            adb: self.adbClient,
-            serverJar: serverData,
-            options: NkasIosScrcpyOptions(video: video, control: control, maxSize: maxSize, videoBitRate: videoBitRate)
-          )
-          self.scrcpySession = session
-          self.scrcpyControl = session.controlStream.map(NkasIosScrcpyControl.init)
-          if video, let textureRegistry = self.textureRegistry {
-            let texture = NkasIosVideoTexture(registry: textureRegistry)
-            self.videoTexture = texture
-            try session.startVideo(
-              onSize: { [weak self] width, height in
-                self?.emit(["type": "scrcpyVideo", "state": "size", "width": width, "height": height])
-              },
-              onFrame: { [weak texture] buffer in texture?.publish(buffer) },
-              onError: { [weak self] error in
-                self?.emit(["type": "scrcpyVideo", "state": "failed", "error": error.localizedDescription])
-              },
-              onStopped: { [weak self] in self?.emit(["type": "scrcpyVideo", "state": "stopped"]) }
-            )
-          }
-          self.emit(["type": "scrcpyServer", "state": "started", "message": session.command])
-          self.emit([
-            "type": "scrcpyVideo", "state": "started", "deviceName": session.metadata?.deviceName,
-            "codecId": session.metadata.map { NSNumber(value: $0.codecId) },
-          ])
-          DispatchQueue.main.async {
-            result([
-            "scid": session.scid,
-              "command": session.command,
-              "deviceName": session.metadata?.deviceName,
-              "codecId": session.metadata.map { NSNumber(value: $0.codecId) },
-              "textureId": self.videoTexture?.textureId,
-              "video": video,
-              "control": control,
-            ])
-          }
-        } catch {
-          DispatchQueue.main.async { result(FlutterError(code: "native_scrcpy_start", message: error.localizedDescription, details: nil)) }
-        }
-      }
-    case "nativeScrcpyStop":
-      scrcpySession?.close()
-      scrcpySession = nil
-      scrcpyControl = nil
-      videoTexture?.dispose()
-      videoTexture = nil
-      emit(["type": "scrcpyVideo", "state": "stopped"])
-      result(true)
-    case "nativeScrcpyBack":
-      let action = (call.arguments as? [String: Any])?["action"] as? Int ?? 0
-      do { guard let scrcpyControl else { throw NkasIosAdbError.notConnected }; try scrcpyControl.back(action: action); result(true) }
-      catch { result(FlutterError(code: "native_scrcpy_control", message: error.localizedDescription, details: nil)) }
-    case "nativeScrcpyText":
-      let text = (call.arguments as? [String: Any])?["text"] as? String ?? ""
-      do { guard let scrcpyControl else { throw NkasIosAdbError.notConnected }; try scrcpyControl.text(text); result(true) }
-      catch { result(FlutterError(code: "native_scrcpy_control", message: error.localizedDescription, details: nil)) }
-    case "nativeScrcpyKeycode":
-      let arguments = call.arguments as? [String: Any]
-      do {
-        guard let scrcpyControl else { throw NkasIosAdbError.notConnected }
-        try scrcpyControl.keycode(action: arguments?["action"] as? Int ?? 0, keycode: arguments?["keycode"] as? Int ?? 0, repeatCount: arguments?["repeat"] as? Int ?? 0, metaState: arguments?["metaState"] as? Int ?? 0)
-        result(true)
-      } catch { result(FlutterError(code: "native_scrcpy_control", message: error.localizedDescription, details: nil)) }
-    case "nativeScrcpyTouch":
-      let arguments = call.arguments as? [String: Any]
-      do {
-        guard let scrcpyControl else { throw NkasIosAdbError.notConnected }
-        try scrcpyControl.touch(action: arguments?["action"] as? Int ?? 0, pointerId: UInt64(arguments?["pointerId"] as? Int ?? 0), x: arguments?["x"] as? Int ?? 0, y: arguments?["y"] as? Int ?? 0, width: arguments?["screenWidth"] as? Int ?? 0, height: arguments?["screenHeight"] as? Int ?? 0, pressure: arguments?["pressure"] as? Double ?? 1, actionButton: arguments?["actionButton"] as? Int ?? 0, buttons: arguments?["buttons"] as? Int ?? 0)
-        result(true)
-      } catch { result(FlutterError(code: "native_scrcpy_control", message: error.localizedDescription, details: nil)) }
     default:
-      result(FlutterMethodNotImplemented)
+      if !nativeSession.handle(call, result: result) { result(FlutterMethodNotImplemented) }
     }
   }
 
@@ -383,6 +241,7 @@ final class NkasStarBridge: NSObject, FlutterStreamHandler {
         eventSink(event)
       } else {
         self.pendingEvents.append(event)
+        if self.pendingEvents.count > 200 { self.pendingEvents.removeFirst(self.pendingEvents.count - 200) }
       }
     }
   }

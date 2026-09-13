@@ -1,0 +1,2 @@
+# Empty context lines in patches retain their required leading space.
+*.patch text eol=lf whitespace=-blank-at-eol
