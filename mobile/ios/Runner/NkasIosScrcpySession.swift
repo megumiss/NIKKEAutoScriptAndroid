@@ -154,6 +154,7 @@ final class NkasIosScrcpySession {
     videoThread = nil
     videoDecoder?.close()
     videoDecoder = nil
+    adb.close()
   }
 
   private static func buildCommand(remotePath: String, scid: UInt32, options: NkasIosScrcpyOptions) -> String {

@@ -124,6 +124,9 @@ final class NkasIosAdbClient {
       if packet.command == .clse && packet.arg1 == localId {
         throw NkasIosAdbError.rejected(destination)
       }
+      if packet.command == .wrte {
+        try send(command: .okay, arg0: packet.arg1, arg1: packet.arg0, payload: Data())
+      }
     }
   }
 
@@ -236,7 +239,12 @@ final class NkasIosAdbStream {
     var output = Data()
     while !closed {
       let packet = try client.readPacket()
-      guard packet.arg0 == remoteId else { continue }
+      guard packet.arg0 == remoteId else {
+        if packet.command == .wrte {
+          try client.send(command: .okay, arg0: packet.arg1, arg1: packet.arg0, payload: Data())
+        }
+        continue
+      }
       switch packet.command {
       case .wrte:
         output.append(packet.payload)
@@ -292,6 +300,9 @@ final class NkasIosAdbStream {
       let packet = try client.readPacket()
       guard packet.command == .wrte, packet.arg0 == remoteId else {
         if packet.command == .clse { closed = true }
+        if packet.command == .wrte {
+          try client.send(command: .okay, arg0: packet.arg1, arg1: packet.arg0, payload: Data())
+        }
         continue
       }
       pendingData.append(packet.payload)
