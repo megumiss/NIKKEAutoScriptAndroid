@@ -28,6 +28,8 @@ final class NkasStarBridge: NSObject, FlutterStreamHandler {
   private var eventSink: FlutterEventSink?
   private var pendingEvents: [[String: Any]] = []
   private let adbClient = NkasIosAdbClient()
+  private var scrcpySession: NkasIosScrcpySession?
+  private var scrcpyControl: NkasIosScrcpyControl?
 
   func register(binaryMessenger: FlutterBinaryMessenger) {
     guard methodChannel == nil else { return }
@@ -160,9 +162,79 @@ final class NkasStarBridge: NSObject, FlutterStreamHandler {
           DispatchQueue.main.async { result(FlutterError(code: "native_adb_pull", message: error.localizedDescription, details: nil)) }
         }
       }
-    case "nativeScrcpyStart", "nativeScrcpyStop",
-         "nativeScrcpyBack", "nativeScrcpyText", "nativeScrcpyKeycode", "nativeScrcpyTouch":
-      result(FlutterError(code: "ios_backend_unavailable", message: "iOS 原生 ADB/scrcpy 后端尚未链接", details: nil))
+    case "nativeScrcpyStart":
+      let arguments = call.arguments as? [String: Any]
+      let endpoint = (arguments?["endpoint"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+      let video = arguments?["video"] as? Bool ?? true
+      let control = arguments?["control"] as? Bool ?? true
+      let maxSize = arguments?["maxSize"] as? Int ?? 0
+      let videoBitRate = arguments?["videoBitRate"] as? Int ?? 0
+      DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+        guard let self else { return }
+        do {
+          if !endpoint.isEmpty { try self.adbClient.connect(endpoint: endpoint) }
+          guard let serverURL = Bundle.main.url(forResource: "scrcpy-server-v4.1", withExtension: nil) else {
+            throw NkasIosAdbError.remote("iOS 包内缺少 scrcpy-server-v4.1")
+          }
+          let serverData = try Data(contentsOf: serverURL)
+          self.scrcpySession?.close()
+          let session = try NkasIosScrcpySession.start(
+            adb: self.adbClient,
+            serverJar: serverData,
+            options: NkasIosScrcpyOptions(video: video, control: control, maxSize: maxSize, videoBitRate: videoBitRate)
+          )
+          self.scrcpySession = session
+          self.scrcpyControl = session.controlStream.map(NkasIosScrcpyControl.init)
+          self.emit(["type": "scrcpyServer", "state": "started", "message": session.command])
+          self.emit([
+            "type": "scrcpyVideo", "state": "started", "deviceName": session.metadata?.deviceName,
+            "codecId": session.metadata.map { NSNumber(value: $0.codecId) },
+          ])
+          DispatchQueue.main.async {
+            result([
+              "scid": session.scid,
+              "command": session.command,
+              "deviceName": session.metadata?.deviceName,
+              "codecId": session.metadata.map { NSNumber(value: $0.codecId) },
+              "video": video,
+              "control": control,
+            ])
+          }
+          session.startServerMonitor { [weak self] output, error in
+            guard let self else { return }
+            if let error { self.emit(["type": "scrcpyServer", "state": "failed", "error": error.localizedDescription]) }
+            else { self.emit(["type": "scrcpyServer", "state": "stopped", "message": output ?? ""]) }
+          }
+        } catch {
+          DispatchQueue.main.async { result(FlutterError(code: "native_scrcpy_start", message: error.localizedDescription, details: nil)) }
+        }
+      }
+    case "nativeScrcpyStop":
+      scrcpySession?.close()
+      scrcpySession = nil
+      scrcpyControl = nil
+      emit(["type": "scrcpyVideo", "state": "stopped"])
+      result(true)
+    case "nativeScrcpyBack":
+      let action = (call.arguments as? [String: Any])?["action"] as? Int ?? 0
+      do { try scrcpyControl?.back(action: action); result(true) }
+      catch { result(FlutterError(code: "native_scrcpy_control", message: error.localizedDescription, details: nil)) }
+    case "nativeScrcpyText":
+      let text = (call.arguments as? [String: Any])?["text"] as? String ?? ""
+      do { try scrcpyControl?.text(text); result(true) }
+      catch { result(FlutterError(code: "native_scrcpy_control", message: error.localizedDescription, details: nil)) }
+    case "nativeScrcpyKeycode":
+      let arguments = call.arguments as? [String: Any]
+      do {
+        try scrcpyControl?.keycode(action: arguments?["action"] as? Int ?? 0, keycode: arguments?["keycode"] as? Int ?? 0, repeatCount: arguments?["repeat"] as? Int ?? 0, metaState: arguments?["metaState"] as? Int ?? 0)
+        result(true)
+      } catch { result(FlutterError(code: "native_scrcpy_control", message: error.localizedDescription, details: nil)) }
+    case "nativeScrcpyTouch":
+      let arguments = call.arguments as? [String: Any]
+      do {
+        try scrcpyControl?.touch(action: arguments?["action"] as? Int ?? 0, pointerId: UInt64(arguments?["pointerId"] as? Int ?? 0), x: arguments?["x"] as? Int ?? 0, y: arguments?["y"] as? Int ?? 0, width: arguments?["screenWidth"] as? Int ?? 0, height: arguments?["screenHeight"] as? Int ?? 0, pressure: arguments?["pressure"] as? Double ?? 1, actionButton: arguments?["actionButton"] as? Int ?? 0, buttons: arguments?["buttons"] as? Int ?? 0)
+        result(true)
+      } catch { result(FlutterError(code: "native_scrcpy_control", message: error.localizedDescription, details: nil)) }
     default:
       result(FlutterMethodNotImplemented)
     }

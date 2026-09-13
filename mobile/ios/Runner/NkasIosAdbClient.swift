@@ -56,6 +56,10 @@ final class NkasIosAdbClient {
     try open("localabstract:\(name)")
   }
 
+  func openShellStream(_ command: String) throws -> NkasIosAdbStream {
+    try open("shell:\(command)")
+  }
+
   func push(_ data: Data, remotePath: String, mode: UInt32 = 0o644) throws {
     guard remotePath.hasPrefix("/") else { throw NkasIosAdbError.invalidPath(remotePath) }
     let stream = try open("sync:")
@@ -273,7 +277,7 @@ final class NkasIosAdbStream {
     try readExactly(4).uint32LE(at: 0)
   }
 
-  fileprivate func readExactly(_ count: Int) throws -> Data {
+  func readExactly(_ count: Int) throws -> Data {
     guard let client else { throw NkasIosAdbError.notConnected }
     var result = Data()
     while result.count < count {
