@@ -32,6 +32,9 @@ migrate_working_dir/
 .pub/
 /build/
 /coverage/
+/native/apple/*.xcframework/
+/native/android/*.aar
+/native/android/*-sources.jar
 
 # Symbolication related
 app.*.symbols

@@ -8,6 +8,14 @@ see LICENSE.
 
 Third-party components:
 
+* tsnet-forwarder (github.com/megumiss/tsnet-forwarder) — Apache License 2.0.
+  The mobile adaptation in native/tsnet/forwarder is based on the repository's
+  root Go package, with additional cancellation, cleanup and credential handling.
+  https://github.com/megumiss/tsnet-forwarder
+* Tailscale v1.80.3 — BSD 3-Clause License (see also its third-party notices).
+  https://github.com/tailscale/tailscale/tree/v1.80.3
+* Go mobile, revision 81131f6468ab — BSD 3-Clause License.
+  https://go.googlesource.com/mobile/+/81131f6468ab
 * Genymobile scrcpy server v4.1 (Android and iOS bundles) — Apache License 2.0.
   https://github.com/Genymobile/scrcpy
 * Bouncy Castle bcpkix-jdk18on — MIT License.
