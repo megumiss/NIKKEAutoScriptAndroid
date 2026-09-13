@@ -1,6 +1,10 @@
-name: Build Android APK
+name: Legacy Kotlin Android
 
 on:
+  push:
+    branches: [codex/legacy-kotlin]
+  pull_request:
+    branches: [codex/legacy-kotlin]
   workflow_dispatch:
     inputs:
       build_type:
