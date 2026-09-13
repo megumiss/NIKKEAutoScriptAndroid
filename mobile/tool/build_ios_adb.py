@@ -84,6 +84,7 @@ def prepare_vendor(source):
     shutil.copytree(source / 'porting/adb/include/sys', vendor / 'libbase/include/sys', dirs_exist_ok=True)
     shutil.copy2(BINDING / 'nkas_embedded.inc', vendor / 'adb/client/nkas_embedded.inc')
     apply_source_patch(vendor / 'adb', BINDING / 'embedded.patch')
+    apply_source_patch(source / 'external/protobuf/third_party/abseil-cpp', BINDING / 'abseil-apple.patch')
     shutil.copy2(BINDING / 'CMakeLists.ios.txt', vendor / 'CMakeLists.txt')
 
     adb_cmake = (vendor / 'CMakeLists.adb.txt').read_text(encoding='utf-8')
