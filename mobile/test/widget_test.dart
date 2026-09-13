@@ -531,6 +531,17 @@ void main() {
     expect(find.text('任务配置'), findsOneWidget);
     expect(find.text('NKAS设置'), findsOneWidget);
 
+    // 进入任务设置详情：只显示面板的「返回任务列表」，壳层返回键隐藏
+    await tester.tap(find.text('NKAS设置'));
+    await tester.pumpAndSettle();
+    expect(find.text('客户端设置'), findsOneWidget);
+    expect(find.byTooltip('返回任务列表'), findsOneWidget);
+    expect(find.byTooltip('返回'), findsNothing);
+
+    // 先退回任务列表，壳层返回键恢复，再退回实例页
+    await tester.tap(find.byTooltip('返回任务列表'));
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('返回'), findsOneWidget);
     await tester.tap(find.byTooltip('返回'));
     await tester.pumpAndSettle();
     expect(find.text('查看实例状态、任务队列与实时日志'), findsOneWidget);

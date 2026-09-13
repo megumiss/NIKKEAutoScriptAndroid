@@ -439,7 +439,7 @@ class _NkasShellState extends State<NkasShell> {
                     _AppHeader(
                       title: _pageTitle,
                       connection: widget.connectionController.state,
-                      showBack: !_canPopSystemRoute,
+                      showBack: !_canPopSystemRoute && !_taskDetailOpen,
                       backTooltip: _isSettingsSubpage ? '返回设置' : '返回',
                       onBack: _handleBack,
                     ),
@@ -512,11 +512,17 @@ class _NkasShellState extends State<NkasShell> {
   bool get _canPopSystemRoute =>
       page == NkasPage.overview && pageStack.length == 1;
 
+  /// 任务页展开任务详情时由面板自身的「返回任务列表」接管，隐藏壳层返回键
+  bool get _taskDetailOpen => page == NkasPage.tasks && taskKey != null;
+
   bool _handleBack() {
     _navDirection = -1;
+    if (_taskDetailOpen) {
+      setState(() => taskKey = null);
+      return true;
+    }
     if (pageStack.length > 1) {
       setState(() {
-        if (page == NkasPage.tasks) taskKey = null;
         pageStack.removeLast();
         page = pageStack.last;
       });
