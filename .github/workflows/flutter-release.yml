@@ -78,6 +78,8 @@ jobs:
           sdkmanager "ndk;${NDK_VERSION}"
           python3 tool/build_tsnet.py android
       - run: flutter pub get
+      - name: Prepare Flutter Android build files
+        run: flutter build apk --debug --config-only
       - name: Kotlin ADB and scrcpy tests
         working-directory: mobile/android
         run: bash gradlew :app:testDebugUnitTest --console=plain

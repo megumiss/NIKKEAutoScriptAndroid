@@ -7,6 +7,8 @@ add_compile_options(-Wno-attributes)
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+# Dependency command-line tools and link probes need ordinary executable targets.
+set(CMAKE_MACOSX_BUNDLE OFF)
 find_package(Threads REQUIRED)
 
 add_subdirectory(boringssl EXCLUDE_FROM_ALL)
