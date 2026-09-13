@@ -1,13 +1,15 @@
 # 项目协作指南
 
-本文件供在 NIKKEAutoScriptAndroid 仓库中工作的 AI 编程助手参考，覆盖整个仓库。默认使用简体中文沟通，代码标识符沿用所在模块的命名风格。
+本文件只适用于 NIKKEAutoScriptAndroid 仓库；NIKKEAutoScript 的规则、构建和验证独立处理。默认使用简体中文沟通，代码标识符沿用所在模块的命名风格。
 
 ## 开始工作
 
 - 先查看 `git status --short` 和相关文件，保留已有的未提交改动，只修改当前任务需要的内容。
 - 先确认目标工程：根目录 `app/` 是 Kotlin Android 应用，`mobile/` 是独立的 Flutter Android/iOS 应用；两者有各自的 Gradle 工程和构建入口。
-- 阅读 [移动端说明](mobile/README.md)；涉及界面时阅读 [设计规范](mobile/DESIGN.md)，涉及原生控制时阅读 [实施计划](mobile/docs/PLAN.md) 和 [验收记录](mobile/docs/VALIDATION.md)。
-- 文档中的计划、历史验证结果和历史授权不代表当前实现、当前测试结果或本次任务授权。发现差异时结合当前代码和用户要求核实，按本次改动同步相关文档。
+- 按目标工程读取相关文档章节。处理 `mobile/` 的架构或构建问题时查 [移动端说明](mobile/README.md)；原生控制契约需要背景时查 [实施计划](mobile/docs/PLAN.md) 的对应部分；需要设备验收时查 [验收记录](mobile/docs/VALIDATION.md) 的对应场景。根 Kotlin 工程的任务不默认读取 Flutter 文档。
+- 文档中的计划、历史验证结果和历史授权不代表当前实现、当前测试结果或本次任务授权；当前会话用户已明确给出的授权在原范围内有效。发现差异时结合当前代码和用户要求核实，按本次改动同步相关文档。
+- 本任务已读且未变更的内容不重复读取。目标明确的低风险、可逆操作按上下文继续；仅在关键信息无法推断，或敏感、范围外操作尚缺必要授权时确认。
+- 按任务和技术栈选择 Skill：视觉、交互或可访问性变化才使用 UI 设计指导；纯协议、数据解析、文档或构建说明修改不触发 UI、品牌或营销流程。Flutter 与 Kotlin 使用各自现有组件，不能套用 React 组件安装步骤。
 - 优先使用 `rg` 搜索代码。遵循现有结构，避免无关重构、整仓格式化和顺带升级依赖。
 
 ## 目录与职责
@@ -41,7 +43,7 @@
 
 ## 界面与代码风格
 
-- 界面改动先对照 `mobile/design/nkas-mobile-interactive.html`、`mobile/DESIGN.md` 和当前实现。复用 `shadcn_ui`、Lucide 图标、`theme.dart` 与共享组件。
+- Flutter 视觉、布局或交互改动按需对照 [设计规范](mobile/DESIGN.md) 的相关章节和 `mobile/design/nkas-mobile-interactive.html` 的对应页面；已有实现足以确定的小改动直接复用。保持 `shadcn_ui`、Lucide 图标、`theme.dart` 与共享组件的一致性。
 - 颜色和通用尺寸优先使用现有主题定义；兼顾浅色、深色、小屏、键盘遮挡、SafeArea 和可访问性，避免在页面中散落重复样式。
 - 页面文案沿用简体中文；连接、任务和日志状态来自真实数据，提供加载、空态和错误反馈。
 - Dart 遵循 `mobile/analysis_options.yaml`，仅对改动文件运行 `dart format`；Go 改动使用 `gofmt`；Kotlin、Swift 和 Python 沿用相邻代码风格。
@@ -54,19 +56,21 @@
 
 ### 按改动选择检查
 
-表中命令在指定目录执行，首次运行 Flutter 检查前执行 `flutter pub get`。
+按受影响的层选择检查，跨层改动合并对应要求。表中命令在指定目录执行；首次准备依赖、依赖清单变化或本地依赖缺失时执行 `flutter pub get`。
 
-| 检查 | 工作目录 | 命令 |
+| 改动范围 | 工作目录 | 必要检查 |
 | --- | --- | --- |
-| Flutter 静态分析 | `mobile/` | `flutter analyze` |
-| Flutter 测试 | `mobile/` | `flutter test` |
-| Go 测试 | `mobile/native/tsnet/` | `go test ./...` |
-| Go 并发检查 | `mobile/native/tsnet/` | `go test -race ./...`，需要支持 cgo 的 C 工具链 |
-| 原生构建工具回归 | `mobile/` | `python -m unittest discover -s tool -p 'test_*.py'` |
-| 原生资源检查 | `mobile/` | `python tool/verify_native.py` |
-| Go 许可证清单检查 | `mobile/` | `python tool/collect_native_licenses.py go --check` |
+| 纯文档（含 AGENTS.md） | 仓库根目录 | 核对内容、引用路径和 `git diff --check`，不触发应用构建 |
+| Flutter 源码 | `mobile/` | `flutter analyze`、`flutter test`；交互变化验证相关页面流程 |
+| Go 源码 | `mobile/native/tsnet/` | `go test ./...` |
+| Go 并发、取消或生命周期 | `mobile/native/tsnet/` | 另执行 `go test -race ./...`，需要支持 cgo 的 C 工具链 |
+| 原生构建工具 | `mobile/` | `python -m unittest discover -s tool -p 'test_*.py'` |
+| 原生库、资源或平台构建配置 | `mobile/` | `python tool/verify_native.py`（可用 `--android` / `--ios` 限定平台），并完成相关平台构建 |
+| Go 依赖或许可证清单 | `mobile/` | `python tool/collect_native_licenses.py go --check` |
 
-Flutter Android 原生测试和调试构建，在 `mobile/` 执行：
+Android/iOS 原生平台桥、协议或生命周期行为变化应运行对应 Kotlin JVM / XCTest 回归，按下方示例选择受影响平台的命令。检查通过后，仅在相关输入变化、新失败或尚未覆盖的风险出现时重跑；环境缺失时说明未完成的必要检查。
+
+以下是完整构建示例，按上述改动范围选用。Flutter Android 原生测试和调试构建，在 `mobile/` 执行：
 
 ```powershell
 flutter pub get
@@ -79,7 +83,7 @@ python tool/verify_native.py --android
 flutter build apk --debug
 ```
 
-`build_tsnet.py` 生成必需的 `mobile/native/android/nkas-tsnet.aar`，包含 `armeabi-v7a`、`arm64-v8a`、`x86_64`。缺少该文件时应先构建，不要绕过 Gradle 检查。
+`build_tsnet.py` 生成必需的 `mobile/native/android/nkas-tsnet.aar`，包含 `armeabi-v7a`、`arm64-v8a`、`x86_64`。产物缺失、不完整，或原生源码、依赖、构建脚本、工具链变化时重建；输入未变且产物有效时复用，不因 Dart 或文档修改重复构建，也不要绕过 Gradle 资源检查。
 
 根 Kotlin Android 工程在仓库根目录执行：
 
@@ -87,7 +91,7 @@ flutter build apk --debug
 .\gradlew.bat --no-daemon :app:assembleDebug
 ```
 
-iOS 在 macOS 的 `mobile/` 目录执行：
+iOS 完整构建在 macOS 的 `mobile/` 目录执行；tsnet 和 ADB 原生库同样只在缺失、无效或对应构建输入变化时重建：
 
 ```bash
 flutter pub get
@@ -112,10 +116,11 @@ XCTest、签名和发布产物校验参考 `.github/workflows/flutter-release.ym
 
 - 第一条命令仅预览，第二条命令实际更新两个文件。以当前分支上一条提交的版本为基准，确保本次提交恰好递增一次；同一次提交的构建、测试或提交重试不重复递增。
 - 提交前检查两个版本值一致，并将版本文件加入同一次提交。
+- 升版仅在准备 Git 提交时执行；纯文档提交附带的版本字符串同步只检查版本值一致性，不扩大验证范围。DryRun 用于自检，不要求用户再次确认已授权的提交。
 
 ## 文件与验证要求
 
 - 不提交签名密钥、`keystore.properties`、`local.properties`、AuthKey、节点私有状态或含凭据的日志。AuthKey 仅用于内存中的注册请求，节点状态保存在应用私有目录并排除系统备份。
 - 不提交生成的 AAR、XCFramework、APK、IPA 和构建缓存；保留锁文件、原生补丁及已跟踪资源。变更原生依赖或 scrcpy 版本时同步核对资源校验、`mobile/NOTICE` 与 `mobile/assets/licenses/`。
-- 行为变更运行相关层的检查；涉及协议、并发或生命周期的修复应覆盖对应回归场景。纯文档变更核对内容、引用路径和差异格式即可。
-- 完成后检查差异与 `git diff --check`，说明修改内容、实际运行的验证及未完成的检查。构建通过不等于真机链路验收，设备验证参考 `mobile/docs/VALIDATION.md`。
+- 验证范围统一按“按改动选择检查”执行；保留协议、并发和生命周期修复的必要回归。
+- 完成后检查本次差异与 `git diff --check`，说明修改内容、实际运行的验证及未完成的检查。构建通过不等于真机链路验收；需要设备验证时读取对应验收场景。
