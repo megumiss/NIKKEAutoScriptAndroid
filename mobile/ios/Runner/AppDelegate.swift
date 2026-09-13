@@ -89,7 +89,7 @@ final class NkasStarBridge: NSObject, FlutterStreamHandler {
     case "nativeAdbConnect", "nativeAdbShell", "nativeAdbPush", "nativeAdbPull",
          "nativeAdbClose", "nativeScrcpyStart", "nativeScrcpyStop",
          "nativeScrcpyBack", "nativeScrcpyText", "nativeScrcpyKeycode", "nativeScrcpyTouch":
-      result(FlutterError(code: "unsupported_platform", message: "原生 ADB/scrcpy 仅支持 Android", details: nil))
+      result(FlutterError(code: "ios_backend_unavailable", message: "iOS 原生 ADB/scrcpy 后端尚未链接", details: nil))
     default:
       result(FlutterMethodNotImplemented)
     }
