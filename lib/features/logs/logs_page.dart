@@ -154,6 +154,7 @@ class _LogsPageState extends State<LogsPage> {
           const PageSubtitle('查看 log 目录下的日志文件'),
           Expanded(
             child: LogCard(
+              key: ObjectKey(result),
               title: '日志文件',
               showActions: true,
               fill: true,
@@ -400,10 +401,12 @@ class LogCard extends StatelessWidget {
                         child: Text('没有匹配的日志', style: theme.textTheme.muted),
                       )
                     : ListView.builder(
+                        reverse: true,
                         padding: const EdgeInsets.all(8),
                         itemCount: rows.length,
                         itemBuilder: (context, index) {
-                          final row = rows[index];
+                          // 从末尾建立视口，同时保留日志从上到下的原有顺序。
+                          final row = rows[rows.length - 1 - index];
                           return LogLine(
                             time: row.time,
                             level: row.level,

@@ -716,7 +716,7 @@
         const dates = ['2026-09-10', '2026-09-09'];
         const sources = ['全部', '主账号', '小号', '服务', '测试账号'];
         const levels = ['全部', 'INFO', 'WARN', 'ERROR'];
-        const logs = allLogs.filter((x) => x.date === state.logDate && (state.filter === '全部' || x.l === state.filter) && (state.logScope === '全部' || x.source === state.logScope));
+        const logs = allLogs.filter((x) => x.date === state.logDate && (state.filter === '全部' || x.l === state.filter) && (state.logScope === '全部' || x.source === state.logScope)).reverse();
         const singleSource = state.logScope !== '全部';
         const logMarkup = logs.length ? logs.map((x) => {
           return `<div class="np-log-line ${x.c} ${singleSource ? 'single-source' : ''}"><span class="np-log-time">${x.t}</span><span class="np-log-level ${x.c}">${x.l}</span>${singleSource ? '' : `<span class="np-log-source">${x.source}</span>`}<span class="np-log-message">${x.m}</span></div>`;
@@ -728,7 +728,7 @@
         const sourceSelect = root.querySelector('#np-log-source');
         const levelSelect = root.querySelector('#np-log-level');
         const logBody = root.querySelector('.np-log-body');
-        if (logBody && state.autoScroll) logBody.scrollTop = logBody.scrollHeight;
+        if (logBody) logBody.scrollTop = logBody.scrollHeight;
         if (dateSelect) dateSelect.addEventListener('change', () => { state.logDate = dateSelect.value; draw(); });
         if (sourceSelect) sourceSelect.addEventListener('change', () => { state.logScope = sourceSelect.value; draw(); });
         if (levelSelect) levelSelect.addEventListener('change', () => { state.filter = levelSelect.value; draw(); });
