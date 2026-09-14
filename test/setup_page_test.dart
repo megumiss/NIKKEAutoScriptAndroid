@@ -14,6 +14,8 @@ const _timeout = SetupOutputEvent(
   exitCode: -2,
 );
 
+const _alreadyRunning = '[nkas] bootstrap already running (PID 4312)\n';
+
 SetupStatus _status({bool complete = false, bool termuxInstalled = true}) =>
     SetupStatus(
       authorized: true,
@@ -109,6 +111,11 @@ SetupOutputEvent _log(String stage, String message) => SetupOutputEvent(
 NkasFloatingAction _action(WidgetTester tester) =>
     tester.widget<NkasFloatingAction>(find.byType(NkasFloatingAction));
 
+void _expectStepState(WidgetTester tester, String title, String state) {
+  final row = find.ancestor(of: find.text(title), matching: find.byType(Row));
+  expect(find.descendant(of: row, matching: find.text(state)), findsOneWidget);
+}
+
 void _expectStepMessage(
   WidgetTester tester,
   String message, {
@@ -188,6 +195,11 @@ void main() {
       const SetupOutputEvent('apt-get 安装失败', exitCode: 100),
       'apt-get 安装失败',
     ),
+    (
+      'another exit code 2',
+      const SetupOutputEvent('无法创建安装锁目录', exitCode: 2),
+      '无法创建安装锁目录',
+    ),
     ('script state', const SetupStateEvent('failed', '安装脚本报告失败'), '安装脚本报告失败'),
   ]) {
     testWidgets('bootstrap still reports a real failure from $name', (
@@ -246,6 +258,127 @@ void main() {
       }
     });
   }
+
+  for (final logBeforeResult in [false, true]) {
+    testWidgets(
+      'retry follows the existing installation with progress ${logBeforeResult ? 'before' : 'after'} the command result',
+      (tester) async {
+        final events = StreamController<NkasPlatformEvent>.broadcast();
+        final previousError = Exception('Termux 外部命令等待超时');
+        final platform = _SetupPlatform(events.stream)
+          ..startError = previousError;
+        try {
+          // Start from the failed UI left by the earlier timeout behavior.
+          await _startSetup(tester, platform);
+          expect(_action(tester).label, '重试当前安装');
+          platform.startError = null;
+          await tester.tap(find.text('重试当前安装'));
+          await tester.pump();
+          await tester.pump();
+          expect(platform.starts, 2);
+
+          if (logBeforeResult) {
+            await _emit(tester, events, _log('installing-container', '正在下载容器'));
+          }
+          await _emit(
+            tester,
+            events,
+            const SetupOutputEvent(_alreadyRunning, exitCode: 2),
+          );
+          if (!logBeforeResult) {
+            await _emit(tester, events, _log('installing-container', '正在下载容器'));
+          }
+          // Android also emits a setup failure for this nonzero command exit.
+          await _emit(
+            tester,
+            events,
+            const SetupStateEvent('failed', _alreadyRunning),
+          );
+
+          expect(_action(tester).label, '正在安装…');
+          expect(_action(tester).enabled, isFalse);
+          expect(find.text('失败'), findsNothing);
+          expect(find.text(previousError.toString()), findsNothing);
+          _expectStepState(tester, 'Termux 工具', '完成');
+          _expectStepState(tester, '容器', '执行中');
+          _expectStepState(tester, '容器服务', '等待');
+          expect(find.textContaining('正在下载容器'), findsOneWidget);
+
+          final checksBefore = platform.statusChecks;
+          await tester.pump(const Duration(seconds: 4));
+          expect(platform.statusChecks, greaterThan(checksBefore));
+          await tester.tap(find.text('正在安装…'));
+          await tester.pump();
+          expect(platform.starts, 2);
+
+          await _emit(tester, events, _log('starting-nkas', '正在启动服务'));
+          _expectStepState(tester, '容器', '完成');
+          _expectStepState(tester, '容器服务', '执行中');
+          platform.status = _status(complete: true);
+          await _emit(tester, events, const SetupStateEvent('ready', null));
+          expect(_action(tester).label, '打开 NKAS UI');
+          expect(_action(tester).enabled, isTrue);
+
+          // A late duplicate result must not restart the completed UI.
+          await _emit(
+            tester,
+            events,
+            const SetupOutputEvent(_alreadyRunning, exitCode: 2),
+          );
+          await _emit(
+            tester,
+            events,
+            const SetupStateEvent('failed', _alreadyRunning),
+          );
+          expect(_action(tester).label, '打开 NKAS UI');
+          expect(_action(tester).enabled, isTrue);
+          expect(tester.takeException(), isNull);
+        } finally {
+          await tester.pumpWidget(const SizedBox.shrink());
+          await events.close();
+        }
+      },
+    );
+  }
+
+  testWidgets(
+    'an existing-process notice clears a latched failure and resumes checks',
+    (tester) async {
+      final events = StreamController<NkasPlatformEvent>.broadcast();
+      final platform = _SetupPlatform(events.stream);
+      try {
+        await _startSetup(tester, platform);
+        await _emit(
+          tester,
+          events,
+          const SetupOutputEvent('安装命令响应丢失', exitCode: -1),
+        );
+        expect(_action(tester).label, '重试当前安装');
+
+        await _emit(
+          tester,
+          events,
+          const SetupStateEvent('failed', _alreadyRunning),
+        );
+        expect(_action(tester).label, '正在安装…');
+        expect(_action(tester).enabled, isFalse);
+        expect(find.text('失败'), findsNothing);
+        expect(find.text('安装命令响应丢失'), findsNothing);
+        final checksBefore = platform.statusChecks;
+        await tester.pump(const Duration(seconds: 4));
+        expect(platform.statusChecks, greaterThan(checksBefore));
+
+        await _emit(tester, events, _log('cloning-nkas', '继续下载源码'));
+        _expectStepState(tester, 'Termux 工具', '完成');
+        _expectStepState(tester, 'NKAS 源码', '执行中');
+        expect(find.textContaining('继续下载源码'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      } finally {
+        await tester.pumpWidget(const SizedBox.shrink());
+        await events.close();
+      }
+    },
+  );
 
   testWidgets('bootstrap start errors stay in the first installation step', (
     tester,

@@ -96,6 +96,11 @@ class _NkasSetupPageState extends State<NkasSetupPage>
     'starting-nkas': 'service',
   };
 
+  static final _bootstrapRunningNotice = RegExp(
+    r'^\[nkas\] bootstrap already running \(PID [1-9][0-9]*\)\r?$',
+    multiLine: true,
+  );
+
   @override
   void initState() {
     super.initState();
@@ -134,6 +139,10 @@ class _NkasSetupPageState extends State<NkasSetupPage>
         // -2 is the bridge callback timeout, not a bootstrap exit status.
         // The installation continues; preserve its state and keep polling.
         if (!log && exitCode == -2) return;
+        if (!log && exitCode == 2 && _isBootstrapRunningNotice(output)) {
+          setState(_resumeBootstrap);
+          return;
+        }
         setState(() {
           this.output = output;
           if (log && !setupFailed) {
@@ -154,6 +163,11 @@ class _NkasSetupPageState extends State<NkasSetupPage>
           }
         });
       case SetupStateEvent(:final state, :final message):
+        // Android also reports the duplicate command's exit as a setup failure.
+        if (state == 'failed' && _isBootstrapRunningNotice(message)) {
+          setState(_resumeBootstrap);
+          return;
+        }
         setState(() {
           running = state != 'ready' && state != 'failed';
           if (state == 'failed') {
@@ -260,6 +274,31 @@ class _NkasSetupPageState extends State<NkasSetupPage>
     }
   }
 
+  bool _isBootstrapRunningNotice(String? message) =>
+      message != null && _bootstrapRunningNotice.hasMatch(message.trim());
+
+  void _resumeBootstrap() {
+    // Do not reopen a completed installation for a late duplicate reply.
+    if (!running && !setupFailed && activeStage == null) return;
+    if (failedStage case final failed?) stageErrors.remove(failed);
+    failedStage = null;
+    setupFailed = false;
+    running = true;
+    activeStage ??= 'tools';
+    stageStates[activeStage!] = '执行中';
+    expanded.add(activeStage!);
+    output = '已有安装任务正在执行，继续读取安装进度……';
+    _ensureRefreshTimer();
+  }
+
+  void _ensureRefreshTimer() {
+    if (!mounted || refreshTimer?.isActive == true) return;
+    refreshTimer = Timer.periodic(
+      const Duration(seconds: 4),
+      (_) => _refresh(),
+    );
+  }
+
   Future<void> _start() async {
     setState(() {
       running = true;
@@ -276,11 +315,7 @@ class _NkasSetupPageState extends State<NkasSetupPage>
     });
     try {
       await platform.startSetup();
-      refreshTimer?.cancel();
-      refreshTimer = Timer.periodic(
-        const Duration(seconds: 4),
-        (_) => _refresh(),
-      );
+      _ensureRefreshTimer();
     } on Object catch (exception) {
       if (mounted) {
         setState(() {
