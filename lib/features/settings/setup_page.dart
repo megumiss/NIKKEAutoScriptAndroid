@@ -18,11 +18,13 @@ class NkasSetupPage extends StatefulWidget {
   const NkasSetupPage({
     required this.onOpenStar,
     required this.onOpenUi,
+    this.platform,
     super.key,
   });
 
   final VoidCallback onOpenStar;
   final VoidCallback onOpenUi;
+  final NkasPlatform? platform;
 
   @override
   State<NkasSetupPage> createState() => _NkasSetupPageState();
@@ -30,6 +32,8 @@ class NkasSetupPage extends StatefulWidget {
 
 class _NkasSetupPageState extends State<NkasSetupPage>
     with WidgetsBindingObserver {
+  NkasPlatform get platform => widget.platform ?? NkasPlatform.instance;
+
   SetupStatus status = const SetupStatus(
     authorized: false,
     termuxInstalled: false,
@@ -97,8 +101,8 @@ class _NkasSetupPageState extends State<NkasSetupPage>
     WidgetsBinding.instance.addObserver(this);
     serialFocusNode.addListener(_onSerialFocusChanged);
     unawaited(_refresh());
-    if (NkasPlatform.instance.supported) {
-      subscription = NkasPlatform.instance.events.listen(_onEvent);
+    if (platform.supported) {
+      subscription = platform.events.listen(_onEvent);
     }
   }
 
@@ -126,6 +130,9 @@ class _NkasSetupPageState extends State<NkasSetupPage>
     if (!mounted) return;
     switch (event) {
       case SetupOutputEvent(:final output, :final log, :final exitCode):
+        // -2 is the bridge callback timeout, not a bootstrap exit status.
+        // The installation continues; preserve its state and keep polling.
+        if (!log && exitCode == -2) return;
         setState(() {
           this.output = output;
           if (log && !setupFailed) {
@@ -204,7 +211,7 @@ class _NkasSetupPageState extends State<NkasSetupPage>
 
   Future<void> _refresh() async {
     try {
-      final value = await NkasPlatform.instance.setupStatus();
+      final value = await platform.setupStatus();
       if (!mounted) return;
       if (!serialFocusNode.hasFocus) {
         serialController.text = isIOS
@@ -268,7 +275,7 @@ class _NkasSetupPageState extends State<NkasSetupPage>
       expanded.add('tools');
     });
     try {
-      await NkasPlatform.instance.startSetup();
+      await platform.startSetup();
       refreshTimer?.cancel();
       refreshTimer = Timer.periodic(
         const Duration(seconds: 4),
@@ -312,9 +319,9 @@ class _NkasSetupPageState extends State<NkasSetupPage>
     });
     try {
       if (serial.isNotEmpty) {
-        await NkasPlatform.instance.setSerial('127.0.0.1:$serial');
+        await platform.setSerial('127.0.0.1:$serial');
       }
-      await NkasPlatform.instance.pairDevice(
+      await platform.pairDevice(
         code: code,
         serial: serial.isEmpty ? '' : '127.0.0.1:$serial',
       );
@@ -355,7 +362,7 @@ class _NkasSetupPageState extends State<NkasSetupPage>
       if (mounted) _show('请输入 host:port 或 adb://host:port');
       return;
     }
-    await NkasPlatform.instance.setSerial(
+    await platform.setSerial(
       endpoint.startsWith('adb://') ? endpoint : 'adb://$endpoint',
     );
     if (mounted) await _refresh();
@@ -373,7 +380,7 @@ class _NkasSetupPageState extends State<NkasSetupPage>
       }
       return false;
     }
-    await NkasPlatform.instance.setSerial('127.0.0.1:$serial');
+    await platform.setSerial('127.0.0.1:$serial');
     if (refresh && mounted) await _refresh();
     return true;
   }
@@ -695,17 +702,17 @@ class _NkasSetupPageState extends State<NkasSetupPage>
         termuxDownloadFailed = false;
         termuxDownloadActive = true;
       });
-      return NkasPlatform.instance.downloadTermux();
+      return platform.downloadTermux();
     }
     if (!status.runCommandPermission) {
-      await NkasPlatform.instance.requestRunCommandPermission();
+      await platform.requestRunCommandPermission();
       await Future<void>.delayed(const Duration(milliseconds: 500));
       return _refresh();
     }
     if (_artifactStatusKnown && !_termuxSettingReady) return _refresh();
     if (_artifactCheckFailed) return _refresh();
     if (!_projectArtifactsReady) {
-      if (!await NkasPlatform.instance.initialNoticeShown()) {
+      if (!await platform.initialNoticeShown()) {
         if (!mounted) return;
         final proceed = await showDialog<bool>(
           context: context,
@@ -727,12 +734,12 @@ class _NkasSetupPageState extends State<NkasSetupPage>
           ),
         );
         if (proceed != true) return;
-        await NkasPlatform.instance.setInitialNoticeShown();
+        await platform.setInitialNoticeShown();
       }
       return _start();
     }
     if (!status.wirelessDebug) {
-      return NkasPlatform.instance.openWirelessSettings();
+      return platform.openWirelessSettings();
     }
     if (_projectArtifactsReady && !_adbDeviceReady) return;
     if (status.artifactsReady) {
@@ -748,7 +755,7 @@ class _NkasSetupPageState extends State<NkasSetupPage>
       return;
     }
     try {
-      final configured = (await NkasPlatform.instance.getNkasSerial()).trim();
+      final configured = (await platform.getNkasSerial()).trim();
       if (!mounted) return;
       if (configured.isEmpty || configured == current) {
         widget.onOpenUi();
@@ -775,7 +782,7 @@ class _NkasSetupPageState extends State<NkasSetupPage>
         ),
       );
       if (overwrite == true) {
-        await NkasPlatform.instance.setNkasSerial(current);
+        await platform.setNkasSerial(current);
       }
       if (mounted) widget.onOpenUi();
     } on Object catch (exception) {
@@ -893,7 +900,7 @@ class _NkasSetupPageState extends State<NkasSetupPage>
                 compact: true,
                 icon: LucideIcons.settings2,
                 label: '打开应用权限设置',
-                onPressed: NkasPlatform.instance.openAppSettings,
+                onPressed: platform.openAppSettings,
               ),
             ],
           ),
@@ -920,7 +927,7 @@ class _NkasSetupPageState extends State<NkasSetupPage>
                     compact: true,
                     icon: LucideIcons.terminal,
                     label: '打开 Termux',
-                    onPressed: NkasPlatform.instance.openTermux,
+                    onPressed: platform.openTermux,
                   ),
                   SecondaryButton(
                     compact: true,
@@ -950,7 +957,7 @@ class _NkasSetupPageState extends State<NkasSetupPage>
                 compact: true,
                 icon: LucideIcons.settings2,
                 label: '打开无线调试设置',
-                onPressed: NkasPlatform.instance.openWirelessSettings,
+                onPressed: platform.openWirelessSettings,
               ),
             ],
           ),
