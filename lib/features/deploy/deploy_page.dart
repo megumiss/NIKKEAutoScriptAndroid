@@ -139,6 +139,7 @@ class _DeployPageState extends State<DeployPage> {
             content: const Text('关闭后，任何网络可达的客户端均可直接访问后端。确认关闭？'),
             actions: [
               TextButton(
+                style: NkasActionStyle.compactButton,
                 onPressed: () => Navigator.pop(context, false),
                 child: const Text('取消'),
               ),
@@ -201,6 +202,7 @@ class _DeployPageState extends State<DeployPage> {
           ),
           actions: [
             TextButton(
+              style: NkasActionStyle.compactButton,
               onPressed: () => Navigator.pop(context, false),
               child: const Text('取消'),
             ),
@@ -288,6 +290,7 @@ class _DeployPageState extends State<DeployPage> {
               if (connected) ...[
                 const SizedBox(height: 10),
                 SecondaryButton(
+                  compact: true,
                   icon: LucideIcons.refreshCw,
                   label: '重新加载',
                   onPressed: () {
@@ -376,7 +379,7 @@ class _WarningCard extends StatelessWidget {
               scheme.destructive,
               Theme.of(context).brightness,
             ),
-            minHeight: 34,
+            minHeight: NkasActionStyle.compactHeight,
             radius: 10,
             horizontalPadding: 10,
           ),
@@ -644,7 +647,8 @@ class _PriorityControl extends StatelessWidget {
                 ),
                 IconButton(
                   tooltip: '前移',
-                  icon: const Icon(LucideIcons.chevronLeft, size: 18),
+                  style: NkasActionStyle.compactButton,
+                  icon: const Icon(LucideIcons.chevronLeft, size: 15),
                   onPressed: disabled || index == 0
                       ? null
                       : () {
@@ -656,7 +660,8 @@ class _PriorityControl extends StatelessWidget {
                 ),
                 IconButton(
                   tooltip: '后移',
-                  icon: const Icon(LucideIcons.chevronRight, size: 18),
+                  style: NkasActionStyle.compactButton,
+                  icon: const Icon(LucideIcons.chevronRight, size: 15),
                   onPressed: disabled || index == selected.length - 1
                       ? null
                       : () {
@@ -668,7 +673,8 @@ class _PriorityControl extends StatelessWidget {
                 ),
                 IconButton(
                   tooltip: '移除',
-                  icon: const Icon(LucideIcons.x, size: 18),
+                  style: NkasActionStyle.compactButton,
+                  icon: const Icon(LucideIcons.x, size: 15),
                   onPressed: disabled
                       ? null
                       : () => _update([...selected]..removeAt(index)),

@@ -46,7 +46,7 @@ class SectionHeader extends StatelessWidget {
                   background: theme.colorScheme.secondaryButtonBg,
                   foreground: theme.colorScheme.secondaryButtonText,
                   borderColor: theme.colorScheme.secondaryButtonBorder,
-                  minHeight: 34,
+                  minHeight: NkasActionStyle.compactHeight,
                   radius: 10,
                   horizontalPadding: 10,
                 )

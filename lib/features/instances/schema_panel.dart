@@ -80,6 +80,7 @@ class _SchemaPanelState extends State<SchemaPanel> {
           Text(widget.error == null ? '暂无任务配置' : '任务配置加载失败'),
           const SizedBox(height: 10),
           SecondaryButton(
+            compact: true,
             icon: LucideIcons.refreshCw,
             label: '重新加载',
             onPressed: widget.onReload,

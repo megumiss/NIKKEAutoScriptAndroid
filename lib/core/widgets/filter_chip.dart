@@ -17,7 +17,6 @@ class NkasFilterChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
-    final radius = BorderRadius.circular(999);
     return Semantics(
       button: true,
       selected: active,
@@ -26,45 +25,37 @@ class NkasFilterChip extends StatelessWidget {
         opacity: onTap == null ? .45 : 1,
         child: Padding(
           padding: const EdgeInsets.only(right: 6),
-          child: Material(
-            color: active
-                ? theme.colorScheme.accentSoft
-                : theme.colorScheme.card,
-            shape: RoundedRectangleBorder(
-              borderRadius: radius,
+          child: TextButton(
+            onPressed: onTap,
+            style: TextButton.styleFrom(
+              backgroundColor: active
+                  ? theme.colorScheme.accentSoft
+                  : theme.colorScheme.card,
+              foregroundColor: active
+                  ? theme.colorScheme.primary
+                  : theme.colorScheme.mutedForeground,
+              disabledForegroundColor: theme.colorScheme.mutedForeground,
+              shape: const StadiumBorder(),
               side: BorderSide(
                 color: active
                     ? theme.colorScheme.primary
                     : theme.colorScheme.border,
               ),
-            ),
-            child: InkWell(
-              onTap: onTap,
-              borderRadius: radius,
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 8,
-                  ),
-                  child: Center(
-                    widthFactor: 1,
-                    heightFactor: 1,
-                    child: Text(
-                      label,
-                      style: TextStyle(
-                        color: active
-                            ? theme.colorScheme.primary
-                            : theme.colorScheme.mutedForeground,
-                        fontSize: 12,
-                        fontWeight: active ? FontWeight.w700 : FontWeight.w400,
-                      ),
-                    ),
-                  ),
-                ),
+              minimumSize: const Size(
+                NkasActionStyle.minTapSize,
+                NkasActionStyle.chipHeight,
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              tapTargetSize: MaterialTapTargetSize.padded,
+              visualDensity: VisualDensity.standard,
+              textStyle: theme.textTheme.p.copyWith(
+                fontFamily: theme.textTheme.family,
+                fontSize: 12,
+                height: 1.3,
+                fontWeight: active ? FontWeight.w700 : FontWeight.w400,
               ),
             ),
+            child: Text(label),
           ),
         ),
       ),

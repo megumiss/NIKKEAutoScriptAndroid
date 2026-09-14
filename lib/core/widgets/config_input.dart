@@ -146,6 +146,7 @@ class _NkasConfigInputState extends State<NkasConfigInput> {
           Align(
             alignment: Alignment.centerRight,
             child: SecondaryButton(
+              compact: true,
               icon: LucideIcons.check,
               label: submitting ? '保存中…' : '保存',
               loading: submitting,

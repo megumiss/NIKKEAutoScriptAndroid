@@ -4,6 +4,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:nkas_mobile/core/connection/connection_controller.dart';
 import 'package:nkas_mobile/core/widgets/buttons.dart';
 import 'package:nkas_mobile/core/widgets/form_field.dart';
+import 'package:nkas_mobile/theme.dart';
 
 /// Private-key actions attached to the schema-rendered deployment checkbox.
 class SecurityEntryActions extends StatefulWidget {
@@ -67,6 +68,7 @@ class _SecurityEntryActionsState extends State<SecurityEntryActions> {
         content: const Text('重新生成后，旧入口和其他客户端凭据将失效。当前 App 会自动保存新入口，后台任务不受影响。'),
         actions: [
           TextButton(
+            style: NkasActionStyle.compactButton,
             onPressed: () => Navigator.pop(context, false),
             child: const Text('取消'),
           ),
@@ -128,6 +130,7 @@ class _SecurityEntryActionsState extends State<SecurityEntryActions> {
                       },
               ),
               SecondaryButton(
+                compact: true,
                 icon: LucideIcons.refreshCw,
                 label: '重新生成入口',
                 onPressed: busy || widget.disabled ? null : _regenerate,
@@ -144,6 +147,7 @@ class _SecurityEntryActionsState extends State<SecurityEntryActions> {
             ),
           ),
           TextButton(
+            style: NkasActionStyle.compactButton,
             onPressed: busy || widget.disabled ? null : _load,
             child: const Text('重试'),
           ),

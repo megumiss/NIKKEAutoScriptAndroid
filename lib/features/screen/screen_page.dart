@@ -451,6 +451,7 @@ class _ScreenPanelState extends State<ScreenPanel> {
                   ),
                 ] else
                   TextButton(
+                    style: NkasActionStyle.compactButton,
                     onPressed: loading || !widget.accessGranted ? null : _load,
                     child: const Text(
                       '刷新画面',
@@ -609,6 +610,7 @@ class _NativeTextDialogState extends State<_NativeTextDialog> {
     ),
     actions: [
       TextButton(
+        style: NkasActionStyle.compactButton,
         onPressed: () => Navigator.pop(context),
         child: const Text('取消'),
       ),

@@ -163,6 +163,7 @@ class OverviewPage extends StatelessWidget {
               Row(
                 children: [
                   SecondaryButton(
+                    compact: true,
                     icon: LucideIcons.refreshCw,
                     label: '刷新状态',
                     onPressed: () => onRefreshStatus(),

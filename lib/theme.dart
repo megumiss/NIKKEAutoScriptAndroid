@@ -190,6 +190,23 @@ extension NkasColorSchemeX on ShadColorScheme {
   Color get heroMetaIcon => custom[NkasCustomKeys.heroMetaIcon]!;
 }
 
+/// 操作按钮的视觉高度与触控范围分别设置。
+abstract final class NkasActionStyle {
+  static const minTapSize = 48.0;
+  static const secondaryHeight = 38.0;
+  static const compactHeight = 34.0;
+  static const chipHeight = 30.0;
+
+  static const compactButton = ButtonStyle(
+    minimumSize: WidgetStatePropertyAll(Size(minTapSize, compactHeight)),
+    padding: WidgetStatePropertyAll(
+      EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+    ),
+    tapTargetSize: MaterialTapTargetSize.padded,
+    visualDensity: VisualDensity.standard,
+  );
+}
+
 /// 文本、数字、日期和选择控件共用的尺寸与边界。
 abstract final class NkasInputStyle {
   static const radius = BorderRadius.all(Radius.circular(10));

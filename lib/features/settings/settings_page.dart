@@ -438,28 +438,45 @@ class _ThemeSegment extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
-    return Container(
-      padding: const EdgeInsets.all(2),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.input,
-        border: Border.all(color: theme.colorScheme.border),
-        borderRadius: NkasInputStyle.radius,
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _ThemeChoice(
-            label: '浅色',
-            selected: themeMode != ThemeMode.dark,
-            onTap: onChanged == null ? null : () => onChanged!(ThemeMode.light),
+    const inset =
+        (NkasActionStyle.minTapSize - NkasActionStyle.compactHeight) / 2;
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        Positioned.fill(
+          top: inset,
+          bottom: inset,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: theme.colorScheme.input,
+              border: Border.all(color: theme.colorScheme.border),
+              borderRadius: NkasInputStyle.radius,
+            ),
           ),
-          _ThemeChoice(
-            label: '深色',
-            selected: themeMode == ThemeMode.dark,
-            onTap: onChanged == null ? null : () => onChanged!(ThemeMode.dark),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _ThemeChoice(
+                label: '浅色',
+                selected: themeMode != ThemeMode.dark,
+                onTap: onChanged == null
+                    ? null
+                    : () => onChanged!(ThemeMode.light),
+              ),
+              _ThemeChoice(
+                label: '深色',
+                selected: themeMode == ThemeMode.dark,
+                onTap: onChanged == null
+                    ? null
+                    : () => onChanged!(ThemeMode.dark),
+              ),
+            ],
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
@@ -476,37 +493,34 @@ class _ThemeChoice extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = ShadTheme.of(context).colorScheme;
-    final radius = BorderRadius.circular(8);
+    final theme = ShadTheme.of(context);
+    final scheme = theme.colorScheme;
     return Semantics(
       button: true,
       selected: selected,
       enabled: onTap != null,
-      child: Material(
-        color: selected ? scheme.card : Colors.transparent,
-        borderRadius: radius,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: radius,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-              child: Center(
-                widthFactor: 1,
-                heightFactor: 1,
-                child: Text(
-                  label,
-                  style: TextStyle(
-                    color: selected ? scheme.primary : scheme.mutedForeground,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ),
+      child: TextButton(
+        onPressed: onTap,
+        style: TextButton.styleFrom(
+          backgroundColor: selected ? scheme.card : Colors.transparent,
+          foregroundColor: selected ? scheme.primary : scheme.mutedForeground,
+          disabledForegroundColor: scheme.mutedForeground,
+          minimumSize: const Size(
+            NkasActionStyle.minTapSize,
+            NkasActionStyle.chipHeight,
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          tapTargetSize: MaterialTapTargetSize.padded,
+          visualDensity: VisualDensity.standard,
+          textStyle: theme.textTheme.p.copyWith(
+            fontFamily: theme.textTheme.family,
+            fontSize: 12,
+            height: 1.3,
+            fontWeight: FontWeight.w600,
           ),
         ),
+        child: Text(label),
       ),
     );
   }
