@@ -327,7 +327,10 @@ class _NativeControlPageState extends State<NativeControlPage> {
                             const Divider(height: 18),
                             NkasTextField(
                               label: 'Tailscale AuthKey',
-                              description: '首次注册时填写，注册后可留空',
+                              description:
+                                  '用于将本应用注册到目标设备所在的 Tailscale 网络。\n'
+                                  '在 Tailscale 管理后台 Settings → Keys → Generate auth key 创建，密钥以 tskey-auth- 开头。\n'
+                                  '首次注册或清除身份后填写；注册后可留空，密钥不会保存到设置。',
                               controller: authKey,
                               enabled: !busy,
                               obscureText: true,

@@ -18,7 +18,7 @@ Flutter 控制页面
 
 1. 完成现有的 STAR 访问验证后，从“设置 → 后端地址”进入独立页面，填写 NKAS 后端并点击“保存并连接”，成功后返回设置；顶部返回按钮放弃尚未提交的编辑。后端安全入口默认关闭；如已在部署页开启，请粘贴完整入口而非普通根地址，见下文。
 2. 在“设置”中进入“控制连接”独立页面，选择远程 Android，填写 `host:port` 或 `adb://host:port`。IPv6 使用 `[address]:port`。点击“保存”后返回；顶部返回按钮放弃尚未保存的编辑。
-3. 通过 Tailscale 连接时开启开关，填写节点名。首次注册输入 AuthKey，点击“验证连接”；已保存节点身份时可留空。目标的 tailnet ACL 和 Android ADB 服务必须允许连接。
+3. 通过 Tailscale 连接时开启开关，填写节点名。AuthKey 用于将本应用注册到目标设备所在的 Tailscale 网络，可在该网络的 [Tailscale 管理后台](https://login.tailscale.com/admin/settings/keys)通过 Settings → Keys → Generate auth key 创建，密钥以 `tskey-auth-` 开头。首次注册或清除身份后输入 AuthKey，点击“验证连接”；已保存节点身份时可留空。目标的 tailnet ACL 和 Android ADB 服务必须允许连接。
 4. 在“画面”页连接设备。首个解码帧到达后显示实时画面；支持单指点击、长按、滑动、返回、主页和最多 300 UTF-8 字节的文本输入。
 
 从外网通过 Tailscale 访问 `192.168.x.x` 等局域网地址时，需要有子网路由器发布对应网段，并在 tailnet 中批准路由、允许访问目标端口。
