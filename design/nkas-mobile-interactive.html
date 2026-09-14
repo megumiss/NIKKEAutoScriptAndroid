@@ -272,6 +272,13 @@
     .np-form-actions { position:absolute; left:18px; right:18px; bottom:14px; }
     .np-form-actions .np-primary { width:100%; min-height:48px; }
     .np-form-address { margin:0; font-size:13px; line-height:1.5; overflow-wrap:anywhere; }
+    .np-connection-card { padding:0; overflow:hidden; }
+    .np-connection-row { display:flex; align-items:flex-start; gap:12px; padding:11px 14px; }
+    .np-connection-row + .np-connection-row { border-top:1px solid var(--np-line); }
+    .np-connection-row > .np-form-label { flex-shrink:0; margin:0; }
+    .np-connection-row > .np-form-address { flex:1; min-width:0; text-align:right; color:var(--np-muted); font-size:12px; }
+    .np-connection-status { margin-left:auto; padding:3px 7px; border-radius:7px; color:var(--np-success); background:color-mix(in srgb, currentColor 11%, transparent); font-size:10px; font-weight:700; }
+    .np-connection-status.disconnected { color:var(--np-danger); }
     .np-url-save { height:35px; padding:0 10px; border:0; border-radius:9px; background:var(--np-blue); color:#fff; font-size:12px; font-weight:650; cursor:pointer; }
     .np-instance-hero { padding:9px 10px; border-radius:16px; background:var(--np-surface); border:1px solid var(--np-line); }
     .np-instance-hero-row { min-width:0; display:flex; align-items:center; gap:7px; }
@@ -804,7 +811,7 @@
       function openStarVerify() { state.page = 'star-verify'; closeSheet(); draw(); }
       function openBackendEditor() { state.page = 'backendAddress'; draw(); }
       function drawBackendAddress() {
-        content.innerHTML = `<p class="np-subtitle">配置后端服务地址与安全入口</p><form id="np-backend-form" novalidate><section class="np-setting-group"><p class="np-group-label">连接地址</p><div class="np-form-card"><label class="np-form-label" for="np-backend-input">后端地址或完整安全入口</label><p class="np-form-help" id="np-backend-help">未开启安全入口时填写服务地址；已开启时粘贴完整 /entry/ 入口。<br>例如 http://192.168.1.20:12271，公网建议使用 HTTPS。</p><input id="np-backend-input" class="np-url-input" inputmode="url" autocomplete="off" spellcheck="false" aria-describedby="np-backend-help np-backend-error" placeholder="http://127.0.0.1:12271"><p class="np-form-error" id="np-backend-error" role="alert" hidden></p></div></section><section class="np-setting-group"><p class="np-group-label">当前连接</p><div class="np-form-card"><p class="np-form-label">当前服务地址</p><p class="np-form-address" id="np-backend-current"></p></div></section><div class="np-form-actions"><button class="np-primary" type="submit">${icon('check')}保存并连接</button></div></form>`;
+        content.innerHTML = `<p class="np-subtitle">配置后端服务地址与安全入口</p><form id="np-backend-form" novalidate><section class="np-setting-group"><p class="np-group-label">连接地址</p><div class="np-form-card"><label class="np-form-label" for="np-backend-input">后端地址或完整安全入口</label><p class="np-form-help" id="np-backend-help">未开启安全入口时填写服务地址；已开启时粘贴完整 /entry/ 入口。<br>例如 http://192.168.1.20:12271，公网建议使用 HTTPS。</p><input id="np-backend-input" class="np-url-input" inputmode="url" autocomplete="off" spellcheck="false" aria-describedby="np-backend-help np-backend-error" placeholder="http://127.0.0.1:12271"><p class="np-form-error" id="np-backend-error" role="alert" hidden></p></div></section><section class="np-setting-group"><p class="np-group-label">当前连接</p><div class="np-form-card np-connection-card"><div class="np-connection-row"><span class="np-form-label">连接状态</span><span class="np-connection-status ${state.running ? '' : 'disconnected'}" role="status">${state.running ? '已连接' : '已断开'}</span></div><div class="np-connection-row"><span class="np-form-label">服务地址</span><p class="np-form-address" id="np-backend-current"></p></div>${state.running ? '<div class="np-connection-row"><span class="np-form-label">后端版本</span><p class="np-form-address">2026.09.09</p></div>' : ''}</div></section><div class="np-form-actions"><button class="np-primary" type="submit">${icon('check')}保存并连接</button></div></form>`;
         const input = content.querySelector('#np-backend-input');
         const error = content.querySelector('#np-backend-error');
         input.value = state.backend;

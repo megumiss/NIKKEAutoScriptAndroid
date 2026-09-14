@@ -11,6 +11,7 @@ import 'package:nkas_mobile/core/widgets/group_label.dart';
 import 'package:nkas_mobile/core/widgets/page_inset.dart';
 import 'package:nkas_mobile/core/widgets/page_subtitle.dart';
 import 'package:nkas_mobile/core/widgets/surface.dart';
+import 'package:nkas_mobile/core/widgets/tag.dart';
 import 'package:nkas_mobile/theme.dart';
 
 class BackendAddressPage extends StatefulWidget {
@@ -128,6 +129,10 @@ class _BackendAddressPageState extends State<BackendAddressPage> {
                   listenable: widget.connectionController,
                   builder: (context, _) {
                     final state = widget.connectionController.state;
+                    final backendVersion = state.status?.version;
+                    final valueStyle = theme.textTheme.muted.copyWith(
+                      height: 1.5,
+                    );
                     final color = switch (state.phase) {
                       ConnectionPhase.connected => scheme.success,
                       ConnectionPhase.connecting => scheme.primary,
@@ -135,39 +140,49 @@ class _BackendAddressPageState extends State<BackendAddressPage> {
                       ConnectionPhase.incompatible => scheme.warning,
                     };
                     return Surface(
+                      padding: EdgeInsets.zero,
                       child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          Row(
-                            children: [
-                              Icon(
-                                state.phase == ConnectionPhase.connected
-                                    ? LucideIcons.circleCheck
-                                    : LucideIcons.server,
-                                size: 18,
-                                color: color,
+                          _ConnectionInfoRow(
+                            label: '连接状态',
+                            value: Tag(label: state.label, color: color),
+                          ),
+                          const Divider(height: 1),
+                          _ConnectionInfoRow(
+                            label: '服务地址',
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            value: SelectableText(
+                              state.baseUrl,
+                              textAlign: TextAlign.right,
+                              style: valueStyle,
+                            ),
+                          ),
+                          if (backendVersion != null) ...[
+                            const Divider(height: 1),
+                            _ConnectionInfoRow(
+                              label: '后端版本',
+                              value: Text(
+                                backendVersion,
+                                textAlign: TextAlign.right,
+                                style: valueStyle,
                               ),
-                              const SizedBox(width: 8),
-                              Text(
-                                state.label,
-                                style: theme.textTheme.p.copyWith(
-                                  color: color,
-                                  fontWeight: FontWeight.w600,
+                            ),
+                          ],
+                          if (state.phase != ConnectionPhase.connected &&
+                              state.message != null &&
+                              error == null) ...[
+                            const Divider(height: 1),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 11,
+                              ),
+                              child: Text(
+                                state.message!,
+                                style: theme.textTheme.muted.copyWith(
+                                  height: 1.5,
                                 ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          SelectableText(
-                            state.baseUrl,
-                            style: theme.textTheme.p,
-                          ),
-                          if (state.message != null && error == null) ...[
-                            const SizedBox(height: 4),
-                            Text(
-                              state.message!,
-                              style: theme.textTheme.muted.copyWith(
-                                height: 1.5,
                               ),
                             ),
                           ],
@@ -217,6 +232,39 @@ class _BackendAddressPageState extends State<BackendAddressPage> {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _ConnectionInfoRow extends StatelessWidget {
+  const _ConnectionInfoRow({
+    required this.label,
+    required this.value,
+    this.crossAxisAlignment = CrossAxisAlignment.center,
+  });
+
+  final String label;
+  final Widget value;
+  final CrossAxisAlignment crossAxisAlignment;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ShadTheme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+      child: Row(
+        crossAxisAlignment: crossAxisAlignment,
+        children: [
+          Text(
+            label,
+            style: theme.textTheme.p.copyWith(fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Align(alignment: Alignment.centerRight, child: value),
+          ),
+        ],
+      ),
     );
   }
 }
