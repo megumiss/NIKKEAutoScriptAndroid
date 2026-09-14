@@ -86,7 +86,7 @@ flutter build apk --debug
 
 `ANDROID_HOME` 需指向 SDK。如果机器设置了旧 `GOROOT`，应先让 `GOROOT` 和 `PATH` 指向同一套 Go 1.23.12。构建脚本生成 `native/android/nkas-tsnet.aar`，包含 `armeabi-v7a`、`arm64-v8a`、`x86_64`；未生成时 Gradle 会给出明确错误。
 
-发布构建使用仓库根目录的 `keystore.properties` 和签名文件，随后执行 `flutter build apk --release`。这些本地凭据不应提交。
+发布构建使用仓库根目录的 `keystore.properties` 和签名文件，随后执行 `flutter build apk --release`。对外分发前按[版本与构建标识](BUILD.md#版本与构建标识)准备递增的整数构建号；提交哈希单独用于源码追踪。日常提交不自动升版。这些本地凭据不应提交。
 
 ## iOS 构建
 

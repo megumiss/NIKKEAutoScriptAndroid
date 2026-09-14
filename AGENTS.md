@@ -62,7 +62,7 @@
 | Flutter 源码 | 仓库根目录 | `flutter analyze`、`flutter test`；交互变化验证相关页面流程 |
 | Go 源码 | `native/tsnet/` | `go test ./...` |
 | Go 并发、取消或生命周期 | `native/tsnet/` | 另执行 `go test -race ./...`，需要支持 cgo 的 C 工具链 |
-| 原生构建工具 | 仓库根目录 | `python -m unittest discover -s tool -p 'test_*.py'` |
+| 原生构建或版本工具 | 仓库根目录 | `python -m unittest discover -s tool -p 'test_*.py'`；版本工具回归需要 PowerShell |
 | 原生库、资源或平台构建配置 | 仓库根目录 | `python tool/verify_native.py`（可用 `--android` / `--ios` 限定平台），并完成相关平台构建 |
 | Go 依赖或许可证清单 | 仓库根目录 | `python tool/collect_native_licenses.py go --check` |
 
@@ -95,20 +95,22 @@ flutter build ios --simulator --debug --no-codesign
 
 XCTest、签名和发布产物校验参考 `.github/workflows/flutter-release.yml` 与 `README.md`。
 
-## 提交与版本号
+## 提交、发布与版本号
 
-- 每次 Git 提交都必须将应用版本号递增一次，包括代码、文档和配置变更；版本修改与本次改动一并提交。
-- 版本格式为 `主版本.次版本.修订号`，每次修订号加 1，逢 10 归零并向左进位；次版本同样逢 10 进位，主版本可继续递增。例如 `1.0.8 → 1.0.9 → 1.1.0`、`1.9.9 → 2.0.0`。
-- 当前 Flutter 应用以 `pubspec.yaml` 的 `version` 为版本来源，必须同步 `lib/features/settings/about_page.dart` 的 `appVersion`。使用现有脚本，在仓库根目录执行：
+- 日常 Git 提交不自动递增版本号，包括代码、文档和配置变更。仅在准备正式发布或用户明确要求升版时调整；普通打包、测试和提交重试不触发升版。
+- 用户可见版本采用 `主版本.次版本.修订号`：修复和小幅改进递增修订号，兼容的新功能递增次版本并将修订号归零，不兼容变更递增主版本并将后两段归零。各段不按十进制进位，例如 `1.1.9 → 1.1.10`、`1.9.3 → 1.10.0`。
+- Flutter 版本来源为 `pubspec.yaml` 的 `version`，可以带整数构建号，如 `1.1.3+42`。`lib/features/settings/about_page.dart` 的 `appVersion` 只同步前三段 `1.1.3`。
+- 准备发布时使用现有脚本；`-Part` 可选 `Patch`（默认）、`Minor`、`Major`。脚本只递增用户可见版本，保留已有的 `+构建号`：
 
 ```powershell
-.\tool\bump-version.ps1 -DryRun
-.\tool\bump-version.ps1
+.\tool\bump-version.ps1 -Part Patch -DryRun
+.\tool\bump-version.ps1 -Part Patch
 ```
 
-- 第一条命令仅预览，第二条命令实际更新两个文件。以当前分支上一条提交的版本为基准，确保本次提交恰好递增一次；同一次提交的构建、测试或提交重试不重复递增。
-- 提交前检查两个版本值一致，并将版本文件加入同一次提交。
-- 升版仅在准备 Git 提交时执行；纯文档提交附带的版本字符串同步只检查版本值一致性，不扩大验证范围。DryRun 用于自检，不要求用户再次确认已授权的提交。
+- 第一条命令仅预览，第二条实际更新两个版本文件。以计划发布的版本为基准，同一候选版本的构建、测试或提交重试不重复升版；正式发布时用匹配版本的 Git 标签标识发布提交。
+- 对外分发的安装包使用单调递增的正整数构建号，通过 `version` 的 `+N` 或 Flutter 的 `--build-number N` 指定。它对应 Android `versionCode` 和 iOS `CFBundleVersion`；本地与 CI 发包须从同一编号序列分配，新分发包的编号应高于此前已分发包。本地验证且不分发的构建可以复用已有编号。
+- 提交哈希用于源码追踪，可记录在产物文件名或发布记录中，不能直接作为平台构建号；截断或转成整数的哈希也不保证递增。工作区含未提交改动时标记 `dirty`，不将该包宣称为对应提交的可复现产物。
+- 升版提交前检查两处用户可见版本一致，并将版本文件一并提交。仅版本字符串同步不扩大原任务的验证范围；DryRun 用于自检，不要求用户再次确认已授权的操作。版本调整不自动授权提交、打标签或推送。
 
 ## 文件与验证要求
 

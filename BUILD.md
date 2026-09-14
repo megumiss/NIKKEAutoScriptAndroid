@@ -6,6 +6,8 @@
 
 当前工程在 `D:\PCR\NIKKEAutoScriptAndroid`，Flutter、Android SDK、原生 AAR 和正式版签名均已准备好。在 PowerShell 中执行：
 
+以下命令可用于本地构建验证，不会自动分配发布构建号。对外分发前按[版本与构建标识](#版本与构建标识)准备构建号，并传给 Flutter。
+
 ```powershell
 Set-Location 'D:\PCR\NIKKEAutoScriptAndroid'
 $env:ANDROID_HOME = 'D:\Android\Sdk'
@@ -181,20 +183,38 @@ APK 资源检查覆盖原生库架构、scrcpy server 和许可证资产；`apks
 
 本地打包不依赖 GitHub Actions 或其 Secrets。签名校验通过仅说明该 APK 的签名有效；是否能覆盖云端版，需要再比较两包签名。
 
-## 版本递增
+## 版本与构建标识
 
-每次 Git 提交前，在仓库根目录中递增版本号，并同步关于页展示：
+日常提交、文档修改和本地验证构建不自动升版。准备正式发布时，再根据本次发布的改动调整用户可见版本，并同步关于页展示：
+
+| 发布内容 | 参数 | 示例 |
+| --- | --- | --- |
+| 修复和小幅改进 | `-Part Patch`（默认） | `1.1.9 → 1.1.10` |
+| 兼容的新功能 | `-Part Minor` | `1.9.3 → 1.10.0` |
+| 不兼容变更 | `-Part Major` | `1.9.3 → 2.0.0` |
 
 ```powershell
-.\tool\bump-version.ps1 -DryRun
-.\tool\bump-version.ps1
+.\tool\bump-version.ps1 -Part Patch -DryRun
+.\tool\bump-version.ps1 -Part Patch
 ```
 
-第一条仅预览，第二条实际修改 `pubspec.yaml` 和 `lib/features/settings/about_page.dart`。补丁版本按十进制进位，例如 `1.0.9` 会递增为 `1.1.0`；两个文件与本次变更一起提交。对同一份代码重新构建或重试测试不重复递增版本。
+第一条仅预览，第二条实际修改 `pubspec.yaml` 和 `lib/features/settings/about_page.dart`。各段数字不逢 10 进位；脚本保留 `version` 中已有的整数构建号，关于页只显示前三段。同一候选版本的重试不重复升版；正式发布时用 `v1.1.4` 这样的 Git 标签记录发布提交，提交和标签操作按当前任务授权执行。
+
+例如 `version: 1.1.3+42` 中，`1.1.3` 是用户可见版本，`42` 是平台构建号。Android 的 `versionCode` 必须是正整数，后续发布的值应更大；iOS 的 `CFBundleVersion` 也不能直接使用提交哈希。构建号由发布流程统一分配，本地与 CI 发包共用同一编号序列，不能分别从自己的计数起点分配。本地验证且不分发的构建可以复用已有编号。
+
+对外发包可以把已分配的构建号写入 `pubspec.yaml` 的 `+N`，也可以通过构建参数覆盖。以下 `42` 仅为示例，应替换为高于此前已分发包的新编号：
+
+```powershell
+flutter build apk --release --build-number 42
+```
+
+同一用户可见版本可以发布多个测试包，只递增构建号。提交哈希另作源码标识，例如文件名 `nkas-mobile-1.1.3-42-6c9a43d.apk`；它不替代平台构建号，将哈希转为整数也不保证新包的编号更大。记录哈希前检查工作区；含未提交改动的构建应标记 `dirty`。
 
 ## 云端构建
 
 仓库的 `.github/workflows/flutter-release.yml` 通过 `workflow_dispatch` 手动触发。Android 任务在 Ubuntu runner 上生成 APK，iOS 任务在 macOS runner 上生成 IPA；默认构建两端，`ios_only` 可用于仅构建 iOS。
+
+当前工作流读取 `pubspec.yaml` 的版本信息，不自动分配递增构建号或发布 Release。计划分发其产物时，须先将已分配的构建号写入 `version` 的 `+N`；不能假定 GitHub 的运行序号或提交哈希已被写入安装包。
 
 ## Android Secrets
 
