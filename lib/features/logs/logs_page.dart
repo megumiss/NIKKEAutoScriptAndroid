@@ -170,7 +170,8 @@ class _LogsPageState extends State<LogsPage> {
                     flex: 10,
                     child: FieldSelect(
                       dense: true,
-                      label: '日期',
+                      label: '',
+                      semanticLabel: '日志日期',
                       value: date.isEmpty ? '暂无' : date,
                       selectedValue: date,
                       options: [
@@ -190,7 +191,8 @@ class _LogsPageState extends State<LogsPage> {
                     flex: 7,
                     child: FieldSelect(
                       dense: true,
-                      label: '类型',
+                      label: '',
+                      semanticLabel: '日志类型',
                       value: source.isEmpty ? '全部' : source,
                       selectedValue: source,
                       options: [
@@ -209,7 +211,8 @@ class _LogsPageState extends State<LogsPage> {
                     flex: 7,
                     child: FieldSelect(
                       dense: true,
-                      label: '级别',
+                      label: '',
+                      semanticLabel: '日志级别',
                       value: _levelLabel(level),
                       selectedValue: level,
                       options: const [
