@@ -116,6 +116,10 @@ Go 测试在 `native/tsnet` 中执行 `go test ./...`；race 检测使用 `go te
 
 ## 第三方声明
 
-主代码使用 Apache-2.0；依赖的原文见 [NOTICE](NOTICE) 和 `assets/licenses/`。更新 Go 依赖后运行 `python tool/collect_native_licenses.py go`；准备好固定 iOS 源码后运行 `python tool/collect_native_licenses.py ios`。CI 的 `--check` 会阻止遗漏或过期清单。
+主项目源码采用 [GNU General Public License v3.0 only（GPL-3.0-only）](LICENSE)，单独声明许可证的组件除外。`native/tsnet/` 保留其 [Apache-2.0 许可证](native/tsnet/LICENSE)；其他依赖的原文见 [NOTICE](NOTICE) 和 `assets/licenses/`。本次变更不撤销历史版本已授予的许可。
+
+分发 GPLv3 版本的 APK、IPA 或其他二进制时，须按 GPLv3 提供对应源码、必要构建脚本和许可证，并保留第三方声明。构建入口见 [本地构建说明](BUILD.md)。再分发前还需核查所链接组件的 GPLv3 兼容性，包括 BoringSSL 的 OpenSSL/SSLeay 条款及所需的额外链接许可；主项目换证不代表这些检查已经通过。
+
+更新 Go 依赖后运行 `python tool/collect_native_licenses.py go`；准备好固定 iOS 源码后运行 `python tool/collect_native_licenses.py ios`。AOSP 清单使用独立保留的 [Apache-2.0 原文](LICENSES/Apache-2.0.txt)，不读取主项目的 GPL 许可证。CI 的 `--check` 会阻止遗漏或过期清单。
 
 固定版本的 `adb-mobile` 未提供覆盖全部移植胶水的顶层许可证；已有 AOSP 文件的 Apache-2.0 声明已保留。对外再分发该部分前，需要确认上游移植胶水的授权。父项目 `scrcpy-mobile` 的许可证不覆盖这个独立子模块。

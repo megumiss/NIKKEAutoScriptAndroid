@@ -4,6 +4,7 @@ import subprocess
 import unittest
 from unittest.mock import patch
 
+import collect_native_licenses
 from build_ios_adb import apply_source_patch, linked_archives
 from collect_native_licenses import license_files
 
@@ -18,6 +19,35 @@ class NativeLicenseInputsTest(unittest.TestCase):
                 path.touch()
             paths = [path.relative_to(root).as_posix() for path in license_files(root, {nested})]
             self.assertEqual(paths, ['LICENSE', 'NOTICE', 'internal/sync/singleflight/LICENSE'])
+
+    def test_aosp_license_is_independent_of_the_application_license(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            root.joinpath('LICENSE').write_text('GNU General Public License version 3', encoding='utf-8')
+            apache = root / 'LICENSES/Apache-2.0.txt'
+            apache.parent.mkdir()
+            apache.write_text('Apache License, Version 2.0', encoding='utf-8')
+            adb = root / 'cache/adb-mobile'
+            for relative in ('libziparchive/zip_archive.cc', 'core/libcrypto_utils/android_pubkey.cpp',
+                             'core/diagnose_usb/diagnose_usb.cpp'):
+                source = adb / 'android-tools/vendor' / relative
+                source.parent.mkdir(parents=True, exist_ok=True)
+                source.write_text('/* AOSP copyright header */\n', encoding='utf-8')
+            revisions = {
+                adb: collect_native_licenses.ADB_REVISION,
+                adb / 'external/protobuf': collect_native_licenses.PROTOBUF_REVISION,
+            }
+            with patch('collect_native_licenses.ROOT', root), \
+                    patch('collect_native_licenses.CACHE', root / 'cache'), \
+                    patch('collect_native_licenses.capture',
+                          side_effect=lambda *args, cwd: revisions.get(cwd, 'fixture')), \
+                    patch('collect_native_licenses.entry', return_value={}):
+                entries = collect_native_licenses.collect_ios()
+            aosp = [entry for entry in entries if entry.get('name', '').startswith('AOSP ')]
+            self.assertEqual(len(aosp), 3)
+            for entry in aosp:
+                with self.subTest(component=entry['name']):
+                    self.assertEqual(entry['licenses'][1]['text'], 'Apache License, Version 2.0')
 
 
 class NativeLinkInputsTest(unittest.TestCase):

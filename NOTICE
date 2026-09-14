@@ -2,9 +2,18 @@ NKAS Mobile
 
 Copyright 2026 NKAS Mobile contributors.
 
+SPDX-License-Identifier: GPL-3.0-only
+
+Except where a separate license is stated, the application source is licensed
+under the GNU General Public License, version 3 only; see LICENSE.
+This program is distributed without any warranty, including the implied
+warranties of merchantability or fitness for a particular purpose.
+
 This product includes or downloads components distributed under their own
-licenses. The application source is licensed under the Apache License 2.0;
-see LICENSE.
+licenses. The native/tsnet module retains its Apache License 2.0 in
+native/tsnet/LICENSE. Third-party copyright and license notices remain in
+effect; this change does not revoke licenses granted for earlier releases.
+LICENSES/Apache-2.0.txt preserves the Apache text used by the AOSP inventory.
 
 Third-party components:
 
@@ -53,6 +62,11 @@ Apache-2.0 notices. The MIT license of the parent scrcpy-mobile project does
 not relicense this separate submodule. Confirm the upstream porting-glue
 license before redistributing that code. This provenance gap is retained
 explicitly in the bundled inventory and docs/VALIDATION.md.
+
+Before distributing GPLv3 binaries, review the compatibility of all linked
+components, including BoringSSL's OpenSSL/SSLeay terms and any required
+additional linking permission. Changing the application license does not
+resolve these third-party licensing requirements.
 
 NKAS changes to the ADB build select only linked libraries, remove duplicate
 compilation units, supply generated protobuf headers, and provide an

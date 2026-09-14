@@ -34,7 +34,7 @@ Android / iOS app
 ### 1. 基础库和移动端构建基线
 
 - 基础库名称为 `tsnet-forwarder`，源码位于仓库根目录；移动端工作在本仓库完成。
-- 主许可证采用 Apache 2.0。
+- 主项目许可证采用 GPL-3.0-only；独立基础库和 `native/tsnet/` 保留 Apache-2.0。
 - 源码提交到仓库，AAR/APK 由 CI 和 Release 构建，不提交生成物。
 - 固定 Go、Android SDK、NDK、Gradle、Kotlin 和 `tailscale.com` 版本。
 - 初始 Android `minSdk 26`，优先构建 `arm64-v8a`，验证后扩展其他 ABI。

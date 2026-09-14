@@ -101,3 +101,5 @@ iOS 两个 XCFramework 的 Xcode 导入与九项协议 XCTest 已通过 CI。真
 ## 再分发前的许可证事项
 
 `assets/licenses/` 收录 Go、AOSP、压缩库、protobuf/Abseil、BoringSSL、scrcpy、Bouncy Castle、Conscrypt 等依赖的原文与来源。固定 `adb-mobile` 的独立移植胶水没有顶层许可证，已保留此来源状态；对外再分发前需确认该部分授权。
+
+主项目源码采用 GPL-3.0-only，`native/tsnet/` 和其他独立声明许可的组件保留原许可。针对 GPLv3 二进制分发，还需核查 BoringSSL 的 OpenSSL/SSLeay 条款与所需的额外链接许可。历史构建通过和本次主许可证变更均不代表第三方授权或 GPLv3 分发兼容性已验收。

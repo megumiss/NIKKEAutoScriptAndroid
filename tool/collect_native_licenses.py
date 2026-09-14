@@ -129,7 +129,7 @@ def collect_ios():
         result.append({'name': name, 'version': capture('git', 'rev-parse', 'HEAD', cwd=folder).strip(),
                        'source': capture('git', 'remote', 'get-url', 'origin', cwd=folder).strip(),
                        'licenses': [{'file': source_file + ' (copyright header)', 'text': header},
-                                    {'file': 'Apache-2.0', 'text': (ROOT / 'LICENSE').read_text(encoding='utf-8').strip()}]})
+                                    {'file': 'Apache-2.0', 'text': (ROOT / 'LICENSES/Apache-2.0.txt').read_text(encoding='utf-8').strip()}]})
     result.append({'name': 'adb-mobile porting', 'version': ADB_REVISION,
                    'source': 'https://github.com/wsvn53/adb-mobile',
                    'licenses': [{'file': 'provenance', 'text':
