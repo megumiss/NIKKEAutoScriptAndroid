@@ -34,6 +34,49 @@ Widget host(
 );
 
 void main() {
+  testWidgets(
+    'ordinary inputs request normal keyboards and secrets stay private',
+    (tester) async {
+      const fields = [
+        NkasTextField(label: '节点名称'),
+        NkasTextField(label: '后端地址', keyboardType: TextInputType.url),
+        NkasTextField(label: '备注', maxLines: 3),
+        NkasTextField(label: '次数', keyboardType: TextInputType.number),
+        NkasTextField(
+          label: 'AuthKey',
+          obscureText: true,
+          enableSuggestions: false,
+        ),
+      ];
+      await tester.pumpWidget(host(const Column(children: fields)));
+      for (final field in fields) {
+        final input = find.descendant(
+          of: find.byWidgetPredicate(
+            (widget) => widget is NkasTextField && widget.label == field.label,
+          ),
+          matching: find.byType(TextField),
+        );
+        await tester.ensureVisible(input);
+        await tester.showKeyboard(input);
+        final config = tester.testTextInput.setClientArgs!;
+        final secret = field.label == 'AuthKey';
+        expect(config['obscureText'], secret);
+        expect(config['enableSuggestions'], !secret);
+        expect(config['autocorrect'], isFalse);
+        expect(
+          (config['inputType'] as Map)['name'],
+          {
+            '节点名称': 'TextInputType.text',
+            '后端地址': 'TextInputType.url',
+            '备注': 'TextInputType.multiline',
+            '次数': 'TextInputType.number',
+            'AuthKey': 'TextInputType.text',
+          }[field.label],
+        );
+      }
+    },
+  );
+
   testWidgets('numeric input rejects invalid values and submits only once', (
     tester,
   ) async {
@@ -148,8 +191,8 @@ void main() {
           ),
         ),
       );
-    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
-    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
       await tester.pumpAndSettle();
       await tester.tap(find.text('English'));
       await tester.pumpAndSettle();

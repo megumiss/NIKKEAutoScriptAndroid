@@ -82,7 +82,7 @@ class NkasTextField extends StatelessWidget {
     this.obscureText = false,
     this.autofocus = false,
     this.autocorrect = false,
-    this.enableSuggestions = false,
+    this.enableSuggestions = true,
     this.minLines,
     this.maxLines = 1,
     this.keyboardType,
@@ -110,6 +110,8 @@ class NkasTextField extends StatelessWidget {
   final bool obscureText;
   final bool autofocus;
   final bool autocorrect;
+
+  /// Android 会把禁用建议的文本标为可见密码；仅密码字段显式关闭。
   final bool enableSuggestions;
   final int? minLines;
   final int? maxLines;
