@@ -235,10 +235,10 @@ class _NativeControlPageState extends State<NativeControlPage> {
                         children: [
                           NkasTextField(
                             label: 'Android ADB 地址',
+                            description: '支持 host:port 和 adb://host:port',
                             controller: endpoint,
                             enabled: !busy,
                             hintText: '设备地址:5555',
-                            helperText: '支持 host:port 和 adb://host:port',
                             keyboardType: TextInputType.url,
                             autocorrect: false,
                             validator: (value) {
@@ -327,12 +327,12 @@ class _NativeControlPageState extends State<NativeControlPage> {
                             const Divider(height: 18),
                             NkasTextField(
                               label: 'Tailscale AuthKey',
+                              description: '首次注册时填写，注册后可留空',
                               controller: authKey,
                               enabled: !busy,
                               obscureText: true,
                               autocorrect: false,
                               enableSuggestions: false,
-                              helperText: '首次注册时填写，注册后可留空',
                               validator: (value) =>
                                   !busy &&
                                       !status.hasPersistedLogin &&

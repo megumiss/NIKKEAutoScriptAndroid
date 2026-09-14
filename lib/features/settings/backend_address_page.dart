@@ -94,13 +94,14 @@ class _BackendAddressPageState extends State<BackendAddressPage> {
                 Surface(
                   child: NkasTextField(
                     label: '后端地址或完整安全入口',
-                    description: '未开启安全入口时填写服务地址；已开启时粘贴完整 /entry/ 入口。',
+                    description:
+                        '未开启安全入口时填写服务地址；已开启时粘贴完整 /entry/ 入口。\n'
+                        '例如 http://192.168.1.20:12271，公网建议使用 HTTPS。',
                     controller: address,
                     enabled: !saving,
                     keyboardType: TextInputType.url,
                     textInputAction: TextInputAction.done,
                     hintText: 'http://127.0.0.1:12271',
-                    helperText: '例如 http://192.168.1.20:12271，公网建议使用 HTTPS。',
                     errorText: error,
                     prefixIcon: const Icon(LucideIcons.server, size: 18),
                     suffixIcon: address.text.isEmpty
