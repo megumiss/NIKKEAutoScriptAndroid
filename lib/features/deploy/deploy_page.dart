@@ -15,6 +15,7 @@ import 'package:nkas_mobile/core/widgets/surface.dart';
 import 'package:nkas_mobile/core/widgets/tag.dart';
 import 'package:nkas_mobile/core/widgets/toggle.dart';
 import 'package:nkas_mobile/theme.dart';
+import 'package:nkas_mobile/features/deploy/security_entry_actions.dart';
 
 const _deployWarning = '修改部署配置可能导致更新失败或程序无法启动，修改需要重启后生效，请谨慎操作。';
 
@@ -46,6 +47,7 @@ class _DeployPageState extends State<DeployPage> {
   String? error;
   String? loadedBaseUrl;
   String? savingKey;
+  bool entryBusy = false;
   final overrides = <String, Object?>{};
 
   @override
@@ -104,6 +106,7 @@ class _DeployPageState extends State<DeployPage> {
         info = result;
         overrides.clear();
         loadedBaseUrl = baseUrl;
+        entryBusy = false;
       });
     } catch (exception) {
       if (!mounted) return;
@@ -120,9 +123,32 @@ class _DeployPageState extends State<DeployPage> {
       overrides.containsKey(field.key) ? overrides[field.key] : field.value;
 
   Future<void> _patch(DeployField field, Object? value) async {
-    if (savingKey != null) return;
+    if (savingKey != null ||
+        (field.key == 'SecurityEntryEnabled' && entryBusy)) {
+      return;
+    }
     setState(() => savingKey = field.key);
     try {
+      if (field.key == 'SecurityEntryEnabled' && value == false) {
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('关闭安全入口'),
+            content: const Text('关闭后，任何网络可达的客户端均可直接访问后端。确认关闭？'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('取消'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('确认'),
+              ),
+            ],
+          ),
+        );
+        if (!mounted || confirmed != true) return;
+      }
       final normalized = await widget.connectionController.patchDeploy(
         field.key,
         value,
@@ -131,7 +157,6 @@ class _DeployPageState extends State<DeployPage> {
       setState(() => overrides[field.key] = normalized);
     } catch (exception) {
       if (!mounted) return;
-      setState(() => overrides.remove(field.key));
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('保存失败：$exception')));
@@ -151,7 +176,7 @@ class _DeployPageState extends State<DeployPage> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('选择要还原到的模板，当前部署配置将被覆盖。'),
+              const Text('选择要还原到的模板，当前部署配置将被覆盖；安全入口开关和密钥保持不变。'),
               const SizedBox(height: 8),
               RadioGroup<String>(
                 groupValue: template,
@@ -287,6 +312,11 @@ class _DeployPageState extends State<DeployPage> {
           savingKey: savingKey,
           valueOf: _effectiveValue,
           onPatch: _patch,
+          controller: widget.connectionController,
+          entryBusy: entryBusy,
+          onEntryBusy: (value) {
+            if (mounted) setState(() => entryBusy = value);
+          },
         ),
       ],
       if (data.groups.isEmpty)
@@ -361,15 +391,22 @@ class _DeployGroupView extends StatelessWidget {
     required this.savingKey,
     required this.valueOf,
     required this.onPatch,
+    required this.controller,
+    required this.entryBusy,
+    required this.onEntryBusy,
   });
 
   final DeployGroup group;
   final String? savingKey;
   final Object? Function(DeployField) valueOf;
   final Future<void> Function(DeployField, Object?) onPatch;
+  final ConnectionController controller;
+  final bool entryBusy;
+  final ValueChanged<bool> onEntryBusy;
 
   @override
   Widget build(BuildContext context) {
+    final fields = group.fields;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -378,14 +415,28 @@ class _DeployGroupView extends StatelessWidget {
           padding: const EdgeInsets.all(12),
           child: Column(
             children: [
-              for (var index = 0; index < group.fields.length; index++) ...[
+              for (var index = 0; index < fields.length; index++) ...[
                 if (index > 0) const Divider(height: 18),
                 _DeployFieldView(
-                  field: group.fields[index],
-                  value: valueOf(group.fields[index]),
-                  saving: savingKey == group.fields[index].key,
+                  field: fields[index],
+                  value: valueOf(fields[index]),
+                  saving:
+                      savingKey == fields[index].key ||
+                      (fields[index].key == 'SecurityEntryEnabled' &&
+                          entryBusy),
                   onPatch: onPatch,
                 ),
+                if (fields[index].key == 'SecurityEntryEnabled' &&
+                    valueOf(fields[index]) == true)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: SecurityEntryActions(
+                      key: ValueKey(controller.state.baseUrl),
+                      controller: controller,
+                      disabled: savingKey == fields[index].key,
+                      onBusyChanged: onEntryBusy,
+                    ),
+                  ),
               ],
             ],
           ),

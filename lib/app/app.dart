@@ -5,6 +5,10 @@ import 'package:nkas_mobile/app/shell.dart';
 import 'package:nkas_mobile/core/api/api_client.dart';
 import 'package:nkas_mobile/core/connection/connection_controller.dart';
 import 'package:nkas_mobile/core/settings/backend_settings.dart';
+import 'package:nkas_mobile/core/settings/entry_key_store.dart';
+import 'package:nkas_mobile/core/platform/nkas_platform.dart';
+import 'package:nkas_mobile/core/platform/runtime_platform.dart';
+import 'package:nkas_mobile/core/widgets/backend_auth_scope.dart';
 import 'package:nkas_mobile/theme.dart';
 
 class NkasMobileApp extends StatefulWidget {
@@ -35,6 +39,10 @@ class _NkasMobileAppState extends State<NkasMobileApp> {
         ConnectionController(
           api: ApiClient(),
           settings: SharedPreferencesBackendSettings(),
+          keyStore: SecureEntryKeyStore(),
+          localEntryLoader: isAndroid
+              ? NkasPlatform.instance.localBackendEntry
+              : null,
         );
     connectionController.initialize();
   }
@@ -49,16 +57,20 @@ class _NkasMobileAppState extends State<NkasMobileApp> {
 
   @override
   Widget build(BuildContext context) {
-    return ShadApp(
-      debugShowCheckedModeBanner: false,
-      theme: nkasThemeData(Brightness.light),
-      darkTheme: nkasThemeData(Brightness.dark),
-      themeMode: themeMode,
-      home: NkasShell(
+    return BackendAuthScope(
+      controller: connectionController,
+      child: ShadApp(
+        debugShowCheckedModeBanner: false,
+        theme: nkasThemeData(Brightness.light),
+        darkTheme: nkasThemeData(Brightness.dark),
         themeMode: themeMode,
-        connectionController: connectionController,
-        enableRealtime: widget.enableRealtime,
-        onThemeModeChanged: (value) => setState(() => themeMode = value),
+        builder: (context, child) => ScaffoldMessenger(child: child!),
+        home: NkasShell(
+          themeMode: themeMode,
+          connectionController: connectionController,
+          enableRealtime: widget.enableRealtime,
+          onThemeModeChanged: (value) => setState(() => themeMode = value),
+        ),
       ),
     );
   }

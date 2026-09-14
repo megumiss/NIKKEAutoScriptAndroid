@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import 'package:nkas_mobile/core/api/api_client.dart';
+import 'package:nkas_mobile/core/api/backend_address.dart';
+import 'package:nkas_mobile/core/settings/entry_key_store.dart';
 import 'package:nkas_mobile/core/api/instance_info.dart';
 import 'package:nkas_mobile/core/api/queue_info.dart';
 import 'package:nkas_mobile/core/api/calendar_info.dart';
@@ -46,47 +48,84 @@ class ConnectionController extends ChangeNotifier {
   ConnectionController({
     required ApiClient api,
     required BackendSettings settings,
+    EntryKeyStore? keyStore,
+    this.localEntryLoader,
   }) : _api = api,
        _settings = settings,
+       _keyStore = keyStore ?? MemoryEntryKeyStore(),
        _state = const BackendConnectionState(
          phase: ConnectionPhase.connecting,
          baseUrl: defaultBackendBaseUrl,
-       );
+       ) {
+    _api.onEntryChanged = _acceptEntry;
+    _api.onUnauthorized = (_) {
+      unawaited(refreshAuthorization());
+    };
+  }
 
   final ApiClient _api;
   final BackendSettings _settings;
+  final EntryKeyStore _keyStore;
+  final Future<BackendAddress?> Function()? localEntryLoader;
+  bool _localDeployment = false;
+  int _generation = 0;
+  int _credentialRevision = 0;
+  bool _disposed = false;
+  Future<bool>? _recovery;
   BackendConnectionState _state;
 
   BackendConnectionState get state => _state;
+  int get credentialRevision => _credentialRevision;
+  bool get isLocalDeployment => _localDeployment;
+  Map<String, String> headersFor(Uri uri) => _api.headersFor(uri);
+  Map<String, String> get websocketHeaders =>
+      headersFor(websocketUri('/ws/state'));
 
   Future<void> initialize() async {
     final saved = await _settings.readBaseUrl();
+    BackendAccess? access;
+    try {
+      access = await _keyStore.read();
+    } catch (_) {
+      /* A locked keychain must not prevent opening settings. */
+    }
     await connect(
       saved == null || saved.trim().isEmpty ? defaultBackendBaseUrl : saved,
+      localDeployment:
+          (saved == null && localEntryLoader != null) ||
+          (access?.baseUrl == saved && access?.localDeployment == true),
     );
   }
 
-  Future<bool> connect(String value, {bool persist = false}) async {
+  Future<bool> connect(
+    String value, {
+    bool persist = false,
+    bool? localDeployment,
+  }) async {
+    final generation = ++_generation;
     late final String baseUrl;
+    String? key;
     try {
       final input = value.trim();
-      baseUrl = input.isEmpty
-          ? defaultBackendBaseUrl
-          : ApiClient.normalizeBaseUrl(input);
+      final address = BackendAddress.parse(
+        input.isEmpty ? defaultBackendBaseUrl : input,
+      );
+      baseUrl = address.baseUrl;
+      key = address.entryKey;
     } on FormatException catch (error) {
       _setState(
         BackendConnectionState(
           phase: ConnectionPhase.disconnected,
-          baseUrl: value.trim(),
+          baseUrl: _state.baseUrl,
           message: error.message,
         ),
       );
       return false;
     }
 
-    if (persist) {
-      await _settings.writeBaseUrl(baseUrl);
-    }
+    _localDeployment =
+        localDeployment ??
+        (!persist && baseUrl == _state.baseUrl && _localDeployment);
 
     _setState(
       BackendConnectionState(
@@ -96,7 +135,33 @@ class ConnectionController extends ChangeNotifier {
     );
 
     try {
-      final status = await _api.fetchSystemStatus(baseUrl);
+      final saved = await _keyStore.read();
+      if (generation != _generation || _disposed) return false;
+      // A manually entered address is a remote profile even when it happens
+      // to use loopback (for example an SSH tunnel). Never reuse its local key.
+      key ??=
+          saved?.baseUrl == baseUrl &&
+              (saved?.localDeployment != true || _localDeployment)
+          ? saved?.key
+          : null;
+      if (key != null && !BackendAddress.validKey(key)) key = null;
+      _configureEntry(baseUrl, key);
+      var status = await _api.fetchSystemStatus(baseUrl);
+      if (generation != _generation || _disposed) return false;
+      if (!status.authorized && _localDeployment && localEntryLoader != null) {
+        final local = await localEntryLoader!();
+        if (generation != _generation || _disposed) return false;
+        if (local != null && local.baseUrl == baseUrl) {
+          _configureEntry(baseUrl, local.entryKey);
+          status = await _api.fetchSystemStatus(baseUrl);
+        }
+      }
+      if (generation != _generation || _disposed) return false;
+      if (persist || _api.entryKey != key) await _persistAccess(baseUrl);
+      if (!status.authorized) {
+        _disconnect(baseUrl, const EntryAuthorizationException().toString());
+        return false;
+      }
       if (status.apiVersion != supportedApiVersion) {
         _setState(
           BackendConnectionState(
@@ -118,13 +183,117 @@ class ConnectionController extends ChangeNotifier {
       );
       return true;
     } on TimeoutException {
+      if (generation != _generation || _disposed) return false;
       _disconnect(baseUrl, '连接超时，请检查地址和网络');
+    } on EntryAuthorizationException catch (error) {
+      if (generation != _generation || _disposed) return false;
+      _disconnect(baseUrl, error.toString());
     } on ApiException catch (error) {
+      if (generation != _generation || _disposed) return false;
       _disconnect(baseUrl, error.message);
     } on FormatException catch (error) {
+      if (generation != _generation || _disposed) return false;
       _disconnect(baseUrl, '后端数据无效：${error.message}');
     } catch (_) {
+      if (generation != _generation || _disposed) return false;
       _disconnect(baseUrl, '无法连接后端，请检查地址和服务状态');
+    }
+    return false;
+  }
+
+  void _configureEntry(String baseUrl, String? key) {
+    if (_api.entryKey != key || _state.baseUrl != baseUrl) {
+      _credentialRevision++;
+    }
+    _api.configureEntry(baseUrl, key);
+  }
+
+  Future<void> _persistAccess(String baseUrl) async {
+    await _keyStore.write(
+      BackendAccess(
+        baseUrl: baseUrl,
+        key: _api.entryKey,
+        localDeployment: _localDeployment,
+      ),
+    );
+    await _settings.writeBaseUrl(baseUrl);
+  }
+
+  Future<bool> connectLocalDeployment() async {
+    try {
+      final address = await localEntryLoader?.call();
+      if (address == null) {
+        _disconnect(_state.baseUrl, '无法读取本机部署，请确认 Termux 已初始化并授予运行命令权限');
+        return false;
+      }
+      return await connect(
+        address.entryKey == null
+            ? address.baseUrl
+            : '${address.baseUrl}/entry/${address.entryKey}',
+        persist: true,
+        localDeployment: true,
+      );
+    } catch (_) {
+      _disconnect(_state.baseUrl, '无法读取本机入口，请检查 Termux 部署与运行命令权限');
+      return false;
+    }
+  }
+
+  Future<void> _acceptEntry(String baseUrl, Map<String, dynamic> entry) async {
+    if (_disposed || baseUrl != _state.baseUrl) return;
+    final key = entry['enabled'] == true ? entry['key'] as String? : null;
+    if (entry['enabled'] == true &&
+        (key == null || !BackendAddress.validKey(key))) {
+      throw const ApiException('后端返回了无效安全入口');
+    }
+    _configureEntry(baseUrl, key);
+    await _persistAccess(baseUrl);
+    if (_disposed || baseUrl != _state.baseUrl) return;
+    final old = _state.status;
+    _setState(
+      BackendConnectionState(
+        phase: _state.phase,
+        baseUrl: baseUrl,
+        message: _state.message,
+        status: old == null
+            ? null
+            : SystemStatus(
+                apiVersion: old.apiVersion,
+                spaVersion: old.spaVersion,
+                version: old.version,
+                capabilities: old.capabilities,
+                securityEntryEnabled: entry['enabled'] == true,
+                authorized: true,
+              ),
+      ),
+    );
+  }
+
+  Future<Map<String, dynamic>> securityEntry({bool regenerate = false}) =>
+      _api.securityEntry(_state.baseUrl, regenerate: regenerate);
+
+  Future<bool> refreshAuthorization() {
+    return _recovery ??= _refreshAuthorization().whenComplete(
+      () => _recovery = null,
+    );
+  }
+
+  Future<bool> _refreshAuthorization() async {
+    final baseUrl = _state.baseUrl;
+    final generation = _generation;
+    try {
+      await _api.waitForEntryChange();
+      final status = await _api.fetchSystemStatus(baseUrl);
+      if (_disposed || baseUrl != _state.baseUrl || generation != _generation) {
+        return false;
+      }
+      if (status.authorized) return true;
+      if (_localDeployment) {
+        return await connect(baseUrl, localDeployment: true);
+      }
+      _disconnect(baseUrl, const EntryAuthorizationException().toString());
+    } catch (_) {
+      /* Normal transport failures use the existing retry path. */
     }
     return false;
   }
@@ -286,7 +455,10 @@ class ConnectionController extends ChangeNotifier {
 
   Uri websocketUri(String path) => _api.websocketUri(_state.baseUrl, path);
 
-  Uri get webUiUri => _api.endpoint(_state.baseUrl, '/app/');
+  Uri get webUiUri => _api.endpoint(
+    _state.baseUrl,
+    _api.entryKey == null ? '/app/' : '/entry/${_api.entryKey}',
+  );
 
   void _disconnect(String baseUrl, String message) {
     _setState(
@@ -299,12 +471,15 @@ class ConnectionController extends ChangeNotifier {
   }
 
   void _setState(BackendConnectionState value) {
+    if (_disposed) return;
     _state = value;
     notifyListeners();
   }
 
   @override
   void dispose() {
+    _disposed = true;
+    _generation++;
     _api.close();
     super.dispose();
   }

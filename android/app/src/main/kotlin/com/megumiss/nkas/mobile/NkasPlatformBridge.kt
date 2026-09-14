@@ -8,6 +8,7 @@ import android.os.Looper
 import android.provider.Settings
 import androidx.annotation.Keep
 import com.megumiss.nkas.mobile.platform.AccessGate
+import com.megumiss.nkas.mobile.platform.BackendEntry
 import com.megumiss.nkas.mobile.platform.AdbMdns
 import com.megumiss.nkas.mobile.platform.AdbPairingService
 import com.megumiss.nkas.mobile.platform.BootstrapService
@@ -115,6 +116,7 @@ class NkasPlatformBridge(private val activity: FlutterActivity) :
                 result.success(value)
             }
             "getNkasSerial" -> readNkasSerial(result)
+            "getLocalBackendEntry" -> readLocalBackendEntry(result)
             "setNkasSerial" -> writeNkasSerial(call, result)
             "getInitialNoticeShown" -> result.success(
                 activity.getSharedPreferences(SETUP_PREFS_NAME, 0)
@@ -290,6 +292,29 @@ class NkasPlatformBridge(private val activity: FlutterActivity) :
             main.post {
                 if (command.exitCode == 0) result.success(command.stdout.trim())
                 else result.error("read_nkas_serial", command.stderr.ifBlank { "无法读取 nkas.json 的 Serial" }, null)
+            }
+        }
+    }
+
+    private fun readLocalBackendEntry(result: MethodChannel.Result) {
+        val bridge = TermuxBridge(activity)
+        val baseUrl = SettingsStore.webUiUrl(activity)
+        if (!BackendEntry.isLocalHost(SettingsStore.webUiHost(activity)) ||
+            !bridge.isInstalled() || !hasRunCommandPermission() || !AccessGate.isAuthorized(activity)) {
+            result.error("local_entry_unavailable", "请先完成本机 Termux 部署与授权", null)
+            return
+        }
+        bridge.readBackendEntry { command ->
+            main.post {
+                if (command.exitCode != 0) {
+                    result.error("local_entry_unavailable", "无法读取本机安全入口，请检查 Termux 部署", null)
+                } else {
+                    try {
+                        result.success(mapOf("baseUrl" to baseUrl, "key" to BackendEntry.parseKey(command.stdout)))
+                    } catch (_: IllegalArgumentException) {
+                        result.error("local_entry_invalid", "本机安全入口数据无效", null)
+                    }
+                }
             }
         }
     }

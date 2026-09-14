@@ -1,5 +1,18 @@
 # 原生控制验证与交付记录
 
+## 安全入口本地验证（2026-09-14）
+
+本次安全入口为默认关闭、部署页手动启用的后端访问保护，不改变现有 STAR、ADB 或 Tailscale 授权。本次 Windows 验证：
+
+- `flutter analyze` 无问题；`flutter test` 56 项通过。新增覆盖完整入口解析、HTTP 200 未授权判定、手填回环地址不读取/复用本机密钥、加密存储接口与普通地址分离、请求头作用域、入口轮换和并发复核，以及真实 Dart WebSocket Bearer 握手。
+- 375px 深色 Flutter 部署页验证了由 schema 生成的 `SecurityEntryEnabled` 开关，入口操作位于同一分组内，无独立卡片或布局溢出。覆盖开启、遮蔽、重新生成、取消关闭及保存失败时显示提示并保留状态；schema 无该字段时不额外显示入口或请求密钥。应用壳层已补齐消息提示所需的 `ScaffoldMessenger`，并通过真实应用组件树回归。
+- 配套后端 8 项回归和真实浏览器两站点测试通过：匿名/错误入口被拦截，正确入口登录后地址不含密钥，轮换撤销旧页面/入口/长连接，关闭恢复普通访问、重新开启和新入口恢复可用。后端业务数据为隔离 fixture，没有运行游戏任务。
+- Vue build/typecheck、桌面壳 36 项测试及 exe 编译通过；未启动真实部署的 exe。
+
+当前环境缺 Android SDK，实际执行 `flutter build apk --debug --config-only` 报 `No Android SDK found`，因此尚未完成本次 Android Kotlin JVM 回归、APK 构建、Termux 私有凭据读取或加密存储真机验收。Windows 未运行 iOS 构建与 Keychain 真机验证。下方历史构建结果不代表此次变更已通过这些检查。
+
+真机补验：先在 Android 本机 Termux 模式开启入口并重启 App，确认 HTTP、图片、日志/队列/状态 WS 和“打开 Web UI”均可用；在另一客户端重新生成，确认本机自动恢复、远程客户端提示填写新入口；手填同一回环地址时不得自动读取本机凭据。iOS 用远程完整入口连接并重启，确认本设备 Keychain 恢复；换入口后确认旧连接停止。关闭保护后再验证普通地址可连，且游戏任务未因入口操作停止。
+
 ## 工程拆分本地验证（2026-09-14）
 
 Flutter 工程已上移到 `main` 分支的仓库根目录，版本为 `1.1.1`；旧版 Kotlin Android 工程在 `codex/legacy-kotlin` 分支独立维护，版本为 `0.4.0`。本次 Windows 本地检查：

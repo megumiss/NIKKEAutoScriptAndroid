@@ -4,6 +4,8 @@ class SystemStatus {
     required this.spaVersion,
     required this.version,
     required this.capabilities,
+    this.securityEntryEnabled = false,
+    this.authorized = true,
   });
 
   factory SystemStatus.fromJson(Map<String, dynamic> json) {
@@ -16,6 +18,9 @@ class SystemStatus {
       apiVersion: apiVersion,
       spaVersion: json['spa_version']?.toString(),
       version: json['version']?.toString(),
+      securityEntryEnabled:
+          (json['security_entry'] as Map?)?['enabled'] == true,
+      authorized: (json['security_entry'] as Map?)?['authorized'] != false,
       capabilities: rawCapabilities is Map<String, dynamic>
           ? Map.unmodifiable(rawCapabilities)
           : const {},
@@ -26,4 +31,6 @@ class SystemStatus {
   final String? spaVersion;
   final String? version;
   final Map<String, dynamic> capabilities;
+  final bool securityEntryEnabled;
+  final bool authorized;
 }

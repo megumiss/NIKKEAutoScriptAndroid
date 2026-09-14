@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:nkas_mobile/core/widgets/backend_auth_scope.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import 'package:nkas_mobile/core/api/calendar_info.dart';
@@ -353,7 +354,13 @@ class _EventCard extends StatelessWidget {
                 color: scheme.eventBannerDefault,
                 image: item.bannerUrl != null && item.bannerUrl!.isNotEmpty
                     ? DecorationImage(
-                        image: NetworkImage(resolveAssetUrl(item.bannerUrl!)),
+                        image: NetworkImage(
+                          resolveAssetUrl(item.bannerUrl!),
+                          headers: BackendAuthScope.headersFor(
+                            context,
+                            resolveAssetUrl(item.bannerUrl!),
+                          ),
+                        ),
                         fit: BoxFit.cover,
                         onError: (_, _) {},
                       )

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import 'package:nkas_mobile/theme.dart';
+import 'package:nkas_mobile/core/widgets/backend_auth_scope.dart';
 
 class Avatar extends StatelessWidget {
   const Avatar({
@@ -44,6 +45,7 @@ class Avatar extends StatelessWidget {
               borderRadius: BorderRadius.circular(11),
               child: Image.network(
                 imageUrl!,
+                headers: BackendAuthScope.headersFor(context, imageUrl!),
                 width: size,
                 height: size,
                 fit: BoxFit.cover,

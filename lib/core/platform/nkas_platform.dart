@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 
 import 'package:nkas_mobile/core/platform/runtime_platform.dart';
 import 'package:nkas_mobile/core/platform/native_control_settings.dart';
+import 'package:nkas_mobile/core/api/backend_address.dart';
 
 class StarAuthorization {
   const StarAuthorization({
@@ -269,6 +270,21 @@ class NkasPlatform {
   Future<void> startSetup() async {
     if (!_androidSupported) throw UnsupportedError('初始化仅支持 Android');
     await _channel.invokeMethod<void>('startSetup');
+  }
+
+  Future<BackendAddress?> localBackendEntry() async {
+    if (!_androidSupported) return null;
+    final value = _map(
+      await _channel.invokeMethod<Object?>('getLocalBackendEntry'),
+    );
+    final base = value['baseUrl'];
+    if (base is! String) return null;
+    final address = BackendAddress.parse(base);
+    final key = value['key'];
+    if (key != null && (key is! String || !BackendAddress.validKey(key))) {
+      throw const FormatException('本机安全入口数据无效');
+    }
+    return BackendAddress(address.baseUrl, entryKey: key as String?);
   }
 
   Future<void> downloadTermux() async {

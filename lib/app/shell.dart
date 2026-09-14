@@ -162,11 +162,22 @@ class _NkasShellState extends State<NkasShell> {
   bool get _starAccessGranted =>
       kIsWeb || (!isAndroid && !isIOS) || star.authorized;
 
+  int _socketCredentialRevision = -1;
+
   void _connectionChanged() {
     if (!mounted) return;
     final connection = widget.connectionController.state;
     final accessGranted = _starAccessGranted;
     final connected = connection.phase == ConnectionPhase.connected;
+    if (_socketCredentialRevision !=
+        widget.connectionController.credentialRevision) {
+      _socketCredentialRevision =
+          widget.connectionController.credentialRevision;
+      stateSocketBaseUrl = null;
+      if (connected && queueSocketInstance != null) {
+        unawaited(_openQueueSocket(queueSocketInstance!));
+      }
+    }
     setState(() {
       if (!accessGranted || !connected) {
         instances = const [];
@@ -219,6 +230,9 @@ class _NkasShellState extends State<NkasShell> {
     }
     final socket = InstanceStateSocket(
       uri: widget.connectionController.websocketUri('/ws/state'),
+      headers: widget.connectionController.websocketHeaders,
+      onDisconnected: () =>
+          unawaited(widget.connectionController.refreshAuthorization()),
     );
     stateSocket = socket;
     stateSocketBaseUrl = baseUrl;
@@ -376,6 +390,9 @@ class _NkasShellState extends State<NkasShell> {
       return;
     }
     final socket = InstanceQueueSocket(
+      headers: widget.connectionController.websocketHeaders,
+      onDisconnected: () =>
+          unawaited(widget.connectionController.refreshAuthorization()),
       uri: widget.connectionController.websocketUri(
         '/ws/${Uri.encodeComponent(name)}/queue',
       ),
@@ -453,19 +470,18 @@ class _NkasShellState extends State<NkasShell> {
                               duration: const Duration(milliseconds: 220),
                               switchInCurve: Curves.easeOutCubic,
                               switchOutCurve: Curves.easeOutCubic,
-                              transitionBuilder: (child, animation) =>
-                                  ClipRect(
-                                    child: SlideTransition(
-                                      position: Tween<Offset>(
-                                        begin: Offset(_navDirection, 0),
-                                        end: Offset.zero,
-                                      ).animate(animation),
-                                      child: FadeTransition(
-                                        opacity: animation,
-                                        child: child,
-                                      ),
-                                    ),
+                              transitionBuilder: (child, animation) => ClipRect(
+                                child: SlideTransition(
+                                  position: Tween<Offset>(
+                                    begin: Offset(_navDirection, 0),
+                                    end: Offset.zero,
+                                  ).animate(animation),
+                                  child: FadeTransition(
+                                    opacity: animation,
+                                    child: child,
                                   ),
+                                ),
+                              ),
                               layoutBuilder: (current, previous) => Stack(
                                 fit: StackFit.expand,
                                 children: [...previous, ?current],
