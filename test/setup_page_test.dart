@@ -111,6 +111,23 @@ SetupOutputEvent _log(String stage, String message) => SetupOutputEvent(
 NkasFloatingAction _action(WidgetTester tester) =>
     tester.widget<NkasFloatingAction>(find.byType(NkasFloatingAction));
 
+String _installationLines(int count) =>
+    List.generate(count, (index) => '安装日志第 $index 行').join('\n');
+
+Finder _installationLog() => find.ancestor(
+  of: find.textContaining('安装日志第'),
+  matching: find.byType(SingleChildScrollView),
+);
+
+ScrollPosition _installationLogPosition(WidgetTester tester) => tester
+    .state<ScrollableState>(
+      find.descendant(
+        of: _installationLog(),
+        matching: find.byType(Scrollable),
+      ),
+    )
+    .position;
+
 void _expectStepState(WidgetTester tester, String title, String state) {
   final row = find.ancestor(of: find.text(title), matching: find.byType(Row));
   expect(find.descendant(of: row, matching: find.text(state)), findsOneWidget);
@@ -471,6 +488,142 @@ void main() {
       await events.close();
     }
   });
+
+  testWidgets(
+    'initialization logs follow new output and reopening shows the end',
+    (tester) async {
+      final events = StreamController<NkasPlatformEvent>.broadcast();
+      final platform = _SetupPlatform(events.stream);
+      try {
+        await _startSetup(tester, platform);
+        await _emit(
+          tester,
+          events,
+          _log('installing-termux-tools', _installationLines(1)),
+        );
+        expect(tester.getSize(_installationLog()).height, lessThan(190));
+        expect(_installationLogPosition(tester).maxScrollExtent, 0);
+
+        for (final count in [80, 100]) {
+          await _emit(
+            tester,
+            events,
+            _log('installing-termux-tools', _installationLines(count)),
+          );
+          final position = _installationLogPosition(tester);
+          expect(tester.getSize(_installationLog()).height, closeTo(190, .1));
+          expect(position.maxScrollExtent, greaterThan(0));
+          expect(position.pixels, closeTo(position.maxScrollExtent, .1));
+        }
+
+        await tester.tap(find.text('Termux 工具'));
+        await tester.pump();
+        expect(_installationLog(), findsNothing);
+        await tester.tap(find.text('Termux 工具'));
+        await tester.pump();
+        await tester.pump();
+        final position = _installationLogPosition(tester);
+        expect(position.pixels, closeTo(position.maxScrollExtent, .1));
+        expect(tester.takeException(), isNull);
+      } finally {
+        await tester.pumpWidget(const SizedBox.shrink());
+        await events.close();
+      }
+    },
+  );
+
+  testWidgets(
+    'initialization log following pauses while reading earlier output',
+    (tester) async {
+      final events = StreamController<NkasPlatformEvent>.broadcast();
+      final platform = _SetupPlatform(events.stream);
+      try {
+        await _startSetup(tester, platform);
+        await _emit(
+          tester,
+          events,
+          _log('installing-termux-tools', _installationLines(80)),
+        );
+        await tester.ensureVisible(_installationLog());
+        await tester.drag(_installationLog(), const Offset(0, 120));
+        await tester.pumpAndSettle();
+        final previousOffset = _installationLogPosition(tester).pixels;
+        expect(_installationLogPosition(tester).extentAfter, greaterThan(50));
+
+        await _emit(
+          tester,
+          events,
+          _log('installing-termux-tools', _installationLines(100)),
+        );
+        expect(
+          _installationLogPosition(tester).pixels,
+          closeTo(previousOffset, .1),
+        );
+        await tester.pump(const Duration(seconds: 4));
+        expect(
+          _installationLogPosition(tester).pixels,
+          closeTo(previousOffset, .1),
+        );
+
+        await tester.drag(_installationLog(), const Offset(0, -4000));
+        await tester.pumpAndSettle();
+        expect(_installationLogPosition(tester).extentAfter, lessThan(1));
+        await _emit(
+          tester,
+          events,
+          _log('installing-termux-tools', _installationLines(120)),
+        );
+        final position = _installationLogPosition(tester);
+        expect(position.pixels, closeTo(position.maxScrollExtent, .1));
+        expect(tester.takeException(), isNull);
+      } finally {
+        await tester.pumpWidget(const SizedBox.shrink());
+        await events.close();
+      }
+    },
+  );
+
+  testWidgets(
+    'initialization log scrolling reveals errors before later output',
+    (tester) async {
+      final events = StreamController<NkasPlatformEvent>.broadcast();
+      final platform = _SetupPlatform(events.stream);
+      try {
+        await _startSetup(tester, platform);
+        await _emit(
+          tester,
+          events,
+          _log('installing-termux-tools', _installationLines(80)),
+        );
+        final position = _installationLogPosition(tester);
+        expect(position.pixels, closeTo(position.maxScrollExtent, .1));
+        await _emit(
+          tester,
+          events,
+          const SetupOutputEvent('apt-get 下载失败', exitCode: 100),
+        );
+        expect(_installationLogPosition(tester).pixels, closeTo(0, .1));
+        _expectStepMessage(
+          tester,
+          'apt-get 下载失败',
+          title: 'Termux 工具',
+          nextTitle: 'NKAS 源码',
+        );
+
+        await _emit(
+          tester,
+          events,
+          _log('installing-termux-tools', _installationLines(100)),
+        );
+        expect(_installationLogPosition(tester).pixels, closeTo(0, .1));
+        expect(_action(tester).label, '重试当前安装');
+        expect(tester.takeException(), isNull);
+      } finally {
+        await tester.pumpWidget(const SizedBox.shrink());
+        await events.close();
+      }
+    },
+  );
 
   testWidgets(
     'status query errors appear above the queue and clear on refresh',

@@ -1221,11 +1221,6 @@ class _ExtraPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = ShadTheme.of(context).colorScheme;
-    const logStyle = TextStyle(
-      fontFamily: 'monospace',
-      fontSize: 10,
-      height: 1.55,
-    );
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(48, 10, 12, 12),
@@ -1237,25 +1232,7 @@ class _ExtraPanel extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (monospace)
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 190),
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (error != null) ...[
-                      Text(
-                        error!,
-                        style: logStyle.copyWith(color: scheme.destructive),
-                      ),
-                      if (text.isNotEmpty) const SizedBox(height: 8),
-                    ],
-                    if (text.isNotEmpty) Text(text, style: logStyle),
-                  ],
-                ),
-              ),
-            )
+            _StepLog(text: text, error: error)
           else
             Text(
               text,
@@ -1265,6 +1242,85 @@ class _ExtraPanel extends StatelessWidget {
             ),
           if (child != null) ...[const SizedBox(height: 8), child!],
         ],
+      ),
+    );
+  }
+}
+
+class _StepLog extends StatefulWidget {
+  const _StepLog({required this.text, this.error});
+
+  final String text;
+  final String? error;
+
+  @override
+  State<_StepLog> createState() => _StepLogState();
+}
+
+class _StepLogState extends State<_StepLog> {
+  final scrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _revealLatest();
+  }
+
+  @override
+  void didUpdateWidget(covariant _StepLog oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.error != oldWidget.error) {
+      _revealLatest();
+    } else if (widget.error == null &&
+        widget.text != oldWidget.text &&
+        (!scrollController.hasClients ||
+            scrollController.position.extentAfter < 1)) {
+      _revealLatest();
+    }
+  }
+
+  void _revealLatest() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !scrollController.hasClients) return;
+      scrollController.jumpTo(
+        widget.error == null ? scrollController.position.maxScrollExtent : 0,
+      );
+    });
+  }
+
+  @override
+  void dispose() {
+    scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = ShadTheme.of(context).colorScheme;
+    const logStyle = TextStyle(
+      fontFamily: 'monospace',
+      fontSize: 10,
+      height: 1.55,
+    );
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxHeight: 190),
+      child: SingleChildScrollView(
+        controller: scrollController,
+        primary: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (widget.error != null) ...[
+              Text(
+                widget.error!,
+                style: logStyle.copyWith(color: scheme.destructive),
+              ),
+              if (widget.text.isNotEmpty) const SizedBox(height: 8),
+            ],
+            if (widget.text.isNotEmpty) Text(widget.text, style: logStyle),
+          ],
+        ),
       ),
     );
   }
