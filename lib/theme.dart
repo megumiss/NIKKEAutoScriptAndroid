@@ -184,7 +184,7 @@ extension NkasColorSchemeX on ShadColorScheme {
   Color get heroMetaIcon => custom[NkasCustomKeys.heroMetaIcon]!;
 }
 
-/// 操作按钮的视觉高度与触控范围分别设置。
+/// 操作按钮的视觉高度、触控范围与语义配色。
 abstract final class NkasActionStyle {
   static const minTapSize = 48.0;
   static const secondaryHeight = 38.0;
@@ -199,6 +199,19 @@ abstract final class NkasActionStyle {
     tapTargetSize: MaterialTapTargetSize.padded,
     visualDensity: VisualDensity.standard,
   );
+
+  static ButtonStyle destructiveText(BuildContext context) =>
+      TextButton.styleFrom(
+        foregroundColor: ShadTheme.of(context).colorScheme.destructive,
+      );
+
+  static ButtonStyle destructiveFilled(BuildContext context) {
+    final scheme = ShadTheme.of(context).colorScheme;
+    return FilledButton.styleFrom(
+      backgroundColor: scheme.destructive,
+      foregroundColor: scheme.destructiveForeground,
+    );
+  }
 }
 
 /// 文本、数字、日期和选择控件共用的尺寸与边界。
@@ -306,7 +319,11 @@ ThemeData nkasMaterialTheme(BuildContext context, ThemeData base) {
       side: BorderSide(color: scheme.mutedForeground, width: 1.5),
       materialTapTargetSize: MaterialTapTargetSize.padded,
     ),
-    textButtonTheme: TextButtonThemeData(style: actionStyle),
+    textButtonTheme: TextButtonThemeData(
+      style: actionStyle.merge(
+        TextButton.styleFrom(foregroundColor: scheme.foreground),
+      ),
+    ),
     filledButtonTheme: FilledButtonThemeData(style: actionStyle),
     datePickerTheme: DatePickerThemeData(
       backgroundColor: scheme.card,
@@ -435,7 +452,7 @@ const nkasColorSchemeDark = ShadColorScheme(
   accent: NkasColors.darkSurface2,
   accentForeground: NkasColors.darkText,
   destructive: NkasColors.darkDanger,
-  destructiveForeground: Color(0xFFFFFFFF),
+  destructiveForeground: NkasColors.darkBg,
   border: NkasColors.darkTrack,
   input: NkasColors.darkSurface2,
   ring: NkasColors.darkAccent,

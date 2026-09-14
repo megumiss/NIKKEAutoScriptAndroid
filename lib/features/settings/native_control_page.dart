@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
+import 'package:nkas_mobile/theme.dart';
+
 import 'package:nkas_mobile/core/platform/native_control_settings.dart';
 import 'package:nkas_mobile/core/platform/nkas_platform.dart';
 import 'package:nkas_mobile/core/platform/runtime_platform.dart';
@@ -129,6 +131,7 @@ class _NativeControlPageState extends State<NativeControlPage> {
             child: const Text('取消'),
           ),
           TextButton(
+            style: NkasActionStyle.destructiveText(context),
             onPressed: () => Navigator.pop(context, true),
             child: const Text('清除'),
           ),
@@ -367,6 +370,7 @@ class _NativeControlPageState extends State<NativeControlPage> {
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: SecondaryButton(
+                                    destructive: true,
                                     icon: LucideIcons.trash2,
                                     label: '清除身份',
                                     onPressed: busy || !status.hasPersistedLogin
@@ -402,6 +406,7 @@ class _NativeControlPageState extends State<NativeControlPage> {
                   if (busy)
                     Center(
                       child: TextButton(
+                        style: NkasActionStyle.destructiveText(context),
                         onPressed: _cancelConnection,
                         child: const Text('取消连接'),
                       ),

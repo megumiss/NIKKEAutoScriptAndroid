@@ -73,6 +73,7 @@ class _SecurityEntryActionsState extends State<SecurityEntryActions> {
             child: const Text('取消'),
           ),
           FilledButton(
+            style: NkasActionStyle.destructiveFilled(context),
             onPressed: () => Navigator.pop(context, true),
             child: const Text('确认'),
           ),
@@ -131,6 +132,7 @@ class _SecurityEntryActionsState extends State<SecurityEntryActions> {
               ),
               SecondaryButton(
                 compact: true,
+                destructive: true,
                 icon: LucideIcons.refreshCw,
                 label: '重新生成入口',
                 onPressed: busy || widget.disabled ? null : _regenerate,

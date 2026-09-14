@@ -767,6 +767,7 @@ class _NkasSetupPageState extends State<NkasSetupPage>
               child: const Text('不覆盖'),
             ),
             FilledButton(
+              style: NkasActionStyle.destructiveFilled(context),
               onPressed: () => Navigator.of(context).pop(true),
               child: const Text('覆盖并打开'),
             ),

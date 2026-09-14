@@ -123,24 +123,29 @@ class PrimaryButton extends StatelessWidget {
     required this.onPressed,
     this.compact = false,
     this.loading = false,
+    this.destructive = false,
   });
   final IconData icon;
   final String label;
   final VoidCallback? onPressed;
   final bool compact;
   final bool loading;
+  final bool destructive;
 
   @override
   Widget build(BuildContext context) {
     final scheme = ShadTheme.of(context).colorScheme;
+    final background = destructive ? scheme.destructive : scheme.primary;
     return NkasButton(
       icon: icon,
       label: label,
       onPressed: onPressed,
       loading: loading,
-      background: scheme.primary,
-      foreground: scheme.primaryForeground,
-      shadow: NkasShadows.accent(scheme.primary, Theme.of(context).brightness),
+      background: background,
+      foreground: destructive
+          ? scheme.destructiveForeground
+          : scheme.primaryForeground,
+      shadow: NkasShadows.accent(background, Theme.of(context).brightness),
       minHeight: NkasActionStyle.minTapSize,
       radius: compact ? 10 : 11,
       horizontalPadding: compact ? 10 : 13,
@@ -156,12 +161,14 @@ class SecondaryButton extends StatelessWidget {
     required this.onPressed,
     this.loading = false,
     this.compact = false,
+    this.destructive = false,
   });
   final IconData icon;
   final String label;
   final VoidCallback? onPressed;
   final bool loading;
   final bool compact;
+  final bool destructive;
 
   @override
   Widget build(BuildContext context) {
@@ -171,9 +178,11 @@ class SecondaryButton extends StatelessWidget {
       label: label,
       onPressed: onPressed,
       loading: loading,
-      background: scheme.secondaryButtonBg,
-      foreground: scheme.secondaryButtonText,
-      borderColor: scheme.secondaryButtonBorder,
+      background: destructive ? scheme.card : scheme.secondaryButtonBg,
+      foreground: destructive ? scheme.destructive : scheme.secondaryButtonText,
+      borderColor: destructive
+          ? scheme.destructive.withValues(alpha: .35)
+          : scheme.secondaryButtonBorder,
       minHeight: compact
           ? NkasActionStyle.secondaryHeight
           : NkasActionStyle.minTapSize,

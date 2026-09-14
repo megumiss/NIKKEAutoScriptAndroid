@@ -145,6 +145,7 @@ class _DeployPageState extends State<DeployPage> {
                 child: const Text('取消'),
               ),
               FilledButton(
+                style: NkasActionStyle.destructiveFilled(context),
                 onPressed: () => Navigator.pop(context, true),
                 child: const Text('确认'),
               ),
@@ -208,9 +209,7 @@ class _DeployPageState extends State<DeployPage> {
               child: const Text('取消'),
             ),
             FilledButton(
-              style: FilledButton.styleFrom(
-                backgroundColor: ShadTheme.of(context).colorScheme.destructive,
-              ),
+              style: NkasActionStyle.destructiveFilled(context),
               onPressed: () => Navigator.pop(context, true),
               child: const Text('还原'),
             ),

@@ -148,6 +148,7 @@ class _SchedulePanelState extends State<SchedulePanel> {
                 Expanded(
                   child: SecondaryButton(
                     compact: true,
+                    destructive: true,
                     icon: LucideIcons.rotateCcw,
                     label: '还原默认',
                     onPressed: saving ? null : _reset,

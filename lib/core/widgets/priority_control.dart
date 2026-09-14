@@ -93,6 +93,7 @@ class NkasPriorityControl extends StatelessWidget {
                 ),
                 IconButton(
                   tooltip: '移除',
+                  color: scheme.destructive,
                   style: NkasActionStyle.compactButton,
                   icon: const Icon(LucideIcons.x, size: 15),
                   onPressed: disabled

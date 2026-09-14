@@ -91,6 +91,7 @@ class _InstancesPageState extends State<InstancesPage> {
               if (widget.selectedInstance != null) ...[
                 const SizedBox(width: 8),
                 PrimaryButton(
+                  destructive: widget.running,
                   icon: widget.toggleLoading
                       ? LucideIcons.loaderCircle
                       : widget.running

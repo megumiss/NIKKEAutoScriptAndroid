@@ -389,7 +389,9 @@ class _ScreenPanelState extends State<ScreenPanel> {
                           : LucideIcons.plug,
                       size: 20,
                     ),
-                    color: foreground,
+                    color: connecting || live
+                        ? NkasColors.darkDanger
+                        : NkasColors.darkAccent,
                     onPressed: !widget.accessGranted
                         ? null
                         : connecting || live
@@ -398,12 +400,16 @@ class _ScreenPanelState extends State<ScreenPanel> {
                   ),
                 ] else
                   TextButton(
-                    style: NkasActionStyle.compactButton,
-                    onPressed: loading || !widget.accessGranted ? null : _load,
-                    child: const Text(
-                      '刷新画面',
-                      style: TextStyle(color: foreground),
+                    style: NkasActionStyle.compactButton.merge(
+                      TextButton.styleFrom(
+                        foregroundColor: foreground,
+                        disabledForegroundColor: foreground.withValues(
+                          alpha: .38,
+                        ),
+                      ),
                     ),
+                    onPressed: loading || !widget.accessGranted ? null : _load,
+                    child: const Text('刷新画面'),
                   ),
               ],
             ),
@@ -562,6 +568,9 @@ class _NativeTextDialogState extends State<_NativeTextDialog> {
         child: const Text('取消'),
       ),
       TextButton(
+        style: TextButton.styleFrom(
+          foregroundColor: ShadTheme.of(context).colorScheme.primary,
+        ),
         onPressed: bytes == 0 || bytes > 300
             ? null
             : () => Navigator.pop(context, controller.text),

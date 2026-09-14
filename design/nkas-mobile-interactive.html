@@ -28,6 +28,7 @@
       --np-success: #159a72;
       --np-warning: #bd7a18;
       --np-danger: #c94d42;
+      --np-danger-foreground: #ffffff;
       display: flex;
       justify-content: center;
       width: 100%;
@@ -72,6 +73,8 @@
     .np-primary, .np-secondary { display:inline-flex; align-items:center; justify-content:center; gap:5px; min-height:38px; padding:0 13px; border:1px solid transparent; border-radius:11px; font-size:13px; font-weight:650; line-height:1; white-space:nowrap; cursor:pointer; }
     .np-primary { background:var(--np-blue); color:white; box-shadow:0 5px 12px rgba(0,153,255,.22); }
     .np-secondary { background:rgba(255,255,255,.68); color:#226483; border-color:rgba(61,141,183,.18); }
+    .np-primary.destructive { background:var(--np-danger); color:var(--np-danger-foreground); box-shadow:0 5px 12px color-mix(in srgb, var(--np-danger) 22%, transparent); }
+    .np-secondary.destructive { background:var(--np-surface); color:var(--np-danger); border-color:color-mix(in srgb, var(--np-danger) 35%, transparent); }
     .np-primary i, .np-secondary i { width:15px; height:15px; flex:0 0 15px; margin:0; }
     .np-section { margin-top:25px; }
     .np-section-head { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:9px; }
@@ -391,7 +394,7 @@
     .np-update-actions button { flex:1; }
     .np-update-back { display:inline-flex; align-items:center; gap:5px; margin:4px 0 5px; padding:0; border:0; background:transparent; color:#0879bf; font-size:12px; font-weight:650; cursor:pointer; }
     .np-update-back i { width:15px; height:15px; }
-    .np-danger-button { display:inline-flex; align-items:center; justify-content:center; gap:4px; min-height:38px; padding:0 11px; border:0; border-radius:10px; background:#ffebe8; color:var(--np-danger); font-size:12px; font-weight:650; line-height:1; white-space:nowrap; cursor:pointer; }
+    .np-danger-button { display:inline-flex; align-items:center; justify-content:center; gap:4px; min-height:38px; padding:0 11px; border:1px solid color-mix(in srgb, var(--np-danger) 35%, transparent); border-radius:10px; background:var(--np-surface); color:var(--np-danger); font-size:12px; font-weight:650; line-height:1; white-space:nowrap; cursor:pointer; }
     .np-danger-button i { width:15px; height:15px; flex:0 0 15px; margin:0; }
     .np-history { overflow:hidden; margin-top:16px; border:1px solid var(--np-line); border-radius:16px; background:var(--np-surface); }
     .np-history-head { padding:12px 14px; border-bottom:1px solid var(--np-line); font-size:13px; font-weight:700; }
@@ -589,6 +592,7 @@
           if (currentButton) {
             const button = currentButton.cloneNode(false);
             const active = Boolean(state.instanceRunning[state.selected]);
+            button.classList.toggle('destructive', active);
             button.setAttribute('aria-label', active ? '停止实例' : '启动实例');
             button.innerHTML = `${icon(active ? 'square' : 'play')}<span>${active ? '停止' : '启动'}</span>`;
             currentButton.replaceWith(button);
@@ -653,7 +657,7 @@
         content.innerHTML = `<p class="np-kicker">NKAS 服务控制台</p><p class="np-subtitle">快速查看本机服务与实例状态</p>
           <section class="np-hero"><div class="np-hero-top"><div><p class="np-eyebrow">主服务</p><h2 class="np-state"><span class="np-state-mark">●</span> ${state.running ? '服务运行正常' : '服务已停止'}</h2></div><div class="np-hero-icon">${icon(state.running ? 'activity' : 'pause-circle')}</div></div>
           <div class="np-meta"><span>${icon('smartphone')}Android 本机</span><span>${icon('clock-3')}${state.running ? '运行 2 小时 18 分' : '等待启动'}</span></div>
-          <div class="np-actions"><button class="np-primary" id="np-toggle" type="button">${icon(state.running ? 'square' : 'play')} ${state.running ? '停止服务' : '启动服务'}</button><button class="np-secondary" id="np-refresh" type="button">${icon('refresh-cw')}刷新状态</button></div></section>
+          <div class="np-actions"><button class="np-primary ${state.running ? 'destructive' : ''}" id="np-toggle" type="button">${icon(state.running ? 'square' : 'play')} ${state.running ? '停止服务' : '启动服务'}</button><button class="np-secondary" id="np-refresh" type="button">${icon('refresh-cw')}刷新状态</button></div></section>
           <section class="np-section"><div class="np-section-head"><h2 class="np-section-title">实例状态</h2><button class="np-link" data-go="instances" type="button">查看全部</button></div><div class="np-list">${instanceRow('主账号', main[0], main[1], main[2], true)}${instanceRow('小号', status('小号')[0], status('小号')[1], status('小号')[2], false)}</div></section>
           <section class="np-section"><div class="np-section-head"><div><h2 class="np-section-title">活动日历</h2><p class="np-event-updated">更新于 2026/09/10 08:00</p></div><button class="np-secondary" id="np-calendar-refresh" type="button">${icon('refresh-cw')}刷新</button></div><div class="np-event-tabs" role="tablist" aria-label="活动分类">${['全部','招募','Raid','超频','时装','剧情活动','竞技场'].map((tab, i) => `<button class="np-event-tab ${i === 0 ? 'active' : ''}" data-event-tab="${tab}" type="button">${tab}</button>`).join('')}</div><div class="np-event-card"><div class="np-event-banner"><span>剧情活动</span></div><div class="np-event-card-body"><div class="np-event-title-row"><h3 class="np-event-title">当前剧情活动</h3><span class="np-event-subtype">PASS</span></div><p class="np-event-subtitle">活动任务、商店与签到持续开放</p><div class="np-event-times"><div><span class="np-event-time-label">开始</span><span class="np-event-time-value">2026/09/03 05:00</span></div><div><span class="np-event-time-label">结束</span><span class="np-event-time-value">2026/09/24 04:59</span></div><div><span class="np-event-time-label">剩余</span><span class="np-event-time-value remaining">15天 12小时</span></div></div></div></div></section>`;
         bind('#np-toggle', () => { state.running = !state.running; draw(); });
@@ -701,7 +705,7 @@
           detail = `<section class="np-section"><div class="np-log-card"><div class="np-live-log-head"><span class="np-live-log-title ${isLive ? '' : 'paused'}">${isLive ? '实时日志' : '日志已暂停'}</span><div class="np-live-log-controls"><select class="np-live-log-select" id="np-live-log-level" aria-label="实时日志级别">${['DEBUG', 'INFO', 'WARN', 'ERROR'].map((x) => `<option ${state.liveLogLevel === x ? 'selected' : ''}>${x}</option>`).join('')}</select><label class="np-live-log-autoscroll"><span>自动滚动</span><button class="np-switch ${state.autoScroll ? 'on' : ''}" id="np-live-autoscroll" type="button" aria-label="实时日志自动滚动"></button></label></div></div><div class="np-log-body" id="np-live-log-body">${liveMarkup}</div></div></section>`;
         }
         if (state.instanceSection === 'screen') detail = `<section class="np-section"><p class="np-section-note">画面预览与控制沿用 WebUI 的 ScreenPreview 能力。</p><div class="np-preview"><div class="np-preview-screen">${state.running ? '设备画面预览' : '暂无画面'}</div><div class="np-preview-bar"><span>${state.running ? '实时 · 2s' : '未连接'}</span><button class="np-preview-control" id="np-screen-control" type="button">${state.running ? '进入控制' : '刷新画面'}</button></div></div></section>`;
-        content.innerHTML = `<p class="np-kicker">实例控制台</p><section class="np-instance-hero"><div class="np-instance-hero-row">${instanceSelect()}<div class="np-instance-actions"><button class="np-primary" id="np-instance-start" type="button" aria-label="${state.running ? '停止实例' : '启动实例'}">${icon(state.running ? 'square' : 'play')}<span>${state.running ? '停止' : '启动'}</span></button></div></div></section><div class="np-subtabs np-instance-nav" role="tablist">${tabMarkup}</div>${detail}`;
+        content.innerHTML = `<p class="np-kicker">实例控制台</p><section class="np-instance-hero"><div class="np-instance-hero-row">${instanceSelect()}<div class="np-instance-actions"><button class="np-primary ${state.instanceRunning[state.selected] ? 'destructive' : ''}" id="np-instance-start" type="button" aria-label="${state.running ? '停止实例' : '启动实例'}">${icon(state.running ? 'square' : 'play')}<span>${state.running ? '停止' : '启动'}</span></button></div></div></section><div class="np-subtabs np-instance-nav" role="tablist">${tabMarkup}</div>${detail}`;
         root.querySelectorAll('[data-instance-section]').forEach((el) => el.addEventListener('click', () => { state.instanceSection = el.dataset.instanceSection; state.task = ''; draw(); })); root.querySelectorAll('[data-task]').forEach((el) => el.addEventListener('click', () => { state.task = el.dataset.task; draw(); })); bind('#np-task-back', () => { state.task = ''; draw(); }); bindInstanceSelect(); bind('#np-instance-start', () => { state.running = !state.running; state.instanceRunning[state.selected] = state.running; draw(); }); bind('#np-deploy-link', openDeploy); bind('#np-screen-control', openWebui); bind('#np-schedule-save', (el) => { el.textContent = '已保存'; setTimeout(draw, 700); }); bind('#np-task-save', (el) => { el.textContent = '已保存'; setTimeout(draw, 700); }); bind('[data-go="logs"]', () => { state.page = 'logs'; draw(); }); const liveLogLevel = root.querySelector('#np-live-log-level'); if (liveLogLevel) liveLogLevel.addEventListener('change', () => { state.liveLogLevel = liveLogLevel.value; draw(); }); bind('#np-live-autoscroll', () => { state.autoScroll = !state.autoScroll; draw(); }); root.querySelectorAll('[data-schedule-toggle]').forEach((el) => el.addEventListener('click', () => el.classList.toggle('on'))); root.querySelectorAll('.np-field-switch').forEach((el) => el.addEventListener('click', () => el.classList.toggle('on')));
       }
       function drawLogs() {
