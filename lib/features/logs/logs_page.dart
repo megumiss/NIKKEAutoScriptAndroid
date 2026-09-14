@@ -348,7 +348,7 @@ class LogCard extends StatelessWidget {
           ConstrainedBox(
             constraints: const BoxConstraints(minHeight: 44),
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(14, 2, 8, 2),
+              padding: const EdgeInsets.only(left: 14, right: 8),
               child: Row(
                 children: [
                   Expanded(
