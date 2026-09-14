@@ -9,6 +9,7 @@ import 'package:nkas_mobile/core/widgets/multi_select.dart';
 import 'package:nkas_mobile/core/widgets/icon_box.dart';
 import 'package:nkas_mobile/core/widgets/field_select.dart';
 import 'package:nkas_mobile/core/widgets/group_label.dart';
+import 'package:nkas_mobile/core/widgets/priority_control.dart';
 import 'package:nkas_mobile/core/widgets/surface.dart';
 import 'package:nkas_mobile/core/widgets/tag.dart';
 import 'package:nkas_mobile/core/widgets/toggle.dart';
@@ -412,6 +413,20 @@ class _SchemaFieldView extends StatelessWidget {
             onChanged: disabled ? null : (value) => onPatch(field.key, value),
           ),
         ],
+      );
+    }
+    if (field.widget == 'priority') {
+      return NkasField(
+        label: field.title,
+        description: field.help,
+        child: NkasPriorityControl(
+          value: field.value?.toString() ?? '',
+          options: [
+            for (final option in field.options)
+              FieldSelectOption(option.value.toString(), option.label),
+          ],
+          onChanged: disabled ? null : (value) => onPatch(field.key, value),
+        ),
       );
     }
     if (field.widget == 'select' || field.widget == 'multiselect') {

@@ -13,6 +13,7 @@ import 'package:nkas_mobile/core/widgets/field_select.dart';
 import 'package:nkas_mobile/core/widgets/group_label.dart';
 import 'package:nkas_mobile/core/widgets/page_inset.dart';
 import 'package:nkas_mobile/core/widgets/page_subtitle.dart';
+import 'package:nkas_mobile/core/widgets/priority_control.dart';
 import 'package:nkas_mobile/core/widgets/surface.dart';
 import 'package:nkas_mobile/core/widgets/tag.dart';
 import 'package:nkas_mobile/core/widgets/toggle.dart';
@@ -532,15 +533,12 @@ class _DeployFieldView extends StatelessWidget {
         control = NkasField(
           label: field.title,
           description: field.help,
-          child: _PriorityControl(
-            field: field,
-            selected: (value?.toString() ?? '')
-                .split('>')
-                .map((item) => item.trim())
-                .where((item) => item.isNotEmpty)
-                .toList(),
-            disabled: saving,
-            onPatch: onPatch,
+          child: NkasPriorityControl(
+            value: value?.toString() ?? '',
+            options: options,
+            addLabel: '添加实例',
+            emptyLabel: '暂无实例可选',
+            onChanged: saving ? null : (next) => onPatch(field, next),
           ),
         );
       default:
@@ -585,120 +583,6 @@ class _DeployFieldView extends StatelessWidget {
             ],
           ),
         ],
-      ],
-    );
-  }
-}
-
-/// 优先级使用有序行，长名称可换行，移动和删除保留完整触控范围。
-class _PriorityControl extends StatelessWidget {
-  const _PriorityControl({
-    required this.field,
-    required this.selected,
-    required this.disabled,
-    required this.onPatch,
-  });
-
-  final DeployField field;
-  final List<String> selected;
-  final bool disabled;
-  final Future<bool> Function(DeployField, Object?) onPatch;
-
-  void _update(List<String> next) => onPatch(field, next.join(' > '));
-
-  String _labelOf(String token) =>
-      field.options
-          .where((option) => option.value == token)
-          .firstOrNull
-          ?.label ??
-      token;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = ShadTheme.of(context);
-    final scheme = theme.colorScheme;
-    final remaining = field.options
-        .where((option) => !selected.contains(option.value))
-        .toList();
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        for (var index = 0; index < selected.length; index++) ...[
-          if (index > 0) const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.only(left: 12),
-            decoration: BoxDecoration(
-              color: scheme.input,
-              borderRadius: NkasInputStyle.radius,
-              border: Border.all(color: scheme.border),
-            ),
-            child: Row(
-              children: [
-                Text(
-                  '${index + 1}',
-                  style: theme.textTheme.p.copyWith(color: scheme.primary),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    _labelOf(selected[index]),
-                    style: theme.textTheme.p,
-                  ),
-                ),
-                IconButton(
-                  tooltip: '前移',
-                  style: NkasActionStyle.compactButton,
-                  icon: const Icon(LucideIcons.chevronLeft, size: 15),
-                  onPressed: disabled || index == 0
-                      ? null
-                      : () {
-                          final next = [...selected];
-                          final item = next.removeAt(index);
-                          next.insert(index - 1, item);
-                          _update(next);
-                        },
-                ),
-                IconButton(
-                  tooltip: '后移',
-                  style: NkasActionStyle.compactButton,
-                  icon: const Icon(LucideIcons.chevronRight, size: 15),
-                  onPressed: disabled || index == selected.length - 1
-                      ? null
-                      : () {
-                          final next = [...selected];
-                          final item = next.removeAt(index);
-                          next.insert(index + 1, item);
-                          _update(next);
-                        },
-                ),
-                IconButton(
-                  tooltip: '移除',
-                  style: NkasActionStyle.compactButton,
-                  icon: const Icon(LucideIcons.x, size: 15),
-                  onPressed: disabled
-                      ? null
-                      : () => _update([...selected]..removeAt(index)),
-                ),
-              ],
-            ),
-          ),
-        ],
-        if (remaining.isNotEmpty) ...[
-          if (selected.isNotEmpty) const SizedBox(height: 12),
-          FieldSelect(
-            label: '添加实例',
-            value: '',
-            options: [
-              for (final option in remaining)
-                FieldSelectOption(option.value, option.label),
-            ],
-            onChanged: disabled
-                ? null
-                : (value) => _update([...selected, value]),
-          ),
-        ],
-        if (selected.isEmpty && remaining.isEmpty)
-          Text('暂无实例可选', style: theme.textTheme.muted),
       ],
     );
   }
