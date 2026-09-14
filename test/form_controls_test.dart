@@ -290,9 +290,7 @@ void main() {
     );
     await tester.pumpAndSettle();
     final day = find.descendant(
-      of: find.byWidgetPredicate(
-        (widget) => widget is NkasTextField && widget.label == '每月执行日',
-      ),
+      of: find.byKey(const ValueKey('Daily-monthly-day')),
       matching: find.byType(TextField),
     );
     await tester.enterText(day, '32');

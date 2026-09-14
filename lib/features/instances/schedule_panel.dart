@@ -307,26 +307,43 @@ class _ScheduleRow extends StatelessWidget {
           ],
           if (task.cadence == 'monthly') ...[
             const SizedBox(height: 12),
-            NkasTextField(
-              key: ValueKey('${task.command}-monthly-day'),
-              label: '每月执行日',
-              initialValue: task.monthlyDay,
-              enabled: !disabled && !task.locked,
-              keyboardType: TextInputType.number,
-              textInputAction: TextInputAction.done,
-              hintText: '1–31',
-              inputFormatters: [
-                FilteringTextInputFormatter.digitsOnly,
-                LengthLimitingTextInputFormatter(2),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
+              children: [
+                const Expanded(
+                  child: ExcludeSemantics(
+                    child: NkasFieldLabel(label: '每月执行日'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Semantics(
+                    label: '每月执行日',
+                    child: NkasTextField(
+                      key: ValueKey('${task.command}-monthly-day'),
+                      label: '',
+                      initialValue: task.monthlyDay,
+                      enabled: !disabled && !task.locked,
+                      keyboardType: TextInputType.number,
+                      textInputAction: TextInputAction.done,
+                      hintText: '1–31',
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        LengthLimitingTextInputFormatter(2),
+                      ],
+                      validator: (value) {
+                        if (disabled || task.locked) return null;
+                        final day = int.tryParse(value ?? '');
+                        return day == null || day < 1 || day > 31
+                            ? '请输入 1–31 之间的日期'
+                            : null;
+                      },
+                      onChanged: (value) => onChanged({'monthly_day': value}),
+                    ),
+                  ),
+                ),
               ],
-              validator: (value) {
-                if (disabled || task.locked) return null;
-                final day = int.tryParse(value ?? '');
-                return day == null || day < 1 || day > 31
-                    ? '请输入 1–31 之间的日期'
-                    : null;
-              },
-              onChanged: (value) => onChanged({'monthly_day': value}),
             ),
           ],
         ],
