@@ -553,16 +553,13 @@ class _NkasSetupPageState extends State<NkasSetupPage>
               const Divider(height: 20),
               NkasTextField(
                 label: '远程 Android ADB 地址',
+                description:
+                    'iOS 原生 scrcpy 使用此地址直接连接远程 Android；设备需开启 TCP ADB 并确认 RSA 授权。',
                 controller: serialController,
                 focusNode: serialFocusNode,
                 keyboardType: TextInputType.url,
                 onSubmitted: (_) => unawaited(_saveIosSerial()),
                 hintText: '例如 100.64.0.2:5555',
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'iOS 原生 scrcpy 使用此地址直接连接远程 Android；设备需开启 TCP ADB 并确认 RSA 授权。',
-                style: ShadTheme.of(context).textTheme.muted,
               ),
               const Divider(height: 20),
               _IosSetupStep(
@@ -959,13 +956,13 @@ class _NkasSetupPageState extends State<NkasSetupPage>
         );
       case 'adb_device':
         return _ExtraPanel(
-          text:
-              '初始化需要配对一次：\n1. 点击下方“配对”按钮\n2. 在无线调试里打开“使用配对码配对”\n3. 在弹出的通知中输入配对码',
+          text: '首次连接需要配对一次。点击“配对”，在无线调试中打开“使用配对码配对”，再在通知中输入配对码。',
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               NkasTextField(
                 label: '无线调试端口',
+                description: '通常会自动发现；手动填写时，使用无线调试主页的连接端口。',
                 controller: serialController,
                 focusNode: serialFocusNode,
                 keyboardType: TextInputType.number,
@@ -976,13 +973,13 @@ class _NkasSetupPageState extends State<NkasSetupPage>
                   LengthLimitingTextInputFormatter(5),
                 ],
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 16),
               NkasTextField(
                 label: '配对码',
+                description: '可留空，稍后在配对通知中输入。',
                 controller: pairCodeController,
                 keyboardType: TextInputType.number,
                 hintText: '填写数字配对码',
-                helperText: '可留空，稍后在通知中输入',
                 inputFormatters: [
                   FilteringTextInputFormatter.digitsOnly,
                   LengthLimitingTextInputFormatter(8),
@@ -999,11 +996,6 @@ class _NkasSetupPageState extends State<NkasSetupPage>
                     onPressed: pairingActive ? null : _pair,
                   ),
                 ],
-              ),
-              const SizedBox(height: 7),
-              Text(
-                '本机无线调试端口通常会自动发现，也可以填写设置页面显示的端口号。',
-                style: ShadTheme.of(context).textTheme.muted,
               ),
             ],
           ),
@@ -1191,7 +1183,12 @@ class _ExtraPanel extends StatelessWidget {
               ),
             )
           else
-            Text(text, style: ShadTheme.of(context).textTheme.muted),
+            Text(
+              text,
+              style: ShadTheme.of(
+                context,
+              ).textTheme.muted.copyWith(height: 1.5),
+            ),
           if (child != null) ...[const SizedBox(height: 8), child!],
         ],
       ),

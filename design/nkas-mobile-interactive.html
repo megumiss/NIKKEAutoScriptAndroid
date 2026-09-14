@@ -157,12 +157,10 @@
     .np-setup-log { margin:0 12px 11px 48px; padding:9px 10px; border-radius:9px; background:#f3f7f9; color:#607783; font:10px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,"Microsoft YaHei UI",monospace; }
     .np-setup-device-card { margin-top:10px; padding:12px; border:1px solid var(--np-line); border-radius:14px; background:var(--np-surface); }
     .np-setup-device-label { display:block; color:var(--np-muted); font-size:11px; }
-    .np-setup-device-controls { display:flex; align-items:center; gap:8px; margin-top:6px; }
-    .np-setup-input { min-width:0; flex:1; height:36px; padding:0 10px; border:1px solid var(--np-line); border-radius:9px; outline:0; background:#f8fafb; color:var(--np-ink); font:12px ui-monospace,SFMono-Regular,Menlo,Consolas,"Microsoft YaHei UI",monospace; }
-    .np-setup-input:focus { border-color:var(--np-blue); box-shadow:0 0 0 2px var(--np-blue-soft); }
-    .np-setup-device-controls .np-secondary { min-height:36px; padding:0 12px; }
-    .np-setup-device-help { margin:7px 0 0; color:var(--np-muted); font-size:10px; line-height:1.4; }
-    .np-setup-extra { width:100%; margin:0; padding:10px 12px 12px 48px; border-top:1px solid var(--np-line); background:#f5f8fa; color:#607783; font-size:10px; line-height:1.5; }
+    .np-setup-adb-fields { display:grid; gap:16px; margin-top:8px; }
+    .np-setup-adb-fields .np-form-label { margin-bottom:4px; }
+    .np-setup-adb-fields .np-form-help { margin:0 0 8px; }
+    .np-setup-extra { width:100%; margin:0; padding:10px 12px 12px 48px; border-top:1px solid var(--np-line); background:#f5f8fa; color:#607783; font-size:12px; line-height:1.5; }
     .np-setup-extra p { margin:0; }
     .np-setup-extra .np-setup-actions { display:flex; flex-wrap:nowrap; gap:8px; width:100%; margin-top:8px; }
     .np-setup-extra .np-setup-actions > .np-secondary { flex:1; min-width:0; }
@@ -760,7 +758,7 @@
         const extraMap = {
           permission: `<p>部分系统不会弹出授权框，需要在系统设置中手动允许 NKAS 使用 Run commands in Termux environment。</p><div class="np-setup-actions"><button class="np-secondary" id="np-setup-permission" type="button">打开应用权限设置</button></div>`,
           termux_setting: `<p>在 Termux 中执行以下命令，然后完全退出并重新打开 Termux。页面会根据实际配置自动更新状态。</p><p class="np-setup-command">mkdir -p ~/.termux<br>echo 'allow-external-apps=true' &gt; ~/.termux/termux.properties</p><div class="np-setup-actions"><button class="np-secondary" id="np-setup-open-termux" type="button">打开 Termux</button><button class="np-secondary" id="np-setup-copy-command" type="button">复制命令</button></div>`,
-          adb_device: `<p>初始化需要配对一次：</p><p>1. 点击下方“配对”按钮<br>2. 在无线调试里打开“使用配对码配对”<br>3. 在弹出的通知中输入配对码</p><div class="np-setup-device-controls"><input class="np-setup-input" id="np-setup-port" value="5037" inputmode="numeric" aria-label="无线调试端口"><button class="np-secondary" id="np-setup-pair" type="button">配对</button></div><p class="np-setup-device-help">本机无线调试端口通常会自动发现，也可以填写设置页面显示的端口号。</p>`,
+          adb_device: `<p>首次连接需要配对一次。点击“配对”，在无线调试中打开“使用配对码配对”，再在通知中输入配对码。</p><div class="np-setup-adb-fields"><div><label class="np-form-label" for="np-setup-port">无线调试端口</label><p class="np-form-help" id="np-setup-port-help">通常会自动发现；手动填写时，使用无线调试主页的连接端口。</p><input class="np-url-input" id="np-setup-port" inputmode="numeric" maxlength="5" aria-describedby="np-setup-port-help" placeholder="填写系统设置中显示的端口号"></div><div><label class="np-form-label" for="np-setup-code">配对码</label><p class="np-form-help" id="np-setup-code-help">可留空，稍后在配对通知中输入。</p><input class="np-url-input" id="np-setup-code" inputmode="numeric" maxlength="8" aria-describedby="np-setup-code-help" placeholder="填写数字配对码"></div></div><div class="np-setup-actions"><button class="np-secondary" id="np-setup-pair" type="button">配对</button></div>`,
         };
         const rowMarkup = (group) => steps.filter((x) => group.includes(x[0])).map(([key, name, detail, pendingLabel], index) => {
           const done = completed.has(key);
