@@ -1,20 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:shadcn_ui/shadcn_ui.dart';
 
 import 'package:nkas_mobile/core/api/instance_info.dart';
 import 'package:nkas_mobile/core/api/schedule_info.dart';
 import 'package:nkas_mobile/core/api/schema_info.dart';
-import 'package:nkas_mobile/core/widgets/avatar.dart';
-import 'package:nkas_mobile/core/widgets/buttons.dart';
-import 'package:nkas_mobile/core/widgets/instance_picker.dart';
+import 'package:nkas_mobile/core/widgets/instance_select.dart';
 import 'package:nkas_mobile/core/widgets/page_inset.dart';
 import 'package:nkas_mobile/core/widgets/page_subtitle.dart';
-import 'package:nkas_mobile/core/widgets/status.dart';
-import 'package:nkas_mobile/core/widgets/surface.dart';
 import 'package:nkas_mobile/core/widgets/tab_strip.dart';
 import 'package:nkas_mobile/features/instances/schedule_panel.dart';
 import 'package:nkas_mobile/features/instances/schema_panel.dart';
-import 'package:nkas_mobile/theme.dart';
 
 /// 任务页顶部横向 tab：任务配置 + 调度设置（队列与实时日志在实例详情页）
 enum TaskTab { config, schedule }
@@ -88,23 +82,20 @@ class _TasksPageState extends State<TasksPage> {
         ),
         Padding(
           padding: EdgeInsets.symmetric(horizontal: inset),
-          child: _InstanceBar(
+          child: InstanceSelect(
             instances: widget.instances,
             selected: widget.selected,
             selectedInstance: widget.selectedInstance,
             avatarUrl: widget.avatarUrl,
             loading: widget.instancesLoading,
             error: widget.instancesError,
-            onSelectInstance: widget.onSelectInstance,
+            onSelect: widget.onSelectInstance,
           ),
         ),
         Padding(
           padding: EdgeInsets.fromLTRB(inset, 10, inset, 0),
           child: NkasTabStrip<TaskTab>(
-            tabs: const [
-              (TaskTab.config, '任务配置'),
-              (TaskTab.schedule, '调度设置'),
-            ],
+            tabs: const [(TaskTab.config, '任务配置'), (TaskTab.schedule, '调度设置')],
             selected: tab,
             onSelect: (value) => setState(() => tab = value),
           ),
@@ -142,89 +133,6 @@ class _TasksPageState extends State<TasksPage> {
           },
         ),
       ],
-    );
-  }
-}
-
-/// 实例栏：头像 + 名称 + 状态 + 切换（与画面页头部同规格）
-class _InstanceBar extends StatelessWidget {
-  const _InstanceBar({
-    required this.instances,
-    required this.selected,
-    required this.selectedInstance,
-    required this.avatarUrl,
-    required this.loading,
-    required this.error,
-    required this.onSelectInstance,
-  });
-  final List<InstanceInfo> instances;
-  final String selected;
-  final InstanceInfo? selectedInstance;
-  final String? Function(InstanceInfo item) avatarUrl;
-  final bool loading;
-  final String? error;
-  final ValueChanged<String> onSelectInstance;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = ShadTheme.of(context).colorScheme;
-    final displayName =
-        selectedInstance?.name ??
-        (loading
-            ? '加载中…'
-            : error == null
-            ? '暂无实例'
-            : '实例加载失败');
-    return Surface(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
-      child: Row(
-        children: [
-          Avatar(
-            text: selectedInstance?.name.characters.first ?? '实',
-            size: 38,
-            fontSize: 15,
-            background: scheme.accentSoft,
-            foreground: scheme.configIconText,
-            imageUrl: selectedInstance == null
-                ? null
-                : avatarUrl(selectedInstance!),
-          ),
-          const SizedBox(width: 9),
-          Expanded(
-            child: Row(
-              children: [
-                Flexible(
-                  child: Text(
-                    displayName,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-                if (selectedInstance != null) ...[
-                  const SizedBox(width: 7),
-                  Status(status: selectedInstance!.status),
-                ],
-              ],
-            ),
-          ),
-          CompactButton(
-            icon: LucideIcons.layers3,
-            label: '切换',
-            onPressed: () => showInstancePicker(
-              context,
-              instances: instances,
-              selected: selected,
-              loading: loading,
-              error: error,
-              avatarUrl: avatarUrl,
-              onSelect: onSelectInstance,
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

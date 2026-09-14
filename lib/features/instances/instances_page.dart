@@ -3,13 +3,11 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 
 import 'package:nkas_mobile/core/api/instance_info.dart';
 import 'package:nkas_mobile/core/api/queue_info.dart';
-import 'package:nkas_mobile/core/widgets/avatar.dart';
 import 'package:nkas_mobile/core/widgets/buttons.dart';
-import 'package:nkas_mobile/core/widgets/instance_picker.dart';
+import 'package:nkas_mobile/core/widgets/instance_select.dart';
 import 'package:nkas_mobile/core/widgets/page_inset.dart';
 import 'package:nkas_mobile/core/widgets/page_subtitle.dart';
 import 'package:nkas_mobile/core/widgets/queue_row.dart';
-import 'package:nkas_mobile/core/widgets/status.dart';
 import 'package:nkas_mobile/core/widgets/surface.dart';
 import 'package:nkas_mobile/core/widgets/tab_strip.dart';
 import 'package:nkas_mobile/features/instances/live_log_panel.dart';
@@ -18,7 +16,7 @@ import 'package:nkas_mobile/theme.dart';
 /// 实例详情页顶部横向 tab：运行中/队列中/等待中三段队列 + 实时日志
 enum InstanceTab { running, pending, waiting, liveLog }
 
-/// 实例页直接展示选中实例的详情：头部（切换/启停）+ 横向 tab（队列三段、
+/// 实例页直接展示选中实例的详情：头部（实例下拉/启停）+ 横向 tab（队列三段、
 /// 实时日志）。队列行点击跳转任务页对应配置；任务配置、调度设置在任务页。
 class InstancesPage extends StatefulWidget {
   const InstancesPage({
@@ -75,23 +73,39 @@ class _InstancesPageState extends State<InstancesPage> {
           padding: EdgeInsets.fromLTRB(inset, 5, inset, 0),
           child: const PageSubtitle('查看实例状态、任务队列与实时日志'),
         ),
-        _DashboardHeader(
-          selectedInstance: widget.selectedInstance,
-          loading: widget.loading,
-          error: widget.error,
-          avatarUrl: widget.avatarUrl,
-          running: widget.running,
-          toggleLoading: widget.toggleLoading,
-          showSwitcher: widget.instances.isNotEmpty,
-          onToggle: widget.onToggle,
-          onShowPicker: () => showInstancePicker(
-            context,
-            instances: widget.instances,
-            selected: widget.selected,
-            loading: widget.loading,
-            error: widget.error,
-            avatarUrl: widget.avatarUrl,
-            onSelect: widget.onSelectInstance,
+        Padding(
+          padding: EdgeInsets.symmetric(horizontal: inset),
+          child: Row(
+            children: [
+              Expanded(
+                child: InstanceSelect(
+                  instances: widget.instances,
+                  selected: widget.selected,
+                  selectedInstance: widget.selectedInstance,
+                  loading: widget.loading,
+                  error: widget.error,
+                  avatarUrl: widget.avatarUrl,
+                  onSelect: widget.onSelectInstance,
+                ),
+              ),
+              if (widget.selectedInstance != null) ...[
+                const SizedBox(width: 8),
+                PrimaryButton(
+                  icon: widget.toggleLoading
+                      ? LucideIcons.loaderCircle
+                      : widget.running
+                      ? LucideIcons.square
+                      : LucideIcons.play,
+                  label: widget.toggleLoading
+                      ? '处理中…'
+                      : widget.running
+                      ? '停止'
+                      : '启动',
+                  onPressed: widget.onToggle,
+                  compact: true,
+                ),
+              ],
+            ],
           ),
         ),
         Padding(
@@ -201,9 +215,7 @@ class _InstancesPageState extends State<InstancesPage> {
                   icon: icon,
                   // schema 以后端 command 为键，而非本地化名称
                   onTap: () => widget.onOpenTask(
-                    items[i].command.isEmpty
-                        ? items[i].name
-                        : items[i].command,
+                    items[i].command.isEmpty ? items[i].name : items[i].command,
                   ),
                 ),
               ],
@@ -211,106 +223,6 @@ class _InstancesPageState extends State<InstancesPage> {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _DashboardHeader extends StatelessWidget {
-  const _DashboardHeader({
-    required this.selectedInstance,
-    required this.loading,
-    required this.error,
-    required this.avatarUrl,
-    required this.running,
-    required this.toggleLoading,
-    required this.showSwitcher,
-    required this.onToggle,
-    required this.onShowPicker,
-  });
-  final InstanceInfo? selectedInstance;
-  final bool loading;
-  final String? error;
-  final String? Function(InstanceInfo item) avatarUrl;
-  final bool running;
-  final bool toggleLoading;
-  final bool showSwitcher;
-  final VoidCallback onToggle;
-  final VoidCallback onShowPicker;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = ShadTheme.of(context).colorScheme;
-    final inset = nkasPageInset(context);
-    final displayName =
-        selectedInstance?.name ??
-        (loading
-            ? '加载中…'
-            : error == null
-            ? '暂无实例'
-            : '实例加载失败');
-    return Padding(
-      padding: EdgeInsets.symmetric(horizontal: inset),
-      child: Surface(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
-        child: Row(
-          children: [
-            Avatar(
-              text: selectedInstance?.name.characters.first ?? '实',
-              size: 38,
-              fontSize: 15,
-              background: scheme.accentSoft,
-              foreground: scheme.configIconText,
-              imageUrl: selectedInstance == null
-                  ? null
-                  : avatarUrl(selectedInstance!),
-            ),
-            const SizedBox(width: 9),
-            Expanded(
-              child: Row(
-                children: [
-                  Flexible(
-                    child: Text(
-                      displayName,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                  if (selectedInstance != null) ...[
-                    const SizedBox(width: 7),
-                    Status(status: selectedInstance!.status),
-                  ],
-                ],
-              ),
-            ),
-            if (showSwitcher)
-              CompactButton(
-                icon: LucideIcons.layers3,
-                label: '切换',
-                onPressed: onShowPicker,
-              ),
-            if (selectedInstance != null) ...[
-              const SizedBox(width: 7),
-              PrimaryButton(
-                icon: toggleLoading
-                    ? LucideIcons.loaderCircle
-                    : running
-                    ? LucideIcons.square
-                    : LucideIcons.play,
-                label: toggleLoading
-                    ? '处理中…'
-                    : running
-                    ? '停止'
-                    : '启动',
-                onPressed: onToggle,
-                compact: true,
-              ),
-            ],
-          ],
-        ),
-      ),
     );
   }
 }

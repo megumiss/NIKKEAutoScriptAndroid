@@ -92,10 +92,6 @@ abstract final class NkasColors {
   static const darkEventBannerRaid = Color(0xFF2B2840);
   static const darkEventBannerArena = Color(0xFF3B3320);
 
-  // 实例切换胶囊（原型 .np-instance-switcher）
-  static const lightSwitcherBg = Color(0xFFF8FBFC);
-  static const darkSwitcherBg = Color(0xFF293943);
-
   // 底部导航（原型 .np-nav）：92% 白底 + 细边框；阴影色 rgba(38,66,84,...)
   static const lightNavBg = Color(0xEBFFFFFF);
   static const lightNavBorder = Color(0xE6CDDAE3);
@@ -145,7 +141,6 @@ abstract final class NkasCustomKeys {
   static const eventBannerDefault = 'eventBannerDefault';
   static const eventBannerRaid = 'eventBannerRaid';
   static const eventBannerArena = 'eventBannerArena';
-  static const switcherBg = 'switcherBg';
   static const navBg = 'navBg';
   static const navBorder = 'navBorder';
   static const heroEyebrow = 'heroEyebrow';
@@ -182,7 +177,6 @@ extension NkasColorSchemeX on ShadColorScheme {
   Color get eventBannerDefault => custom[NkasCustomKeys.eventBannerDefault]!;
   Color get eventBannerRaid => custom[NkasCustomKeys.eventBannerRaid]!;
   Color get eventBannerArena => custom[NkasCustomKeys.eventBannerArena]!;
-  Color get switcherBg => custom[NkasCustomKeys.switcherBg]!;
   Color get navBg => custom[NkasCustomKeys.navBg]!;
   Color get navBorder => custom[NkasCustomKeys.navBorder]!;
   Color get heroEyebrow => custom[NkasCustomKeys.heroEyebrow]!;
@@ -417,7 +411,6 @@ const nkasColorSchemeLight = ShadColorScheme(
     NkasCustomKeys.eventBannerDefault: NkasColors.lightEventBannerDefault,
     NkasCustomKeys.eventBannerRaid: NkasColors.lightEventBannerRaid,
     NkasCustomKeys.eventBannerArena: NkasColors.lightEventBannerArena,
-    NkasCustomKeys.switcherBg: NkasColors.lightSwitcherBg,
     NkasCustomKeys.navBg: NkasColors.lightNavBg,
     NkasCustomKeys.navBorder: NkasColors.lightNavBorder,
     NkasCustomKeys.heroEyebrow: NkasColors.lightHeroEyebrow,
@@ -474,7 +467,6 @@ const nkasColorSchemeDark = ShadColorScheme(
     NkasCustomKeys.eventBannerDefault: NkasColors.darkEventBannerDefault,
     NkasCustomKeys.eventBannerRaid: NkasColors.darkEventBannerRaid,
     NkasCustomKeys.eventBannerArena: NkasColors.darkEventBannerArena,
-    NkasCustomKeys.switcherBg: NkasColors.darkSwitcherBg,
     NkasCustomKeys.navBg: NkasColors.darkNavBg,
     NkasCustomKeys.navBorder: NkasColors.darkNavBorder,
     NkasCustomKeys.heroEyebrow: NkasColors.darkHeroEyebrow,

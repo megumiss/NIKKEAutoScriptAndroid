@@ -10,10 +10,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:nkas_mobile/app/app.dart';
 import 'package:nkas_mobile/core/api/api_client.dart';
 import 'package:nkas_mobile/core/connection/connection_controller.dart';
 import 'package:nkas_mobile/core/settings/backend_settings.dart';
+import 'package:nkas_mobile/core/widgets/instance_select.dart';
 import 'package:nkas_mobile/features/settings/about_page.dart';
 
 class _MemoryBackendSettings implements BackendSettings {
@@ -561,11 +563,51 @@ void main() {
 
     expect(find.text('查看实例实时画面，每 2 秒自动刷新'), findsOneWidget);
     expect(find.text('nkas'), findsOneWidget);
-    expect(find.text('切换'), findsOneWidget);
+    expect(find.byTooltip('选择实例'), findsOneWidget);
     // Mock 后端对 /screenshot 返回 404：无画面帧，显示空态
     expect(find.text('未连接'), findsOneWidget);
     expect(find.text('暂无画面'), findsOneWidget);
     expect(find.text('刷新画面'), findsOneWidget);
+  });
+
+  testWidgets('instance dropdown switches across instances, tasks and screen', (
+    tester,
+  ) async {
+    await _pumpTestApp(tester);
+    var current = 'nkas';
+    for (final (page, next) in [
+      ('实例', 'nkas2'),
+      ('任务', 'nkas'),
+      ('画面', 'nkas2'),
+    ]) {
+      await tester.tap(find.byTooltip(page));
+      await tester.pumpAndSettle();
+      final selector = find.byType(InstanceSelect);
+      expect(
+        find.descendant(of: selector, matching: find.text(current)),
+        findsOneWidget,
+      );
+      expect(find.text('切换'), findsNothing);
+      await tester.tap(
+        find.descendant(
+          of: selector,
+          matching: find.byIcon(LucideIcons.chevronDown),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(BottomSheet), findsNothing);
+      expect(find.byType(PopupMenuItem<String>), findsNWidgets(2));
+      expect(find.byIcon(LucideIcons.check), findsOneWidget);
+      await tester.tap(find.text(next).last);
+      await tester.pumpAndSettle();
+      expect(find.byType(PopupMenuItem<String>), findsNothing);
+      expect(
+        find.descendant(of: selector, matching: find.text(next)),
+        findsOneWidget,
+      );
+      current = next;
+    }
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('backend address is tested and persisted from settings', (

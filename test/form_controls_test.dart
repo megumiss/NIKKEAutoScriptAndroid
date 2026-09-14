@@ -5,10 +5,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
+import 'package:nkas_mobile/core/api/instance_info.dart';
 import 'package:nkas_mobile/core/api/schedule_info.dart';
 import 'package:nkas_mobile/core/widgets/config_input.dart';
 import 'package:nkas_mobile/core/widgets/field_select.dart';
 import 'package:nkas_mobile/core/widgets/form_field.dart';
+import 'package:nkas_mobile/core/widgets/instance_select.dart';
 import 'package:nkas_mobile/core/widgets/multi_select.dart';
 import 'package:nkas_mobile/core/widgets/toggle.dart';
 import 'package:nkas_mobile/features/instances/schedule_panel.dart';
@@ -205,7 +207,105 @@ void main() {
     },
   );
 
+  testWidgets('instance dropdown keeps empty and failed lists inactive', (
+    tester,
+  ) async {
+    for (final (loading, error, label) in [
+      (true, null, '加载中…'),
+      (false, null, '暂无实例'),
+      (false, 'offline', '实例加载失败'),
+    ]) {
+      await tester.pumpWidget(
+        host(
+          InstanceSelect(
+            instances: const [],
+            selected: '',
+            selectedInstance: null,
+            loading: loading,
+            error: error,
+            avatarUrl: (_) => null,
+            onSelect: (_) =>
+                fail('An unavailable instance must not be selected'),
+          ),
+        ),
+      );
+      expect(find.text(label), findsOneWidget);
+      await tester.tap(find.byIcon(LucideIcons.chevronDown));
+      await tester.pumpAndSettle();
+      expect(find.byType(PopupMenuItem<String>), findsNothing);
+    }
+  });
+
   for (final brightness in Brightness.values) {
+    testWidgets(
+      'instance dropdown scrolls, selects and cancels at large text in $brightness',
+      (tester) async {
+        tester.view.physicalSize = const Size(360, 640);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        final instances = [
+          for (var index = 0; index < 30; index++)
+            InstanceInfo(name: '日常任务实例 $index', state: index % 4, mod: 'nkas'),
+        ];
+        var current = instances.first;
+        var changes = 0;
+        await tester.pumpWidget(
+          host(
+            StatefulBuilder(
+              builder: (context, setState) => InstanceSelect(
+                instances: instances,
+                selected: current.name,
+                selectedInstance: current,
+                loading: false,
+                error: null,
+                avatarUrl: (_) => null,
+                onSelect: (value) => setState(() {
+                  current = instances.firstWhere((item) => item.name == value);
+                  changes++;
+                }),
+              ),
+            ),
+            brightness: brightness,
+            scale: 1.6,
+          ),
+        );
+
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.pumpAndSettle();
+        expect(find.byType(PopupMenuItem<String>), findsNWidgets(30));
+        expect(
+          tester.getTopLeft(find.byType(PopupMenuItem<String>).first).dy,
+          greaterThanOrEqualTo(
+            tester.getBottomLeft(find.byType(InstanceSelect)).dy,
+          ),
+        );
+        // 选中当前项只收起下拉，不重复加载实例。
+        await tester.tap(find.text(current.name).last);
+        await tester.pumpAndSettle();
+        expect(changes, 0);
+
+        await tester.tap(find.byIcon(LucideIcons.chevronDown));
+        await tester.pumpAndSettle();
+        await tester.ensureVisible(find.text(instances.last.name));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text(instances.last.name));
+        await tester.pumpAndSettle();
+        expect(current, instances.last);
+        expect(changes, 1);
+        expect(find.byType(PopupMenuItem<String>), findsNothing);
+        expect(find.text(current.name), findsOneWidget);
+
+        await tester.tap(find.byIcon(LucideIcons.chevronDown));
+        await tester.pumpAndSettle();
+        await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+        await tester.pumpAndSettle();
+        expect(changes, 1);
+        expect(find.byType(PopupMenuItem<String>), findsNothing);
+        expect(tester.takeException(), isNull);
+      },
+    );
+
     testWidgets(
       'multi-select scrolls and confirms at large text in $brightness',
       (tester) async {

@@ -10,13 +10,10 @@ import 'package:nkas_mobile/core/api/screenshot_frame.dart';
 import 'package:nkas_mobile/core/platform/nkas_platform.dart';
 import 'package:nkas_mobile/core/platform/native_control_settings.dart';
 import 'package:nkas_mobile/features/screen/native_video_surface.dart';
-import 'package:nkas_mobile/core/widgets/avatar.dart';
-import 'package:nkas_mobile/core/widgets/buttons.dart';
 import 'package:nkas_mobile/core/widgets/form_field.dart';
-import 'package:nkas_mobile/core/widgets/instance_picker.dart';
+import 'package:nkas_mobile/core/widgets/instance_select.dart';
 import 'package:nkas_mobile/core/widgets/page_inset.dart';
 import 'package:nkas_mobile/core/widgets/page_subtitle.dart';
-import 'package:nkas_mobile/core/widgets/status.dart';
 import 'package:nkas_mobile/core/widgets/surface.dart';
 import 'package:nkas_mobile/theme.dart';
 
@@ -47,15 +44,7 @@ class ScreenPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = ShadTheme.of(context).colorScheme;
     final inset = nkasPageInset(context);
-    final displayName =
-        selectedInstance?.name ??
-        (loading
-            ? '加载中…'
-            : error == null
-            ? '暂无实例'
-            : '实例加载失败');
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -69,56 +58,14 @@ class ScreenPage extends StatelessWidget {
         ),
         Padding(
           padding: EdgeInsets.symmetric(horizontal: inset),
-          child: Surface(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
-            child: Row(
-              children: [
-                Avatar(
-                  text: selectedInstance?.name.characters.first ?? '实',
-                  size: 38,
-                  fontSize: 15,
-                  background: scheme.accentSoft,
-                  foreground: scheme.configIconText,
-                  imageUrl: selectedInstance == null
-                      ? null
-                      : avatarUrl(selectedInstance!),
-                ),
-                const SizedBox(width: 9),
-                Expanded(
-                  child: Row(
-                    children: [
-                      Flexible(
-                        child: Text(
-                          displayName,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                      if (selectedInstance != null) ...[
-                        const SizedBox(width: 7),
-                        Status(status: selectedInstance!.status),
-                      ],
-                    ],
-                  ),
-                ),
-                CompactButton(
-                  icon: LucideIcons.layers3,
-                  label: '切换',
-                  onPressed: () => showInstancePicker(
-                    context,
-                    instances: instances,
-                    selected: selected,
-                    loading: loading,
-                    error: error,
-                    avatarUrl: avatarUrl,
-                    onSelect: onSelectInstance,
-                  ),
-                ),
-              ],
-            ),
+          child: InstanceSelect(
+            instances: instances,
+            selected: selected,
+            selectedInstance: selectedInstance,
+            loading: loading,
+            error: error,
+            avatarUrl: avatarUrl,
+            onSelect: onSelectInstance,
           ),
         ),
         Expanded(

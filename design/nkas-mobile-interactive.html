@@ -280,19 +280,16 @@
     .np-connection-status { margin-left:auto; padding:3px 7px; border-radius:7px; color:var(--np-success); background:color-mix(in srgb, currentColor 11%, transparent); font-size:10px; font-weight:700; }
     .np-connection-status.disconnected { color:var(--np-danger); }
     .np-url-save { height:35px; padding:0 10px; border:0; border-radius:9px; background:var(--np-blue); color:#fff; font-size:12px; font-weight:650; cursor:pointer; }
-    .np-instance-hero { padding:9px 10px; border-radius:16px; background:var(--np-surface); border:1px solid var(--np-line); }
-    .np-instance-hero-row { min-width:0; display:flex; align-items:center; gap:7px; }
-    .np-instance-hero-top { min-width:0; flex:1; display:flex; align-items:center; gap:9px; }
-    .np-instance-avatar { flex:0 0 auto; width:38px; height:38px; display:grid; place-items:center; border-radius:11px; background:var(--np-blue-soft); color:#0879bf; font-size:15px; font-weight:750; }
-    .np-instance-title-row { min-width:0; display:flex; align-items:center; gap:7px; }
-    .np-instance-name { margin:0; font-size:15px; font-weight:750; }
-    .np-instance-title-row .np-status { font-size:11px; }
-    .np-instance-meta { margin:2px 0 0; color:var(--np-muted); font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    .np-instance-switcher { flex:0 0 auto; width:auto; min-height:34px; display:inline-flex; align-items:center; justify-content:center; gap:4px; margin:0; padding:0 8px; border:1px solid var(--np-line); border-radius:10px; background:#f8fbfc; color:var(--np-ink); font-size:12px; font-weight:650; cursor:pointer; }
-    .np-instance-switcher:hover { border-color:var(--np-blue); background:#f3faff; }
-    .np-instance-switcher-icon { width:16px; height:16px; display:grid; place-items:center; color:#0879bf; }
-    .np-instance-switcher-icon i { width:15px; height:15px; }
-    .np-instance-switcher-copy, .np-instance-switcher-label, .np-instance-switcher-value, .np-instance-switcher > i { display:none; }
+    .np-instance-hero-row { min-width:0; display:flex; align-items:center; gap:8px; }
+    .np-instance-select { position:relative; flex:1; min-width:0; min-height:48px; padding:8px 12px; border:1px solid var(--np-line); border-radius:10px; background:var(--np-input); }
+    .np-instance-select:focus-within { border-color:var(--np-blue); outline:1px solid var(--np-blue); }
+    .np-instance-select select { position:absolute; inset:0; width:100%; height:100%; opacity:0; cursor:pointer; }
+    .np-instance-current { display:flex; align-items:center; gap:8px; pointer-events:none; }
+    .np-instance-value { flex:1; min-width:0; display:flex; flex-direction:column; align-items:flex-start; gap:2px; }
+    .np-instance-current > i { flex-shrink:0; color:var(--np-muted); }
+    .np-instance-avatar { flex:0 0 auto; width:32px; height:32px; display:grid; place-items:center; border-radius:11px; background:var(--np-blue-soft); color:#0879bf; font-size:14px; font-weight:700; }
+    .np-instance-name { max-width:100%; margin:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:14px; font-weight:600; }
+    .np-instance-current .np-status { flex-shrink:0; font-size:12px; }
     .np-instance-actions { flex:0 0 auto; display:flex; gap:0; margin:0; }
     .np-instance-actions button { flex:0 0 auto; width:auto; min-width:50px; min-height:34px; padding:0 8px; border-radius:10px; }
     .np-instance-actions button i { width:15px; height:15px; margin-right:4px; }
@@ -667,9 +664,19 @@
       }
       function instanceRow(name, label, cls, detail, go) { return `<button class="np-row" data-instance="${name}" type="button"><div class="np-avatar ${name === '小号' ? 'alt' : ''}">${name.slice(0,1)}</div><div class="np-copy"><p class="np-name">${name}</p><p class="np-detail">${detail}</p></div><span class="np-status ${cls}">${label}</span>${icon('chevron-right')}</button>`; }
       function bindRows() { root.querySelectorAll('[data-instance]').forEach((el) => el.addEventListener('click', () => { state.selected = el.dataset.instance; state.page = 'instances'; draw(); })); }
-      function openInstancePicker() { const all = ['主账号', '小号', '测试账号']; openSheet('切换实例', '选择后，任务配置、调度、日志和画面都切换到对应实例。', all.map((name) => ({ id: name, icon: name === state.selected ? 'check' : 'circle', label: name === state.selected ? `${name} · 当前` : name, primary: name === state.selected, run: () => { state.selected = name; state.instanceSection = 'overview'; closeSheet(); draw(); } })).concat([{ id: 'cancel', icon: 'x', label: '取消', run: closeSheet }])); }
-      function drawInstances() {
+      function instanceSelect() {
+        const all = ['主账号', '小号', '测试账号'];
         const selectedStatus = status(state.selected);
+        return `<div class="np-instance-select"><select id="np-instance-select" aria-label="选择实例">${all.map((name) => `<option value="${name}" ${name === state.selected ? 'selected' : ''}>${name} · ${status(name)[0]}</option>`).join('')}</select><div class="np-instance-current" aria-hidden="true"><span class="np-instance-avatar">${state.selected.slice(0, 1)}</span><span class="np-instance-value"><span class="np-instance-name">${state.selected}</span><span class="np-status ${selectedStatus[1]}">${selectedStatus[0]}</span></span>${icon('chevron-down')}</div></div>`;
+      }
+      function bindInstanceSelect() {
+        root.querySelector('#np-instance-select').addEventListener('change', (event) => {
+          state.selected = event.target.value;
+          state.task = '';
+          draw();
+        });
+      }
+      function drawInstances() {
         const subtabs = [['overview', '概览'], ['tasks', '任务配置'], ['schedule', '调度设置'], ['live-logs', '实时日志'], ['screen', '画面']];
         const tabMarkup = subtabs.map(([key, label]) => `<button class="np-subtab ${state.instanceSection === key ? 'active' : ''}" data-instance-section="${key}" type="button">${label}</button>`).join('');
         let detail = '';
@@ -694,8 +701,8 @@
           detail = `<section class="np-section"><div class="np-log-card"><div class="np-live-log-head"><span class="np-live-log-title ${isLive ? '' : 'paused'}">${isLive ? '实时日志' : '日志已暂停'}</span><div class="np-live-log-controls"><select class="np-live-log-select" id="np-live-log-level" aria-label="实时日志级别">${['DEBUG', 'INFO', 'WARN', 'ERROR'].map((x) => `<option ${state.liveLogLevel === x ? 'selected' : ''}>${x}</option>`).join('')}</select><label class="np-live-log-autoscroll"><span>自动滚动</span><button class="np-switch ${state.autoScroll ? 'on' : ''}" id="np-live-autoscroll" type="button" aria-label="实时日志自动滚动"></button></label></div></div><div class="np-log-body" id="np-live-log-body">${liveMarkup}</div></div></section>`;
         }
         if (state.instanceSection === 'screen') detail = `<section class="np-section"><p class="np-section-note">画面预览与控制沿用 WebUI 的 ScreenPreview 能力。</p><div class="np-preview"><div class="np-preview-screen">${state.running ? '设备画面预览' : '暂无画面'}</div><div class="np-preview-bar"><span>${state.running ? '实时 · 2s' : '未连接'}</span><button class="np-preview-control" id="np-screen-control" type="button">${state.running ? '进入控制' : '刷新画面'}</button></div></div></section>`;
-        content.innerHTML = `<p class="np-kicker">实例控制台</p><section class="np-instance-hero"><div class="np-instance-hero-row"><div class="np-instance-hero-top"><div class="np-instance-avatar">${state.selected.slice(0,1)}</div><div class="np-copy"><div class="np-instance-title-row"><h2 class="np-instance-name">${state.selected}</h2><span class="np-status ${selectedStatus[1]}">${selectedStatus[0]}</span></div></div></div><button class="np-instance-switcher" id="np-instance-switcher" type="button" aria-label="切换实例"><span class="np-instance-switcher-icon">${icon('layers-3')}</span><span>切换</span></button><div class="np-instance-actions"><button class="np-primary" id="np-instance-start" type="button" aria-label="${state.running ? '停止实例' : '启动实例'}">${icon(state.running ? 'square' : 'play')}<span>${state.running ? '停止' : '启动'}</span></button></div></div></section><div class="np-subtabs np-instance-nav" role="tablist">${tabMarkup}</div>${detail}`;
-        root.querySelectorAll('[data-instance-section]').forEach((el) => el.addEventListener('click', () => { state.instanceSection = el.dataset.instanceSection; state.task = ''; draw(); })); root.querySelectorAll('[data-task]').forEach((el) => el.addEventListener('click', () => { state.task = el.dataset.task; draw(); })); bind('#np-task-back', () => { state.task = ''; draw(); }); bind('#np-instance-switcher', openInstancePicker); bind('#np-instance-start', () => { state.running = !state.running; state.instanceRunning[state.selected] = state.running; draw(); }); bind('#np-deploy-link', openDeploy); bind('#np-screen-control', openWebui); bind('#np-schedule-save', (el) => { el.textContent = '已保存'; setTimeout(draw, 700); }); bind('#np-task-save', (el) => { el.textContent = '已保存'; setTimeout(draw, 700); }); bind('[data-go="logs"]', () => { state.page = 'logs'; draw(); }); const liveLogLevel = root.querySelector('#np-live-log-level'); if (liveLogLevel) liveLogLevel.addEventListener('change', () => { state.liveLogLevel = liveLogLevel.value; draw(); }); bind('#np-live-autoscroll', () => { state.autoScroll = !state.autoScroll; draw(); }); root.querySelectorAll('[data-schedule-toggle]').forEach((el) => el.addEventListener('click', () => el.classList.toggle('on'))); root.querySelectorAll('.np-field-switch').forEach((el) => el.addEventListener('click', () => el.classList.toggle('on')));
+        content.innerHTML = `<p class="np-kicker">实例控制台</p><section class="np-instance-hero"><div class="np-instance-hero-row">${instanceSelect()}<div class="np-instance-actions"><button class="np-primary" id="np-instance-start" type="button" aria-label="${state.running ? '停止实例' : '启动实例'}">${icon(state.running ? 'square' : 'play')}<span>${state.running ? '停止' : '启动'}</span></button></div></div></section><div class="np-subtabs np-instance-nav" role="tablist">${tabMarkup}</div>${detail}`;
+        root.querySelectorAll('[data-instance-section]').forEach((el) => el.addEventListener('click', () => { state.instanceSection = el.dataset.instanceSection; state.task = ''; draw(); })); root.querySelectorAll('[data-task]').forEach((el) => el.addEventListener('click', () => { state.task = el.dataset.task; draw(); })); bind('#np-task-back', () => { state.task = ''; draw(); }); bindInstanceSelect(); bind('#np-instance-start', () => { state.running = !state.running; state.instanceRunning[state.selected] = state.running; draw(); }); bind('#np-deploy-link', openDeploy); bind('#np-screen-control', openWebui); bind('#np-schedule-save', (el) => { el.textContent = '已保存'; setTimeout(draw, 700); }); bind('#np-task-save', (el) => { el.textContent = '已保存'; setTimeout(draw, 700); }); bind('[data-go="logs"]', () => { state.page = 'logs'; draw(); }); const liveLogLevel = root.querySelector('#np-live-log-level'); if (liveLogLevel) liveLogLevel.addEventListener('change', () => { state.liveLogLevel = liveLogLevel.value; draw(); }); bind('#np-live-autoscroll', () => { state.autoScroll = !state.autoScroll; draw(); }); root.querySelectorAll('[data-schedule-toggle]').forEach((el) => el.addEventListener('click', () => el.classList.toggle('on'))); root.querySelectorAll('.np-field-switch').forEach((el) => el.addEventListener('click', () => el.classList.toggle('on')));
       }
       function drawLogs() {
         const allLogs = [

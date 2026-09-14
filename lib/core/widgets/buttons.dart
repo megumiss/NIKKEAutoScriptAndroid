@@ -181,34 +181,3 @@ class SecondaryButton extends StatelessWidget {
     );
   }
 }
-
-/// 实例头部「切换」胶囊（原型 .np-instance-switcher）：#f8fbfc 底、1px line
-/// 描边、圆角 10、min-height 34、蓝色 15px 图标
-class CompactButton extends StatelessWidget {
-  const CompactButton({
-    super.key,
-    required this.icon,
-    required this.label,
-    required this.onPressed,
-  });
-  final IconData icon;
-  final String label;
-  final VoidCallback? onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = ShadTheme.of(context).colorScheme;
-    return NkasButton(
-      icon: icon,
-      label: label,
-      onPressed: onPressed,
-      background: scheme.switcherBg,
-      foreground: scheme.foreground,
-      iconColor: scheme.configIconText,
-      borderColor: scheme.border,
-      minHeight: NkasActionStyle.compactHeight,
-      radius: 10,
-      horizontalPadding: 10,
-    );
-  }
-}
