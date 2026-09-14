@@ -174,7 +174,7 @@ AppBar 只保留页面标题和连接状态 pill。设置子页显示返回按�
 
 ### 部署
 
-复刻 WebUI 部署页：顶部红色警告说明和「还原默认」（四模板可选，走 `POST /api/system/deploy/reset`），下方按分组渲染 `GET /api/system/deploy` 的字段（checkbox/select/text/number/multiselect/priority），改动即 `PATCH` 保存。设置页的「初始化 NKAS」是本机 Termux 流程，与此页无关。
+复刻 WebUI 部署页：顶部红色警告说明和占满卡片内整行的「还原默认」按钮（四模板可选，走 `POST /api/system/deploy/reset`），下方按分组渲染 `GET /api/system/deploy` 的字段（checkbox/select/text/number/multiselect/priority），改动即 `PATCH` 保存。设置页的「初始化 NKAS」是本机 Termux 流程，与此页无关。
 
 ### 设置
 
