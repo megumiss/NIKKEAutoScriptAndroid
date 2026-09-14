@@ -1170,8 +1170,8 @@ class _ExtraPanel extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (monospace)
-            SizedBox(
-              height: 190,
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 190),
               child: SingleChildScrollView(
                 child: Text(
                   text,
