@@ -174,6 +174,7 @@ void main() {
             children: [
               FieldSelect(
                 label: '语言',
+                compact: true,
                 value: '简体中文',
                 selectedValue: 'zh-CN',
                 options: const [

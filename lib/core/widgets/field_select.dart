@@ -16,6 +16,7 @@ class FieldSelect extends StatefulWidget {
     this.onChanged,
     this.onTap,
     this.dense = false,
+    this.compact = false,
   });
   final String label;
   final String value;
@@ -29,6 +30,9 @@ class FieldSelect extends StatefulWidget {
   /// Compresses the visual control while retaining a comfortable hit target.
   final bool dense;
 
+  /// 工具栏使用较小的外观，保留完整的点击高度。
+  final bool compact;
+
   @override
   State<FieldSelect> createState() => _FieldSelectState();
 }
@@ -40,6 +44,10 @@ class _FieldSelectState extends State<FieldSelect> {
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
     final scheme = theme.colorScheme;
+    final dense = widget.dense || widget.compact;
+    final minHeight = widget.compact
+        ? NkasActionStyle.compactHeight
+        : NkasInputStyle.minHeight;
     final enabled =
         widget.onTap != null ||
         (widget.onChanged != null && widget.options.isNotEmpty);
@@ -50,12 +58,15 @@ class _FieldSelectState extends State<FieldSelect> {
             .firstOrNull
             ?.value;
     final control = ConstrainedBox(
-      constraints: const BoxConstraints(minHeight: NkasInputStyle.minHeight),
+      constraints: BoxConstraints(minHeight: minHeight),
       child: InputDecorator(
         isFocused: focused && enabled,
         decoration: InputDecoration(
           enabled: enabled,
-          contentPadding: widget.dense
+          constraints: BoxConstraints(minHeight: minHeight),
+          contentPadding: widget.compact
+              ? const EdgeInsets.symmetric(horizontal: 8, vertical: 6)
+              : dense
               ? const EdgeInsets.symmetric(horizontal: 8, vertical: 12)
               : NkasInputStyle.padding,
         ).applyDefaults(NkasInputStyle.decoration(scheme)),
@@ -67,7 +78,7 @@ class _FieldSelectState extends State<FieldSelect> {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: theme.textTheme.p.copyWith(
-                  fontSize: widget.dense ? 12 : 14,
+                  fontSize: dense ? 12 : 14,
                   color: enabled && widget.value.isNotEmpty
                       ? scheme.foreground
                       : scheme.mutedForeground,
@@ -77,13 +88,23 @@ class _FieldSelectState extends State<FieldSelect> {
             const SizedBox(width: 4),
             Icon(
               LucideIcons.chevronDown,
-              size: 16,
+              size: widget.compact ? 14 : 16,
               color: scheme.mutedForeground,
             ),
           ],
         ),
       ),
     );
+    final tapTarget = widget.compact
+        ? Padding(
+            padding: const EdgeInsets.symmetric(
+              vertical:
+                  (NkasActionStyle.minTapSize - NkasActionStyle.compactHeight) /
+                  2,
+            ),
+            child: control,
+          )
+        : control;
     return NkasField(
       label: widget.label,
       description: widget.description,
@@ -98,7 +119,7 @@ class _FieldSelectState extends State<FieldSelect> {
               ? InkWell(
                   onTap: widget.onTap,
                   borderRadius: NkasInputStyle.radius,
-                  child: control,
+                  child: tapTarget,
                 )
               : PopupMenuButton<String>(
                   enabled: enabled,
@@ -140,7 +161,7 @@ class _FieldSelectState extends State<FieldSelect> {
                         ),
                       ),
                   ],
-                  child: control,
+                  child: tapTarget,
                 ),
         ),
       ),

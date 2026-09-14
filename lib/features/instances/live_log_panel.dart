@@ -297,12 +297,11 @@ class _LiveLogPanelState extends State<LiveLogPanel> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                SizedBox(
-                  width: 96,
+                IntrinsicWidth(
                   child: FieldSelect(
                     label: '',
                     semanticLabel: '实时日志级别',
-                    dense: true,
+                    compact: true,
                     value: level,
                     selectedValue: level,
                     onChanged: (value) => setState(() => level = value),
