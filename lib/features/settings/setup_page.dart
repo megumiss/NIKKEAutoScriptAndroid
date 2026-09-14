@@ -962,10 +962,11 @@ class _NkasSetupPageState extends State<NkasSetupPage>
         return _ExtraPanel(
           text: '在 Termux 中执行以下命令，然后完全退出并重新打开 Termux。页面会根据实际配置自动更新状态。',
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               SelectableText(
                 "mkdir -p ~/.termux\necho 'allow-external-apps=true' > ~/.termux/termux.properties",
+                textAlign: TextAlign.center,
                 style: TextStyle(
                   fontFamily: 'monospace',
                   fontSize: 10,
@@ -1019,7 +1020,7 @@ class _NkasSetupPageState extends State<NkasSetupPage>
         return _ExtraPanel(
           text: '首次连接需要配对一次。点击“配对”，在无线调试中打开“使用配对码配对”，再在通知中输入配对码。',
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               NkasTextField(
                 label: '无线调试端口',
@@ -1223,19 +1224,20 @@ class _ExtraPanel extends StatelessWidget {
     final scheme = ShadTheme.of(context).colorScheme;
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(48, 10, 12, 12),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
       decoration: BoxDecoration(
         color: scheme.secondary,
         border: Border(top: BorderSide(color: scheme.border)),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (monospace)
             _StepLog(text: text, error: error)
           else
             Text(
               text,
+              textAlign: TextAlign.center,
               style: ShadTheme.of(
                 context,
               ).textTheme.muted.copyWith(height: 1.5),
@@ -1309,16 +1311,18 @@ class _StepLogState extends State<_StepLog> {
         primary: false,
         child: Column(
           mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             if (widget.error != null) ...[
               Text(
                 widget.error!,
+                textAlign: TextAlign.center,
                 style: logStyle.copyWith(color: scheme.destructive),
               ),
               if (widget.text.isNotEmpty) const SizedBox(height: 8),
             ],
-            if (widget.text.isNotEmpty) Text(widget.text, style: logStyle),
+            if (widget.text.isNotEmpty)
+              Text(widget.text, textAlign: TextAlign.center, style: logStyle),
           ],
         ),
       ),
