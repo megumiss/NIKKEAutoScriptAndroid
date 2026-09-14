@@ -172,6 +172,7 @@ class _LogsPageState extends State<LogsPage> {
                       dense: true,
                       label: '日期',
                       value: date.isEmpty ? '暂无' : date,
+                      selectedValue: date,
                       options: [
                         for (final item in dates) FieldSelectOption(item, item),
                       ],
@@ -191,6 +192,7 @@ class _LogsPageState extends State<LogsPage> {
                       dense: true,
                       label: '类型',
                       value: source.isEmpty ? '全部' : source,
+                      selectedValue: source,
                       options: [
                         const FieldSelectOption('', '全部'),
                         for (final item in sources)
@@ -209,6 +211,7 @@ class _LogsPageState extends State<LogsPage> {
                       dense: true,
                       label: '级别',
                       value: _levelLabel(level),
+                      selectedValue: level,
                       options: const [
                         FieldSelectOption('debug', 'DEBUG'),
                         FieldSelectOption('info', 'INFO'),

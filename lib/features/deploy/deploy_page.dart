@@ -6,8 +6,10 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:nkas_mobile/core/api/deploy_info.dart';
 import 'package:nkas_mobile/core/connection/connection_controller.dart';
 import 'package:nkas_mobile/core/widgets/buttons.dart';
+import 'package:nkas_mobile/core/widgets/config_input.dart';
+import 'package:nkas_mobile/core/widgets/form_field.dart';
+import 'package:nkas_mobile/core/widgets/multi_select.dart';
 import 'package:nkas_mobile/core/widgets/field_select.dart';
-import 'package:nkas_mobile/core/widgets/filter_chip.dart';
 import 'package:nkas_mobile/core/widgets/group_label.dart';
 import 'package:nkas_mobile/core/widgets/page_inset.dart';
 import 'package:nkas_mobile/core/widgets/page_subtitle.dart';
@@ -122,10 +124,10 @@ class _DeployPageState extends State<DeployPage> {
   Object? _effectiveValue(DeployField field) =>
       overrides.containsKey(field.key) ? overrides[field.key] : field.value;
 
-  Future<void> _patch(DeployField field, Object? value) async {
+  Future<bool> _patch(DeployField field, Object? value) async {
     if (savingKey != null ||
         (field.key == 'SecurityEntryEnabled' && entryBusy)) {
-      return;
+      return false;
     }
     setState(() => savingKey = field.key);
     try {
@@ -147,19 +149,21 @@ class _DeployPageState extends State<DeployPage> {
             ],
           ),
         );
-        if (!mounted || confirmed != true) return;
+        if (!mounted || confirmed != true) return false;
       }
       final normalized = await widget.connectionController.patchDeploy(
         field.key,
         value,
       );
-      if (!mounted) return;
+      if (!mounted) return false;
       setState(() => overrides[field.key] = normalized);
+      return true;
     } catch (exception) {
-      if (!mounted) return;
+      if (!mounted) return false;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('保存失败：$exception')));
+      return false;
     } finally {
       if (mounted) setState(() => savingKey = null);
     }
@@ -172,29 +176,26 @@ class _DeployPageState extends State<DeployPage> {
       builder: (context) => StatefulBuilder(
         builder: (context, setState) => AlertDialog(
           title: const Text('还原默认部署配置'),
+          scrollable: true,
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text('选择要还原到的模板，当前部署配置将被覆盖；安全入口开关和密钥保持不变。'),
               const SizedBox(height: 8),
-              RadioGroup<String>(
-                groupValue: template,
+              FieldSelect(
+                label: '部署模板',
+                value: _resetTemplates
+                    .firstWhere((item) => item.$1 == template)
+                    .$2,
+                selectedValue: template,
+                options: [
+                  for (final item in _resetTemplates)
+                    FieldSelectOption(item.$1, item.$2),
+                ],
                 onChanged: (value) {
-                  if (value != null) setState(() => template = value);
+                  setState(() => template = value);
                 },
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    for (final item in _resetTemplates)
-                      RadioListTile<String>(
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                        title: Text(item.$2),
-                        value: item.$1,
-                      ),
-                  ],
-                ),
               ),
             ],
           ),
@@ -399,7 +400,7 @@ class _DeployGroupView extends StatelessWidget {
   final DeployGroup group;
   final String? savingKey;
   final Object? Function(DeployField) valueOf;
-  final Future<void> Function(DeployField, Object?) onPatch;
+  final Future<bool> Function(DeployField, Object?) onPatch;
   final ConnectionController controller;
   final bool entryBusy;
   final ValueChanged<bool> onEntryBusy;
@@ -457,45 +458,26 @@ class _DeployFieldView extends StatelessWidget {
   final DeployField field;
   final Object? value;
   final bool saving;
-  final Future<void> Function(DeployField, Object?) onPatch;
+  final Future<bool> Function(DeployField, Object?) onPatch;
 
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
-    final label = Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(field.title, style: const TextStyle(fontWeight: FontWeight.w600)),
-        if (field.help.isNotEmpty) ...[
-          const SizedBox(height: 3),
-          Text(field.help, style: theme.textTheme.muted),
-        ],
-        for (final hint in field.hints) ...[
-          const SizedBox(height: 4),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Tag(label: hint.tag),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 2),
-                  child: Text(
-                    hint.text,
-                    style: theme.textTheme.muted.copyWith(fontSize: 11),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ],
-    );
+    final options = [
+      for (final option in field.options)
+        FieldSelectOption(option.value, option.label),
+    ];
+    final Widget control;
     switch (field.widget) {
       case 'checkbox':
-        return Row(
+        control = Row(
           children: [
-            Expanded(child: label),
+            Expanded(
+              child: NkasFieldLabel(
+                label: field.title,
+                description: field.help,
+              ),
+            ),
             NkasSwitch(
               label: field.title,
               value: value == true,
@@ -504,112 +486,108 @@ class _DeployFieldView extends StatelessWidget {
           ],
         );
       case 'select':
-        final current = field.options.firstWhere(
-          (option) => option.value == value?.toString(),
-          orElse: () => field.options.isEmpty
-              ? DeployOption(value: value?.toString() ?? '', label: '暂无选项')
-              : field.options.first,
-        );
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            label,
-            const SizedBox(height: 7),
-            FieldSelect(
-              label: '',
-              value: current.label,
-              options: [
-                for (final option in field.options)
-                  FieldSelectOption(option.value, option.label),
-              ],
-              onChanged: saving
-                  ? null
-                  : (next) {
-                      final option = field.options.firstWhere(
-                        (item) => item.value == next,
-                      );
-                      onPatch(field, option.value);
-                    },
-            ),
-          ],
+        final current = field.options
+            .where((option) => option.value == value?.toString())
+            .firstOrNull;
+        control = FieldSelect(
+          label: field.title,
+          description: field.help,
+          value: current?.label ?? value?.toString() ?? '',
+          selectedValue: value?.toString(),
+          options: options,
+          onChanged: saving ? null : (next) => onPatch(field, next),
         );
       case 'multiselect':
         final selected = value is List
             ? (value as List).map((item) => item.toString()).toSet()
             : const <String>{};
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            label,
-            const SizedBox(height: 7),
-            if (field.options.isEmpty)
-              Text('暂无实例可选', style: theme.textTheme.muted)
-            else
-              Wrap(
-                runSpacing: 6,
-                children: [
-                  for (final option in field.options)
-                    NkasFilterChip(
-                      label: option.label,
-                      active: selected.contains(option.value),
-                      onTap: saving
-                          ? null
-                          : () {
-                              final next = {...selected};
-                              if (!next.remove(option.value)) {
-                                next.add(option.value);
-                              }
-                              onPatch(field, [
-                                for (final item in field.options)
-                                  if (next.contains(item.value)) item.value,
-                              ]);
-                            },
-                    ),
-                ],
-              ),
-          ],
+        control = FieldSelect(
+          label: field.title,
+          description: field.help,
+          value: field.options
+              .where((option) => selected.contains(option.value))
+              .map((option) => option.label)
+              .join('、'),
+          onTap: saving || options.isEmpty
+              ? null
+              : () async {
+                  final next = await showNkasMultiSelect(
+                    context: context,
+                    title: field.title,
+                    options: options,
+                    selected: selected,
+                  );
+                  if (next != null) {
+                    onPatch(field, [
+                      for (final option in field.options)
+                        if (next.contains(option.value)) option.value,
+                    ]);
+                  }
+                },
         );
       case 'priority':
-        final selected = (value?.toString() ?? '')
-            .split('>')
-            .map((item) => item.trim())
-            .where((item) => item.isNotEmpty)
-            .toList(growable: false);
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            label,
-            const SizedBox(height: 7),
-            _PriorityControl(
-              field: field,
-              selected: selected,
-              disabled: saving,
-              onPatch: onPatch,
-            ),
-          ],
+        control = NkasField(
+          label: field.title,
+          description: field.help,
+          child: _PriorityControl(
+            field: field,
+            selected: (value?.toString() ?? '')
+                .split('>')
+                .map((item) => item.trim())
+                .where((item) => item.isNotEmpty)
+                .toList(),
+            disabled: saving,
+            onPatch: onPatch,
+          ),
         );
       default:
-        final number = field.widget == 'number';
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            label,
-            const SizedBox(height: 7),
-            _DeployInputField(
-              key: ValueKey('${field.key}:$value'),
-              initialValue: value?.toString() ?? '',
-              number: number,
-              enabled: !saving,
-              onSubmit: (next) => onPatch(field, next),
-            ),
-          ],
+        control = NkasConfigInput(
+          key: ValueKey(field.key),
+          label: field.title,
+          description: field.help,
+          initialValue: value?.toString() ?? '',
+          number: field.widget == 'number',
+          multiline: field.widget == 'textarea',
+          enabled: !saving,
+          onSubmit: (text) {
+            final trimmed = text.trim();
+            return onPatch(
+              field,
+              trimmed.isEmpty
+                  ? null
+                  : field.widget == 'number'
+                  ? num.parse(trimmed)
+                  : trimmed,
+            );
+          },
         );
     }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        control,
+        for (final hint in field.hints) ...[
+          const SizedBox(height: 8),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Tag(label: hint.tag),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  hint.text,
+                  style: theme.textTheme.muted.copyWith(height: 1.5),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ],
+    );
   }
 }
 
-/// priority 控件（对齐 WebUI FieldPriority）：已选实例按执行顺序排列成 chips，
-/// 带左移/右移/移除按钮，未选项通过「添加」下拉追加；提交 'a > b' 字符串
+/// 优先级使用有序行，长名称可换行，移动和删除保留完整触控范围。
 class _PriorityControl extends StatelessWidget {
   const _PriorityControl({
     required this.field,
@@ -621,62 +599,53 @@ class _PriorityControl extends StatelessWidget {
   final DeployField field;
   final List<String> selected;
   final bool disabled;
-  final Future<void> Function(DeployField, Object?) onPatch;
+  final Future<bool> Function(DeployField, Object?) onPatch;
 
   void _update(List<String> next) => onPatch(field, next.join(' > '));
 
-  String _labelOf(String token) {
-    for (final option in field.options) {
-      if (option.value == token) return option.label;
-    }
-    return token;
-  }
+  String _labelOf(String token) =>
+      field.options
+          .where((option) => option.value == token)
+          .firstOrNull
+          ?.label ??
+      token;
 
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
     final scheme = theme.colorScheme;
-    final remaining = [
-      for (final option in field.options)
-        if (!selected.contains(option.value)) option,
-    ];
-    return Wrap(
-      spacing: 6,
-      runSpacing: 6,
-      crossAxisAlignment: WrapCrossAlignment.center,
+    final remaining = field.options
+        .where((option) => !selected.contains(option.value))
+        .toList();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        for (var index = 0; index < selected.length; index++)
+        for (var index = 0; index < selected.length; index++) ...[
+          if (index > 0) const SizedBox(height: 8),
           Container(
-            padding: const EdgeInsets.fromLTRB(8, 5, 4, 5),
+            padding: const EdgeInsets.only(left: 12),
             decoration: BoxDecoration(
-              color: scheme.accentSoft,
-              borderRadius: BorderRadius.circular(9),
-              border: Border.all(color: scheme.primary),
+              color: scheme.input,
+              borderRadius: NkasInputStyle.radius,
+              border: Border.all(color: scheme.border),
             ),
             child: Row(
-              mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
                   '${index + 1}',
-                  style: TextStyle(
-                    color: scheme.primary,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
+                  style: theme.textTheme.p.copyWith(color: scheme.primary),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    _labelOf(selected[index]),
+                    style: theme.textTheme.p,
                   ),
                 ),
-                const SizedBox(width: 5),
-                Text(
-                  _labelOf(selected[index]),
-                  style: TextStyle(
-                    color: scheme.primary,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                _PriorityAction(
-                  icon: LucideIcons.chevronLeft,
+                IconButton(
                   tooltip: '前移',
-                  onTap: disabled || index == 0
+                  icon: const Icon(LucideIcons.chevronLeft, size: 18),
+                  onPressed: disabled || index == 0
                       ? null
                       : () {
                           final next = [...selected];
@@ -685,10 +654,10 @@ class _PriorityControl extends StatelessWidget {
                           _update(next);
                         },
                 ),
-                _PriorityAction(
-                  icon: LucideIcons.chevronRight,
+                IconButton(
                   tooltip: '后移',
-                  onTap: disabled || index == selected.length - 1
+                  icon: const Icon(LucideIcons.chevronRight, size: 18),
+                  onPressed: disabled || index == selected.length - 1
                       ? null
                       : () {
                           final next = [...selected];
@@ -697,170 +666,34 @@ class _PriorityControl extends StatelessWidget {
                           _update(next);
                         },
                 ),
-                _PriorityAction(
-                  icon: LucideIcons.x,
+                IconButton(
                   tooltip: '移除',
-                  onTap: disabled
+                  icon: const Icon(LucideIcons.x, size: 18),
+                  onPressed: disabled
                       ? null
-                      : () {
-                          final next = [...selected]..removeAt(index);
-                          _update(next);
-                        },
+                      : () => _update([...selected]..removeAt(index)),
                 ),
               ],
             ),
           ),
-        if (!disabled && remaining.isNotEmpty)
-          PopupMenuButton<String>(
-            tooltip: '添加实例',
-            onSelected: (value) => _update([...selected, value]),
-            itemBuilder: (context) => [
+        ],
+        if (remaining.isNotEmpty) ...[
+          if (selected.isNotEmpty) const SizedBox(height: 12),
+          FieldSelect(
+            label: '添加实例',
+            value: '',
+            options: [
               for (final option in remaining)
-                PopupMenuItem(value: option.value, child: Text(option.label)),
+                FieldSelectOption(option.value, option.label),
             ],
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              decoration: BoxDecoration(
-                color: scheme.card,
-                borderRadius: BorderRadius.circular(999),
-                border: Border.all(color: scheme.border),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    LucideIcons.plus,
-                    size: 12,
-                    color: scheme.mutedForeground,
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    '添加',
-                    style: TextStyle(
-                      color: scheme.mutedForeground,
-                      fontSize: 11,
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            onChanged: disabled
+                ? null
+                : (value) => _update([...selected, value]),
           ),
+        ],
         if (selected.isEmpty && remaining.isEmpty)
           Text('暂无实例可选', style: theme.textTheme.muted),
       ],
-    );
-  }
-}
-
-class _PriorityAction extends StatelessWidget {
-  const _PriorityAction({
-    required this.icon,
-    required this.tooltip,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String tooltip;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = ShadTheme.of(context).colorScheme;
-    return Tooltip(
-      message: tooltip,
-      child: InkWell(
-        onTap: onTap,
-        customBorder: const CircleBorder(),
-        child: Padding(
-          padding: const EdgeInsets.all(3),
-          child: Icon(
-            icon,
-            size: 12,
-            color: onTap == null
-                ? scheme.mutedForeground.withValues(alpha: .4)
-                : scheme.primary,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// text/number 输入：提交或失焦时回调；清空回调 null（后端恢复默认值）
-class _DeployInputField extends StatefulWidget {
-  const _DeployInputField({
-    required this.initialValue,
-    required this.number,
-    required this.enabled,
-    required this.onSubmit,
-    super.key,
-  });
-
-  final String initialValue;
-  final bool number;
-  final bool enabled;
-  final ValueChanged<Object?> onSubmit;
-
-  @override
-  State<_DeployInputField> createState() => _DeployInputFieldState();
-}
-
-class _DeployInputFieldState extends State<_DeployInputField> {
-  late final TextEditingController controller;
-  late final FocusNode focusNode;
-  late String saved;
-
-  @override
-  void initState() {
-    super.initState();
-    saved = widget.initialValue;
-    controller = TextEditingController(text: saved);
-    focusNode = FocusNode()..addListener(_focusChanged);
-  }
-
-  @override
-  void didUpdateWidget(covariant _DeployInputField oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.initialValue != saved && !focusNode.hasFocus) {
-      saved = widget.initialValue;
-      controller.text = saved;
-    }
-  }
-
-  @override
-  void dispose() {
-    focusNode.removeListener(_focusChanged);
-    focusNode.dispose();
-    controller.dispose();
-    super.dispose();
-  }
-
-  void _focusChanged() {
-    if (!focusNode.hasFocus) _submit();
-  }
-
-  void _submit() {
-    final text = controller.text.trim();
-    if (text == saved) return;
-    saved = text;
-    if (text.isEmpty) {
-      widget.onSubmit(null);
-    } else if (widget.number) {
-      widget.onSubmit(int.tryParse(text) ?? text);
-    } else {
-      widget.onSubmit(text);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return TextField(
-      controller: controller,
-      focusNode: focusNode,
-      enabled: widget.enabled,
-      keyboardType: widget.number ? TextInputType.number : TextInputType.text,
-      onSubmitted: (_) => _submit(),
-      decoration: const InputDecoration(),
     );
   }
 }

@@ -578,6 +578,9 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('后端地址'));
     await tester.pumpAndSettle();
+    expect(find.byType(BottomSheet), findsNothing);
+    expect(find.byTooltip('返回设置'), findsOneWidget);
+    expect(find.byTooltip('设置'), findsNothing);
     await tester.enterText(find.byType(TextField), 'localhost:12271/');
     await tester.tap(find.text('保存并连接'));
     await tester.pumpAndSettle();
@@ -586,6 +589,59 @@ void main() {
     expect(find.text('http://localhost:12271'), findsOneWidget);
     expect(find.text('已连接'), findsOneWidget);
   });
+
+  testWidgets('leaving backend address discards an unsubmitted draft', (
+    tester,
+  ) async {
+    final settings = _MemoryBackendSettings();
+    final connection = await _pumpTestApp(tester, settings: settings);
+    final original = connection.state.baseUrl;
+    await tester.tap(find.byTooltip('设置'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('后端地址'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'unsaved:12345');
+    await tester.tap(find.byTooltip('返回设置'));
+    await tester.pumpAndSettle();
+    expect(settings.value, isNull);
+    expect(connection.state.baseUrl, original);
+    await tester.tap(find.text('后端地址'));
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller!.text,
+      original,
+    );
+  });
+
+  testWidgets(
+    'backend address validates and clears on a small keyboard viewport',
+    (tester) async {
+      tester.view.physicalSize = const Size(360, 640);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final settings = _MemoryBackendSettings();
+      await _pumpTestApp(tester, settings: settings);
+      await tester.tap(find.byTooltip('设置'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('后端地址'));
+      await tester.pumpAndSettle();
+      tester.view.viewInsets = const FakeViewPadding(bottom: 260);
+      await tester.enterText(find.byType(TextField), 'ftp://invalid.example');
+      await tester.pumpAndSettle();
+      expect(find.text('保存并连接').hitTestable(), findsOneWidget);
+      await tester.tap(find.text('保存并连接'));
+      await tester.pumpAndSettle();
+      expect(settings.value, isNull);
+      expect(find.byTooltip('返回设置'), findsOneWidget);
+      await tester.ensureVisible(find.byTooltip('清空地址'));
+      await tester.tap(find.byTooltip('清空地址'));
+      await tester.tap(find.text('保存并连接'));
+      await tester.pumpAndSettle();
+      expect(find.text('请输入后端地址'), findsOneWidget);
+      expect(find.byTooltip('清空地址'), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   const sizes = {'360x800': Size(360, 800), '390x844': Size(390, 844)};
 

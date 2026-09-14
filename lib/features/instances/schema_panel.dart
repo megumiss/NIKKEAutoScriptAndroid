@@ -3,6 +3,9 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 
 import 'package:nkas_mobile/core/api/schema_info.dart';
 import 'package:nkas_mobile/core/widgets/buttons.dart';
+import 'package:nkas_mobile/core/widgets/config_input.dart';
+import 'package:nkas_mobile/core/widgets/form_field.dart';
+import 'package:nkas_mobile/core/widgets/multi_select.dart';
 import 'package:nkas_mobile/core/widgets/icon_box.dart';
 import 'package:nkas_mobile/core/widgets/field_select.dart';
 import 'package:nkas_mobile/core/widgets/group_label.dart';
@@ -204,17 +207,19 @@ class _SchemaPanelState extends State<SchemaPanel> {
     };
   }
 
-  Future<void> _patch(String key, Object? value) async {
+  Future<bool> _patch(String key, Object? value) async {
     setState(() => savingKey = key);
     try {
       await widget.onPatch(key, value);
       await widget.onReload();
+      return true;
     } catch (exception) {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('保存失败：$exception')));
       }
+      return false;
     } finally {
       if (mounted) setState(() => savingKey = null);
     }
@@ -349,7 +354,7 @@ class _SchemaGroup extends StatelessWidget {
   });
   final SchemaGroup group;
   final String? savingKey;
-  final Future<void> Function(String, Object?) onPatch;
+  final Future<bool> Function(String, Object?) onPatch;
 
   @override
   Widget build(BuildContext context) {
@@ -390,26 +395,17 @@ class _SchemaFieldView extends StatelessWidget {
   });
   final SchemaField field;
   final bool saving;
-  final Future<void> Function(String, Object?) onPatch;
+  final Future<bool> Function(String, Object?) onPatch;
 
   @override
   Widget build(BuildContext context) {
-    final theme = ShadTheme.of(context);
     final disabled = field.readonly || saving;
-    final label = Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(field.title, style: const TextStyle(fontWeight: FontWeight.w600)),
-        if (field.help.isNotEmpty) ...[
-          const SizedBox(height: 3),
-          Text(field.help, style: theme.textTheme.muted),
-        ],
-      ],
-    );
     if (field.widget == 'checkbox') {
       return Row(
         children: [
-          Expanded(child: label),
+          Expanded(
+            child: NkasFieldLabel(label: field.title, description: field.help),
+          ),
           NkasSwitch(
             label: field.title,
             value: field.value == true,
@@ -423,186 +419,120 @@ class _SchemaFieldView extends StatelessWidget {
       final selectedValues = field.value is List
           ? (field.value as List).map((value) => value.toString()).toSet()
           : {field.value.toString()};
-      final current = field.options.firstWhere(
-        (option) => selectedValues.contains(option.value.toString()),
-        orElse: () => field.options.isEmpty
-            ? const SchemaOption(value: '', label: '暂无选项')
-            : field.options.first,
-      );
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          label,
-          const SizedBox(height: 7),
-          FieldSelect(
-            label: '',
-            value: isMulti
-                ? field.options
-                      .where(
-                        (option) =>
-                            selectedValues.contains(option.value.toString()),
-                      )
-                      .map((option) => option.label)
-                      .join('、')
-                : current.label,
-            options: [
-              for (final option in field.options)
-                FieldSelectOption(option.value.toString(), option.label),
-            ],
-            onChanged: disabled || isMulti
-                ? null
-                : (value) {
-                    final option = field.options.firstWhere(
-                      (item) => item.value.toString() == value,
-                    );
-                    onPatch(field.key, option.value);
-                  },
-            onTap: disabled || !isMulti
-                ? null
-                : () async {
-                    final values = await _showMultiSelect(
-                      context,
-                      field.title,
-                      field.options,
-                      selectedValues,
-                    );
-                    if (values != null) onPatch(field.key, values);
-                  },
-          ),
-        ],
+      final selectedOptions = field.options
+          .where((option) => selectedValues.contains(option.value.toString()))
+          .toList();
+      final options = [
+        for (final option in field.options)
+          FieldSelectOption(option.value.toString(), option.label),
+      ];
+      return FieldSelect(
+        label: field.title,
+        description: field.help,
+        value: isMulti
+            ? selectedOptions.map((option) => option.label).join('、')
+            : selectedOptions.firstOrNull?.label ??
+                  field.value?.toString() ??
+                  '',
+        selectedValue: isMulti ? null : field.value?.toString(),
+        options: options,
+        onChanged: disabled || isMulti
+            ? null
+            : (value) {
+                final option = field.options.firstWhere(
+                  (item) => item.value.toString() == value,
+                );
+                onPatch(field.key, option.value);
+              },
+        onTap: disabled || !isMulti || options.isEmpty
+            ? null
+            : () async {
+                final values = await showNkasMultiSelect(
+                  context: context,
+                  title: field.title,
+                  options: options,
+                  selected: selectedValues,
+                );
+                if (values != null) {
+                  onPatch(field.key, [
+                    for (final option in field.options)
+                      if (values.contains(option.value.toString()))
+                        option.value,
+                  ]);
+                }
+              },
       );
     }
     if (field.widget == 'datetime') {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          label,
-          const SizedBox(height: 7),
-          TextFormField(
-            key: ValueKey('${field.key}:${field.value}'),
-            initialValue: field.value?.toString() ?? '',
-            enabled: !disabled,
-            readOnly: true,
-            onTap: disabled
-                ? null
-                : () async {
-                    final initial = DateTime.tryParse(
-                      field.value?.toString() ?? '',
-                    )?.toLocal();
-                    final date = await showDatePicker(
-                      context: context,
-                      firstDate: DateTime(2000),
-                      lastDate: DateTime(2100),
-                      initialDate: initial ?? DateTime.now(),
-                    );
-                    if (date == null || !context.mounted) return;
-                    final time = await showTimePicker(
-                      context: context,
-                      initialTime: initial == null
-                          ? TimeOfDay.now()
-                          : TimeOfDay.fromDateTime(initial),
-                    );
-                    if (time == null) return;
-                    final value = DateTime(
+      return NkasTextField(
+        key: ValueKey('${field.key}:${field.value}'),
+        label: field.title,
+        description: field.help,
+        initialValue: field.value?.toString() ?? '',
+        enabled: !disabled,
+        readOnly: true,
+        suffixIcon: const Icon(LucideIcons.calendarClock, size: 18),
+        onTap: disabled
+            ? null
+            : () async {
+                final initial = DateTime.tryParse(
+                  field.value?.toString() ?? '',
+                )?.toLocal();
+                final date = await showDatePicker(
+                  context: context,
+                  firstDate: DateTime(2000),
+                  lastDate: DateTime(2100),
+                  initialDate: initial ?? DateTime.now(),
+                );
+                if (date == null || !context.mounted) return;
+                final time = await showTimePicker(
+                  context: context,
+                  initialTime: initial == null
+                      ? TimeOfDay.now()
+                      : TimeOfDay.fromDateTime(initial),
+                );
+                if (time == null || !context.mounted) return;
+                onPatch(
+                  field.key,
+                  _formatDateTimeLocal(
+                    DateTime(
                       date.year,
                       date.month,
                       date.day,
                       time.hour,
                       time.minute,
-                    );
-                    onPatch(field.key, _formatDateTimeLocal(value));
-                  },
-            decoration: const InputDecoration(
-              suffixIcon: Icon(LucideIcons.calendarClock, size: 18),
-            ),
-          ),
-        ],
-      );
-    }
-    if (field.widget == 'input' || field.widget == 'textarea') {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          label,
-          const SizedBox(height: 7),
-          TextFormField(
-            key: ValueKey('${field.key}:${field.value}'),
-            initialValue: field.value?.toString() ?? '',
-            enabled: !disabled,
-            maxLines: field.widget == 'textarea' ? 4 : 1,
-            onFieldSubmitted: (value) => onPatch(field.key, value),
-          ),
-        ],
-      );
-    }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        label,
-        const SizedBox(height: 6),
-        Text('该字段请通过原始 WebUI 操作', style: theme.textTheme.muted),
-      ],
-    );
-  }
-
-  static Future<List<Object?>?> _showMultiSelect(
-    BuildContext context,
-    String title,
-    List<SchemaOption> options,
-    Set<String> selected,
-  ) async {
-    final values = {...selected};
-    return showModalBottomSheet<List<Object?>>(
-      context: context,
-      showDragHandle: true,
-      isScrollControlled: true,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) => SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: ShadTheme.of(context).textTheme.h3),
-                const SizedBox(height: 8),
-                for (final option in options)
-                  CheckboxListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(option.label),
-                    value: values.contains(option.value.toString()),
-                    onChanged: (checked) {
-                      setState(() {
-                        if (checked == true) {
-                          values.add(option.value.toString());
-                        } else {
-                          values.remove(option.value.toString());
-                        }
-                      });
-                    },
-                  ),
-                const SizedBox(height: 6),
-                SizedBox(
-                  width: double.infinity,
-                  child: PrimaryButton(
-                    icon: LucideIcons.check,
-                    label: '完成',
-                    onPressed: () => Navigator.pop(
-                      context,
-                      options
-                          .where(
-                            (option) =>
-                                values.contains(option.value.toString()),
-                          )
-                          .map((option) => option.value)
-                          .toList(growable: false),
                     ),
                   ),
-                ),
-              ],
-            ),
-          ),
+                );
+              },
+      );
+    }
+    if (field.widget == 'input' ||
+        field.widget == 'textarea' ||
+        field.widget == 'number') {
+      final number = field.widget == 'number' || field.value is num;
+      return NkasConfigInput(
+        key: ValueKey(field.key),
+        label: field.title,
+        description: field.help,
+        initialValue: field.value?.toString() ?? '',
+        enabled: !disabled,
+        number: number,
+        multiline: field.widget == 'textarea',
+        onSubmit: (value) => onPatch(
+          field.key,
+          number
+              ? (value.trim().isEmpty ? null : num.parse(value.trim()))
+              : value,
         ),
+      );
+    }
+    return NkasField(
+      label: field.title,
+      description: field.help,
+      child: Text(
+        '该字段请通过原始 WebUI 操作',
+        style: ShadTheme.of(context).textTheme.muted,
       ),
     );
   }

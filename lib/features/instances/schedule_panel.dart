@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import 'package:nkas_mobile/core/api/schedule_info.dart';
 import 'package:nkas_mobile/core/widgets/buttons.dart';
 import 'package:nkas_mobile/core/widgets/filter_chip.dart';
 import 'package:nkas_mobile/core/widgets/field_select.dart';
+import 'package:nkas_mobile/core/widgets/form_field.dart';
 import 'package:nkas_mobile/core/widgets/surface.dart';
 import 'package:nkas_mobile/core/widgets/toggle.dart';
 
@@ -29,6 +31,8 @@ class _SchedulePanelState extends State<SchedulePanel> {
   bool loading = true;
   bool saving = false;
   String? error;
+  final form = GlobalKey<FormState>();
+  int revision = 0;
 
   @override
   void initState() {
@@ -43,7 +47,12 @@ class _SchedulePanelState extends State<SchedulePanel> {
     });
     try {
       final value = await widget.loadSchedule();
-      if (mounted) setState(() => tasks = value);
+      if (mounted) {
+        setState(() {
+          tasks = value;
+          revision++;
+        });
+      }
     } catch (exception) {
       if (mounted) setState(() => error = exception.toString());
     } finally {
@@ -52,6 +61,8 @@ class _SchedulePanelState extends State<SchedulePanel> {
   }
 
   Future<void> _save(List<Map<String, dynamic>> changes) async {
+    if (saving || !form.currentState!.validate()) return;
+    FocusScope.of(context).unfocus();
     setState(() => saving = true);
     try {
       await widget.saveSchedule(changes);
@@ -77,90 +88,108 @@ class _SchedulePanelState extends State<SchedulePanel> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        if (loading)
-          const Padding(
-            padding: EdgeInsets.only(top: 30),
-            child: CircularProgressIndicator(),
-          )
-        else if (tasks.isEmpty)
-          Text(error == null ? '暂无调度任务' : '调度加载失败')
-        else ...[
-          for (var i = 0; i < tasks.length; i++) ...[
-            if (i > 0) const SizedBox(height: 10),
-            _ScheduleRow(
-              task: tasks[i],
-              disabled: saving,
-              onChanged: (change) {
-                final next = tasks[i];
-                setState(() {
-                  tasks = [
-                    ...tasks.sublist(0, i),
-                    ScheduleTask(
-                      command: next.command,
-                      name: next.name,
-                      enabled: change['enable'] as bool? ?? next.enabled,
-                      locked: next.locked,
-                      enableLocked: next.enableLocked,
-                      cadence: change['cadence']?.toString() ?? next.cadence,
-                      cadenceLocked: next.cadenceLocked,
-                      nextRun: change['next_run']?.toString() ?? next.nextRun,
-                      dailyTimes:
-                          change['daily_times']?.toString() ?? next.dailyTimes,
-                      weeklyDays:
-                          change['weekly_days']?.toString() ?? next.weeklyDays,
-                      weeklyTime:
-                          change['weekly_time']?.toString() ?? next.weeklyTime,
-                      monthlyDay:
-                          change['monthly_day']?.toString() ?? next.monthlyDay,
-                      monthlyTime:
-                          change['monthly_time']?.toString() ??
-                          next.monthlyTime,
-                    ),
-                    ...tasks.sublist(i + 1),
-                  ];
-                });
-              },
-            ),
-          ],
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: SecondaryButton(
-                  icon: LucideIcons.rotateCcw,
-                  label: '还原默认',
-                  onPressed: saving ? null : _reset,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: PrimaryButton(
-                  icon: LucideIcons.save,
-                  label: saving ? '保存中…' : '保存调度设置',
-                  onPressed: saving
-                      ? null
-                      : () => _save([
-                          for (final task in tasks)
-                            {
-                              'command': task.command,
-                              'enable': task.enabled,
-                              'cadence': task.cadence,
-                              'next_run': task.nextRun,
-                              'daily_times': task.dailyTimes,
-                              'weekly_days': task.weeklyDays,
-                              'weekly_time': task.weeklyTime,
-                              'monthly_day': task.monthlyDay,
-                              'monthly_time': task.monthlyTime,
-                            },
-                        ]),
-                ),
+    return Form(
+      key: form,
+      child: Column(
+        children: [
+          if (loading)
+            const Padding(
+              padding: EdgeInsets.only(top: 30),
+              child: CircularProgressIndicator(),
+            )
+          else if (tasks.isEmpty)
+            Text(error == null ? '暂无调度任务' : '调度加载失败')
+          else ...[
+            for (var i = 0; i < tasks.length; i++) ...[
+              if (i > 0) const SizedBox(height: 10),
+              _ScheduleRow(
+                key: ValueKey('${tasks[i].command}:$revision'),
+                task: tasks[i],
+                disabled: saving,
+                onChanged: (change) {
+                  final next = tasks[i];
+                  setState(() {
+                    tasks = [
+                      ...tasks.sublist(0, i),
+                      ScheduleTask(
+                        command: next.command,
+                        name: next.name,
+                        enabled: change['enable'] as bool? ?? next.enabled,
+                        locked: next.locked,
+                        enableLocked: next.enableLocked,
+                        cadence: change['cadence']?.toString() ?? next.cadence,
+                        cadenceLocked: next.cadenceLocked,
+                        nextRun: change['next_run']?.toString() ?? next.nextRun,
+                        dailyTimes:
+                            change['daily_times']?.toString() ??
+                            next.dailyTimes,
+                        weeklyDays:
+                            change['weekly_days']?.toString() ??
+                            next.weeklyDays,
+                        weeklyTime:
+                            change['weekly_time']?.toString() ??
+                            next.weeklyTime,
+                        monthlyDay:
+                            change['monthly_day']?.toString() ??
+                            next.monthlyDay,
+                        monthlyTime:
+                            change['monthly_time']?.toString() ??
+                            next.monthlyTime,
+                      ),
+                      ...tasks.sublist(i + 1),
+                    ];
+                  });
+                },
               ),
             ],
-          ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: SecondaryButton(
+                    icon: LucideIcons.rotateCcw,
+                    label: '还原默认',
+                    onPressed: saving ? null : _reset,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: PrimaryButton(
+                    icon: LucideIcons.save,
+                    label: saving ? '保存中…' : '保存调度设置',
+                    loading: saving,
+                    onPressed: saving
+                        ? null
+                        : () => _save([
+                            for (final task in tasks)
+                              {
+                                'command': task.command,
+                                'enable': task.enabled,
+                                'cadence': task.cadence,
+                                'next_run': task.nextRun,
+                                'daily_times': task.dailyTimes,
+                                'weekly_days': task.weeklyDays,
+                                'weekly_time': task.weeklyTime,
+                                'monthly_day': task.monthlyDay,
+                                'monthly_time': task.monthlyTime,
+                              },
+                          ]),
+                  ),
+                ),
+              ],
+            ),
+          ],
+          if (error != null) ...[
+            const SizedBox(height: 12),
+            Text(
+              error!,
+              style: TextStyle(
+                color: ShadTheme.of(context).colorScheme.destructive,
+              ),
+            ),
+          ],
         ],
-      ],
+      ),
     );
   }
 }
@@ -170,6 +199,7 @@ class _ScheduleRow extends StatelessWidget {
     required this.task,
     required this.disabled,
     required this.onChanged,
+    super.key,
   });
   final ScheduleTask task;
   final bool disabled;
@@ -236,9 +266,9 @@ class _ScheduleRow extends StatelessWidget {
             children: [
               Expanded(
                 child: FieldSelect(
-                  dense: true,
                   label: '周期',
                   value: _cadenceLabel(task.cadence),
+                  selectedValue: task.cadence,
                   options: const [
                     FieldSelectOption('daily', '每天'),
                     FieldSelectOption('weekly', '每周'),
@@ -249,21 +279,16 @@ class _ScheduleRow extends StatelessWidget {
                       : (value) => onChanged({'cadence': value}),
                 ),
               ),
-              const SizedBox(width: 7),
-              SizedBox(
-                width: 132,
-                child: TextFormField(
+              const SizedBox(width: 8),
+              Expanded(
+                child: NkasTextField(
                   key: ValueKey('${task.command}-${task.cadence}'),
+                  label: '时间',
                   initialValue: task.activeTime,
                   enabled: !disabled && !task.locked,
-                  decoration: const InputDecoration(
-                    labelText: '时间',
-                    isDense: true,
-                    contentPadding: EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 8,
-                    ),
-                  ),
+                  hintText: '05:00',
+                  keyboardType: TextInputType.datetime,
+                  textInputAction: TextInputAction.done,
                   onChanged: (value) {
                     onChanged({_activeTimeKey(task.cadence): value});
                   },
@@ -280,31 +305,27 @@ class _ScheduleRow extends StatelessWidget {
             ),
           ],
           if (task.cadence == 'monthly') ...[
-            const SizedBox(height: 6),
-            Row(
-              children: [
-                Text('每月第', style: theme.textTheme.muted),
-                const SizedBox(width: 6),
-                SizedBox(
-                  width: 64,
-                  child: TextFormField(
-                    key: ValueKey('${task.command}-monthly-day'),
-                    initialValue: task.monthlyDay,
-                    enabled: !disabled && !task.locked,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      isDense: true,
-                      contentPadding: EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 8,
-                      ),
-                    ),
-                    onChanged: (value) => onChanged({'monthly_day': value}),
-                  ),
-                ),
-                const SizedBox(width: 5),
-                Text('日', style: theme.textTheme.muted),
+            const SizedBox(height: 12),
+            NkasTextField(
+              key: ValueKey('${task.command}-monthly-day'),
+              label: '每月执行日',
+              initialValue: task.monthlyDay,
+              enabled: !disabled && !task.locked,
+              keyboardType: TextInputType.number,
+              textInputAction: TextInputAction.done,
+              hintText: '1–31',
+              inputFormatters: [
+                FilteringTextInputFormatter.digitsOnly,
+                LengthLimitingTextInputFormatter(2),
               ],
+              validator: (value) {
+                if (disabled || task.locked) return null;
+                final day = int.tryParse(value ?? '');
+                return day == null || day < 1 || day > 31
+                    ? '请输入 1–31 之间的日期'
+                    : null;
+              },
+              onChanged: (value) => onChanged({'monthly_day': value}),
             ),
           ],
         ],
@@ -349,20 +370,18 @@ class _WeekdayPicker extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('执行日', style: ShadTheme.of(context).textTheme.muted),
-        const SizedBox(height: 3),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children: [
-              for (var index = 0; index < days.length; index++)
-                NkasFilterChip(
-                  label: '周${days[index]}',
-                  active: selected.contains(index + 1),
-                  onTap: disabled ? null : () => _toggle(selected, index + 1),
-                ),
-            ],
-          ),
+        const NkasFieldLabel(label: '执行日'),
+        const SizedBox(height: 8),
+        Wrap(
+          runSpacing: 8,
+          children: [
+            for (var index = 0; index < days.length; index++)
+              NkasFilterChip(
+                label: '周${days[index]}',
+                active: selected.contains(index + 1),
+                onTap: disabled ? null : () => _toggle(selected, index + 1),
+              ),
+          ],
         ),
       ],
     );

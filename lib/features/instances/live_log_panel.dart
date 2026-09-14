@@ -5,6 +5,8 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 
 import 'package:nkas_mobile/core/connection/instance_log_socket.dart';
 import 'package:nkas_mobile/core/widgets/log_line.dart';
+import 'package:nkas_mobile/core/widgets/field_select.dart';
+import 'package:nkas_mobile/core/widgets/toggle.dart';
 import 'package:nkas_mobile/core/widgets/surface.dart';
 import 'package:nkas_mobile/core/widgets/backend_auth_scope.dart';
 import 'package:nkas_mobile/core/connection/connection_controller.dart';
@@ -285,43 +287,44 @@ class _LiveLogPanelState extends State<LiveLogPanel> {
                       : scheme.mutedForeground,
                 ),
                 const SizedBox(width: 7),
-                Text(
-                  widget.running ? '实时日志' : '日志已暂停',
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
+                Expanded(
+                  child: Text(
+                    widget.running ? '实时日志' : '日志已暂停',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
-                const Spacer(),
-                PopupMenuButton<String>(
-                  initialValue: level,
-                  tooltip: '实时日志级别',
-                  onSelected: (value) => setState(() => level = value),
-                  itemBuilder: (context) => [
-                    for (final item in const ['DEBUG', 'INFO', 'WARN', 'ERROR'])
-                      PopupMenuItem(value: item, child: Text(item)),
-                  ],
-                  child: Container(
-                    height: 32,
-                    padding: const EdgeInsets.symmetric(horizontal: 9),
-                    decoration: BoxDecoration(
-                      color: scheme.secondary,
-                      borderRadius: BorderRadius.circular(9),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(level, style: const TextStyle(fontSize: 11)),
-                        const SizedBox(width: 4),
-                        const Icon(LucideIcons.chevronDown, size: 14),
-                      ],
-                    ),
+                const SizedBox(width: 8),
+                SizedBox(
+                  width: 96,
+                  child: FieldSelect(
+                    label: '',
+                    semanticLabel: '实时日志级别',
+                    dense: true,
+                    value: level,
+                    selectedValue: level,
+                    onChanged: (value) => setState(() => level = value),
+                    options: [
+                      for (final item in const [
+                        'DEBUG',
+                        'INFO',
+                        'WARN',
+                        'ERROR',
+                      ])
+                        FieldSelectOption(item, item),
+                    ],
                   ),
                 ),
                 const SizedBox(width: 5),
-                _LiveToggle(
-                  value: autoScroll,
-                  onChanged: (value) => setState(() => autoScroll = value),
+                Tooltip(
+                  message: '自动滚动',
+                  child: NkasSwitch(
+                    label: '自动滚动',
+                    value: autoScroll,
+                    onChanged: (value) => setState(() => autoScroll = value),
+                  ),
                 ),
                 const SizedBox(width: 6),
                 Semantics(
@@ -387,59 +390,4 @@ class _LiveLogLine {
   final String message;
   final LogKind kind;
   final String? traceback;
-}
-
-class _LiveToggle extends StatelessWidget {
-  const _LiveToggle({required this.value, required this.onChanged});
-
-  final bool value;
-  final ValueChanged<bool> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = ShadTheme.of(context).colorScheme;
-    return Tooltip(
-      message: '自动滚动',
-      child: Semantics(
-        button: true,
-        toggled: value,
-        label: '自动滚动',
-        child: GestureDetector(
-          onTap: () => onChanged(!value),
-          child: SizedBox(
-            width: 48,
-            height: 48,
-            child: Center(
-              child: Container(
-                width: 42,
-                height: 24,
-                padding: const EdgeInsets.all(3),
-                decoration: BoxDecoration(
-                  color: value ? scheme.primary : scheme.border,
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: AnimatedAlign(
-                  duration: const Duration(milliseconds: 150),
-                  alignment: value
-                      ? Alignment.centerRight
-                      : Alignment.centerLeft,
-                  child: Container(
-                    width: 18,
-                    height: 18,
-                    decoration: const BoxDecoration(
-                      color: Colors.white,
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(color: Color(0x24000000), blurRadius: 3),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 }

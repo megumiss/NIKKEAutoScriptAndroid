@@ -9,7 +9,6 @@ import 'package:nkas_mobile/core/widgets/icon_box.dart';
 import 'package:nkas_mobile/core/connection/connection_controller.dart';
 import 'package:nkas_mobile/core/platform/nkas_platform.dart';
 import 'package:nkas_mobile/core/platform/runtime_platform.dart';
-import 'package:nkas_mobile/core/widgets/buttons.dart';
 import 'package:nkas_mobile/core/widgets/group_label.dart';
 import 'package:nkas_mobile/core/widgets/page_inset.dart';
 import 'package:nkas_mobile/core/widgets/page_subtitle.dart';
@@ -31,6 +30,7 @@ class SettingsPage extends StatefulWidget {
     required this.onOpenAbout,
     required this.onOpenNativeControl,
     required this.onOpenDeploy,
+    required this.onOpenBackendAddress,
     super.key,
   });
   final ThemeMode themeMode;
@@ -45,6 +45,7 @@ class SettingsPage extends StatefulWidget {
   final VoidCallback onOpenAbout;
   final VoidCallback onOpenNativeControl;
   final VoidCallback onOpenDeploy;
+  final VoidCallback onOpenBackendAddress;
 
   @override
   State<SettingsPage> createState() => _SettingsPageState();
@@ -122,11 +123,8 @@ class _SettingsPageState extends State<SettingsPage> {
               icon: LucideIcons.server,
               title: '后端地址',
               subtitle: widget.connectionController.state.baseUrl,
-              trailing: LucideIcons.pencil,
               enabled: widget.starAuthorized,
-              onTap: widget.starAuthorized
-                  ? () => _editBackendAddress(context)
-                  : null,
+              onTap: widget.starAuthorized ? widget.onOpenBackendAddress : null,
             ),
             if (NkasPlatform.instance.supported)
               _SettingRow(
@@ -178,7 +176,9 @@ class _SettingsPageState extends State<SettingsPage> {
                   opacity: widget.starAuthorized ? 1 : .45,
                   child: _ThemeSegment(
                     themeMode: widget.themeMode,
-                    onChanged: widget.onThemeModeChanged,
+                    onChanged: widget.starAuthorized
+                        ? widget.onThemeModeChanged
+                        : null,
                   ),
                 ),
               ),
@@ -195,7 +195,9 @@ class _SettingsPageState extends State<SettingsPage> {
                   child: NkasSwitch(
                     label: '后台通知',
                     value: widget.notifications,
-                    onChanged: widget.onNotificationsChanged,
+                    onChanged: widget.starAuthorized
+                        ? widget.onNotificationsChanged
+                        : null,
                   ),
                 ),
               ),
@@ -213,18 +215,6 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
         ),
       ],
-    );
-  }
-
-  Future<void> _editBackendAddress(BuildContext context) async {
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      useSafeArea: true,
-      builder: (_) => _BackendAddressSheet(
-        connectionController: widget.connectionController,
-      ),
     );
   }
 
@@ -338,165 +328,6 @@ class _UpdateSettingRowState extends State<_UpdateSettingRow> {
   }
 }
 
-class _BackendAddressSheet extends StatefulWidget {
-  const _BackendAddressSheet({required this.connectionController});
-
-  final ConnectionController connectionController;
-
-  @override
-  State<_BackendAddressSheet> createState() => _BackendAddressSheetState();
-}
-
-class _BackendAddressSheetState extends State<_BackendAddressSheet> {
-  late final TextEditingController _textController;
-  bool _saving = false;
-  String? _error;
-
-  @override
-  void initState() {
-    super.initState();
-    _textController = TextEditingController(
-      text: widget.connectionController.state.baseUrl,
-    );
-  }
-
-  @override
-  void dispose() {
-    _textController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _save() async {
-    setState(() {
-      _saving = true;
-      _error = null;
-    });
-    final connected = await widget.connectionController.connect(
-      _textController.text,
-      persist: true,
-    );
-    if (!mounted) return;
-    if (connected) {
-      Navigator.pop(context);
-    } else {
-      setState(() {
-        _saving = false;
-        _error = widget.connectionController.state.message;
-      });
-      final message = widget.connectionController.state.message;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(message ?? '无法连接后端，请检查地址和服务状态')));
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final state = widget.connectionController.state;
-    final scheme = ShadTheme.of(context).colorScheme;
-    final error =
-        state.phase == ConnectionPhase.disconnected ||
-        state.phase == ConnectionPhase.incompatible;
-    final inset = nkasPageInset(context);
-    return Padding(
-      padding: EdgeInsets.fromLTRB(
-        inset,
-        0,
-        inset,
-        MediaQuery.viewInsetsOf(context).bottom + 18,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('修改后端地址', style: ShadTheme.of(context).textTheme.h3),
-          const SizedBox(height: 6),
-          Text(
-            '未开启安全入口：填写 http://服务器:12271。已开启：粘贴 http://服务器:12271/entry/完整密钥。公网建议使用 HTTPS。',
-            style: ShadTheme.of(context).textTheme.muted,
-          ),
-          const SizedBox(height: 14),
-          TextField(
-            controller: _textController,
-            enabled: !_saving,
-            keyboardType: TextInputType.url,
-            autocorrect: false,
-            enableSuggestions: false,
-            decoration: InputDecoration(
-              labelText: '后端地址或完整安全入口',
-              errorText: _error,
-              errorMaxLines: 3,
-              hintText: 'http://127.0.0.1:12271',
-              suffixIcon: _textController.text.isEmpty
-                  ? null
-                  : IconButton(
-                      tooltip: '清空地址',
-                      icon: const Icon(LucideIcons.x, size: 17),
-                      onPressed: _saving ? null : _textController.clear,
-                    ),
-            ),
-            onChanged: (_) => setState(() {}),
-            onSubmitted: _saving ? null : (_) => _save(),
-          ),
-          const SizedBox(height: 10),
-          if (isAndroid) ...[
-            SecondaryButton(
-              icon: LucideIcons.smartphone,
-              label: '使用本机 Termux 部署',
-              onPressed: _saving
-                  ? null
-                  : () async {
-                      setState(() {
-                        _saving = true;
-                        _error = null;
-                      });
-                      final connected = await widget.connectionController
-                          .connectLocalDeployment();
-                      if (!context.mounted) return;
-                      if (connected) {
-                        Navigator.pop(context);
-                      } else {
-                        setState(() {
-                          _saving = false;
-                          _error = widget.connectionController.state.message;
-                        });
-                      }
-                    },
-            ),
-            const SizedBox(height: 10),
-          ],
-          Text(
-            state.message ?? '远程地址仅用于本机或可信网络',
-            style: ShadTheme.of(context).textTheme.muted.copyWith(
-              color: error ? scheme.destructive : null,
-            ),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: SecondaryButton(
-                  icon: LucideIcons.x,
-                  label: '取消',
-                  onPressed: _saving ? null : () => Navigator.pop(context),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: PrimaryButton(
-                  icon: LucideIcons.check,
-                  label: _saving ? '连接中…' : '保存并连接',
-                  onPressed: _saving ? null : _save,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _SettingGroup extends StatelessWidget {
   const _SettingGroup({required this.label, required this.rows});
   final String label;
@@ -602,29 +433,30 @@ class _SettingRow extends StatelessWidget {
 class _ThemeSegment extends StatelessWidget {
   const _ThemeSegment({required this.themeMode, required this.onChanged});
   final ThemeMode themeMode;
-  final ValueChanged<ThemeMode> onChanged;
+  final ValueChanged<ThemeMode>? onChanged;
 
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
     return Container(
-      height: 34,
-      padding: const EdgeInsets.all(3),
+      padding: const EdgeInsets.all(2),
       decoration: BoxDecoration(
-        color: theme.colorScheme.secondary,
-        borderRadius: BorderRadius.circular(9),
+        color: theme.colorScheme.input,
+        border: Border.all(color: theme.colorScheme.border),
+        borderRadius: NkasInputStyle.radius,
       ),
       child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
           _ThemeChoice(
             label: '浅色',
             selected: themeMode != ThemeMode.dark,
-            onTap: () => onChanged(ThemeMode.light),
+            onTap: onChanged == null ? null : () => onChanged!(ThemeMode.light),
           ),
           _ThemeChoice(
             label: '深色',
             selected: themeMode == ThemeMode.dark,
-            onTap: () => onChanged(ThemeMode.dark),
+            onTap: onChanged == null ? null : () => onChanged!(ThemeMode.dark),
           ),
         ],
       ),
@@ -640,28 +472,39 @@ class _ThemeChoice extends StatelessWidget {
   });
   final String label;
   final bool selected;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    final theme = ShadTheme.of(context);
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 38,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: selected ? theme.colorScheme.card : Colors.transparent,
-          borderRadius: BorderRadius.circular(7),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: selected
-                ? theme.colorScheme.primary
-                : theme.colorScheme.mutedForeground,
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
+    final scheme = ShadTheme.of(context).colorScheme;
+    final radius = BorderRadius.circular(8);
+    return Semantics(
+      button: true,
+      selected: selected,
+      enabled: onTap != null,
+      child: Material(
+        color: selected ? scheme.card : Colors.transparent,
+        borderRadius: radius,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: radius,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+              child: Center(
+                widthFactor: 1,
+                heightFactor: 1,
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    color: selected ? scheme.primary : scheme.mutedForeground,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
           ),
         ),
       ),

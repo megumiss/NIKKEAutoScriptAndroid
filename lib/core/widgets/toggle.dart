@@ -23,16 +23,17 @@ class NkasSwitch extends StatelessWidget {
     final onChanged = this.onChanged;
     return Semantics(
       button: true,
+      enabled: onChanged != null,
       toggled: value,
       label: '$label，${value ? '已开启' : '已关闭'}',
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
+      child: InkWell(
+        customBorder: const StadiumBorder(),
         onTap: onChanged == null ? null : () => onChanged(!value),
         child: Opacity(
           opacity: onChanged == null ? .45 : 1,
           child: SizedBox(
-            width: 44,
-            height: 44,
+            width: 48,
+            height: 48,
             child: Center(
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 150),
@@ -51,12 +52,9 @@ class NkasSwitch extends StatelessWidget {
                   child: Container(
                     width: 18,
                     height: 18,
-                    decoration: const BoxDecoration(
-                      color: Colors.white,
+                    decoration: BoxDecoration(
+                      color: scheme.primaryForeground,
                       shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(color: Color(0x24000000), blurRadius: 3),
-                      ],
                     ),
                   ),
                 ),

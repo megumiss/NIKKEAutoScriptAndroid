@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:nkas_mobile/core/connection/connection_controller.dart';
 import 'package:nkas_mobile/core/widgets/buttons.dart';
+import 'package:nkas_mobile/core/widgets/form_field.dart';
 
 /// Private-key actions attached to the schema-rendered deployment checkbox.
 class SecurityEntryActions extends StatefulWidget {
@@ -88,28 +89,24 @@ class _SecurityEntryActionsState extends State<SecurityEntryActions> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('完整安全入口', style: TextStyle(fontWeight: FontWeight.w600)),
-        const SizedBox(height: 3),
-        Text(
-          '浏览器和远程 App 通用。远程访问时替换服务器 IP / 域名，保留完整 /entry/ 路径。入口等同凭据，请勿公开，公网建议使用 HTTPS。',
-          style: theme.textTheme.muted,
-        ),
-        const SizedBox(height: 7),
         if (url.isNotEmpty) ...[
-          TextFormField(
+          NkasTextField(
             key: ValueKey(widget.controller.credentialRevision),
+            label: '完整安全入口',
+            description:
+                '浏览器和远程 App 通用。远程访问时替换服务器 IP / 域名，保留完整 /entry/ 路径。入口等同凭据，请勿公开，公网建议使用 HTTPS。',
             initialValue: url,
             readOnly: true,
             obscureText: !reveal,
-            decoration: InputDecoration(
-              suffixIcon: IconButton(
-                tooltip: reveal ? '隐藏入口' : '显示入口',
-                icon: Icon(
-                  reveal ? LucideIcons.eyeOff : LucideIcons.eye,
-                  size: 18,
-                ),
-                onPressed: () => setState(() => reveal = !reveal),
+            suffixIcon: IconButton(
+              tooltip: reveal ? '隐藏入口' : '显示入口',
+              icon: Icon(
+                reveal ? LucideIcons.eyeOff : LucideIcons.eye,
+                size: 18,
               ),
+              onPressed: busy || widget.disabled
+                  ? null
+                  : () => setState(() => reveal = !reveal),
             ),
           ),
           const SizedBox(height: 12),

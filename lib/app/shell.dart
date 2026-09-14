@@ -24,6 +24,7 @@ import 'package:nkas_mobile/features/logs/logs_page.dart';
 import 'package:nkas_mobile/features/deploy/deploy_page.dart';
 import 'package:nkas_mobile/features/overview/overview_page.dart';
 import 'package:nkas_mobile/features/settings/settings_page.dart';
+import 'package:nkas_mobile/features/settings/backend_address_page.dart';
 import 'package:nkas_mobile/features/settings/setup_page.dart';
 import 'package:nkas_mobile/features/settings/native_control_page.dart';
 import 'package:nkas_mobile/features/settings/star_verify_page.dart';
@@ -44,6 +45,7 @@ enum NkasPage {
   update,
   about,
   nativeControl,
+  backendAddress,
 }
 
 class NkasShell extends StatefulWidget {
@@ -564,6 +566,7 @@ class _NkasShellState extends State<NkasShell> {
     NkasPage.update => '更新',
     NkasPage.about => '关于',
     NkasPage.nativeControl => '控制连接',
+    NkasPage.backendAddress => '后端地址',
   };
 
   bool get _isSettingsSubpage =>
@@ -572,6 +575,7 @@ class _NkasShellState extends State<NkasShell> {
       page == NkasPage.update ||
       page == NkasPage.about ||
       page == NkasPage.nativeControl ||
+      page == NkasPage.backendAddress ||
       page == NkasPage.deploy;
 
   Widget _pageBody() => switch (page) {
@@ -679,6 +683,7 @@ class _NkasShellState extends State<NkasShell> {
       onOpenAbout: () => _pushPage(NkasPage.about),
       onOpenNativeControl: () => _pushPage(NkasPage.nativeControl),
       onOpenDeploy: () => _pushPage(NkasPage.deploy),
+      onOpenBackendAddress: () => _pushPage(NkasPage.backendAddress),
     ),
     NkasPage.starVerify => StarVerifyPage(
       onOpenSetup: () => unawaited(_openSetup()),
@@ -696,6 +701,10 @@ class _NkasShellState extends State<NkasShell> {
     ),
     NkasPage.nativeControl => NativeControlPage(
       platform: NkasPlatform.instance,
+      onClose: _handleBack,
+    ),
+    NkasPage.backendAddress => BackendAddressPage(
+      connectionController: widget.connectionController,
       onClose: _handleBack,
     ),
   };

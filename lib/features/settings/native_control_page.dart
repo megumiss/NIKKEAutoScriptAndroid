@@ -10,6 +10,7 @@ import 'package:nkas_mobile/core/platform/runtime_platform.dart';
 import 'package:nkas_mobile/core/widgets/buttons.dart';
 import 'package:nkas_mobile/core/widgets/field_select.dart';
 import 'package:nkas_mobile/core/widgets/floating_action.dart';
+import 'package:nkas_mobile/core/widgets/form_field.dart';
 import 'package:nkas_mobile/core/widgets/group_label.dart';
 import 'package:nkas_mobile/core/widgets/page_inset.dart';
 import 'package:nkas_mobile/core/widgets/page_subtitle.dart';
@@ -82,12 +83,6 @@ class _NativeControlPageState extends State<NativeControlPage> {
   Future<void> _save({bool register = false}) async {
     if (!form.currentState!.validate() || busy) return;
     final useTailnet = tailscale && mode == NativeControlMode.remoteAdb;
-    if (useTailnet &&
-        !status.hasPersistedLogin &&
-        authKey.text.trim().isEmpty) {
-      setState(() => error = '首次连接请填写 Tailscale AuthKey');
-      return;
-    }
     setState(() {
       busy = true;
       error = null;
@@ -202,16 +197,14 @@ class _NativeControlPageState extends State<NativeControlPage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
-                            '控制设备',
-                            style: TextStyle(fontWeight: FontWeight.w600),
-                          ),
-                          const SizedBox(height: 7),
                           FieldSelect(
-                            label: '',
+                            label: '设备类型',
                             value: mode == NativeControlMode.remoteAdb
                                 ? '远程 Android'
                                 : '本机虚拟屏幕',
+                            selectedValue: mode == NativeControlMode.remoteAdb
+                                ? 'remote_adb'
+                                : 'local_virtual_display',
                             options: const [
                               FieldSelectOption('remote_adb', '远程 Android'),
                               FieldSelectOption(
@@ -240,18 +233,12 @@ class _NativeControlPageState extends State<NativeControlPage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
-                            'Android ADB 地址',
-                            style: TextStyle(fontWeight: FontWeight.w600),
-                          ),
-                          const SizedBox(height: 7),
-                          TextFormField(
+                          NkasTextField(
+                            label: 'Android ADB 地址',
                             controller: endpoint,
                             enabled: !busy,
-                            decoration: const InputDecoration(
-                              hintText: '设备地址:5555',
-                              errorMaxLines: 2,
-                            ),
+                            hintText: '设备地址:5555',
+                            helperText: '支持 host:port 和 adb://host:port',
                             keyboardType: TextInputType.url,
                             autocorrect: false,
                             validator: (value) {
@@ -275,11 +262,6 @@ class _NativeControlPageState extends State<NativeControlPage> {
                               }
                               return null;
                             },
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            '支持 host:port 和 adb://host:port',
-                            style: theme.textTheme.muted,
                           ),
                           const Divider(height: 18),
                           GestureDetector(
@@ -330,18 +312,11 @@ class _NativeControlPageState extends State<NativeControlPage> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text(
-                              'Tailscale 节点名称',
-                              style: TextStyle(fontWeight: FontWeight.w600),
-                            ),
-                            const SizedBox(height: 7),
-                            TextFormField(
+                            NkasTextField(
+                              label: 'Tailscale 节点名称',
                               controller: hostname,
                               enabled: !busy,
                               autocorrect: false,
-                              decoration: const InputDecoration(
-                                errorMaxLines: 3,
-                              ),
                               validator: (value) =>
                                   RegExp(
                                     r'^[A-Za-z0-9][A-Za-z0-9-]{0,62}$',
@@ -350,23 +325,20 @@ class _NativeControlPageState extends State<NativeControlPage> {
                                   : '使用字母、数字和连字符，最多 63 个字符',
                             ),
                             const Divider(height: 18),
-                            const Text(
-                              'Tailscale AuthKey',
-                              style: TextStyle(fontWeight: FontWeight.w600),
-                            ),
-                            const SizedBox(height: 7),
-                            TextFormField(
+                            NkasTextField(
+                              label: 'Tailscale AuthKey',
                               controller: authKey,
                               enabled: !busy,
                               obscureText: true,
                               autocorrect: false,
                               enableSuggestions: false,
-                              decoration: const InputDecoration(),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              '首次注册时填写，注册后可留空',
-                              style: theme.textTheme.muted,
+                              helperText: '首次注册时填写，注册后可留空',
+                              validator: (value) =>
+                                  !busy &&
+                                      !status.hasPersistedLogin &&
+                                      (value?.trim().isEmpty ?? true)
+                                  ? '首次连接请填写 Tailscale AuthKey'
+                                  : null,
                             ),
                             const Divider(height: 18),
                             Text(
@@ -374,7 +346,9 @@ class _NativeControlPageState extends State<NativeControlPage> {
                               style: theme.textTheme.muted,
                             ),
                             const SizedBox(height: 10),
-                            Row(
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
                               children: [
                                 SecondaryButton(
                                   icon: LucideIcons.plug,
@@ -383,7 +357,6 @@ class _NativeControlPageState extends State<NativeControlPage> {
                                       ? null
                                       : () => _save(register: true),
                                 ),
-                                const SizedBox(width: 8),
                                 SecondaryButton(
                                   icon: LucideIcons.trash2,
                                   label: '清除身份',
@@ -436,7 +409,8 @@ class _NativeControlPageState extends State<NativeControlPage> {
             top: false,
             child: NkasFloatingAction(
               label: busy ? '正在保存…' : '保存',
-              icon: busy ? LucideIcons.loaderCircle : LucideIcons.check,
+              icon: LucideIcons.check,
+              loading: busy,
               enabled: !busy && !loading,
               onPressed: () => _save(),
             ),

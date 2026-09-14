@@ -63,6 +63,7 @@ class _NkasMobileAppState extends State<NkasMobileApp> {
         debugShowCheckedModeBanner: false,
         theme: nkasThemeData(Brightness.light),
         darkTheme: nkasThemeData(Brightness.dark),
+        materialThemeBuilder: nkasMaterialTheme,
         themeMode: themeMode,
         builder: (context, child) => ScaffoldMessenger(child: child!),
         home: NkasShell(

@@ -12,6 +12,7 @@ import 'package:nkas_mobile/core/platform/native_control_settings.dart';
 import 'package:nkas_mobile/features/screen/native_video_surface.dart';
 import 'package:nkas_mobile/core/widgets/avatar.dart';
 import 'package:nkas_mobile/core/widgets/buttons.dart';
+import 'package:nkas_mobile/core/widgets/form_field.dart';
 import 'package:nkas_mobile/core/widgets/instance_picker.dart';
 import 'package:nkas_mobile/core/widgets/page_inset.dart';
 import 'package:nkas_mobile/core/widgets/page_subtitle.dart';
@@ -596,16 +597,15 @@ class _NativeTextDialogState extends State<_NativeTextDialog> {
   @override
   Widget build(BuildContext context) => AlertDialog(
     title: const Text('发送文本'),
-    content: TextField(
+    content: NkasTextField(
+      label: '文本内容',
       controller: controller,
       autofocus: true,
       maxLines: 3,
       onChanged: (value) => setState(() => bytes = utf8.encode(value).length),
-      decoration: InputDecoration(
-        hintText: '输入要发送的文本',
-        helperText: '$bytes / 300 UTF-8 字节',
-        errorText: bytes > 300 ? '文本超过 300 个 UTF-8 字节' : null,
-      ),
+      hintText: '输入要发送的文本',
+      helperText: '$bytes / 300 UTF-8 字节',
+      errorText: bytes > 300 ? '文本超过 300 个 UTF-8 字节' : null,
     ),
     actions: [
       TextButton(

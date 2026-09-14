@@ -7,6 +7,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:nkas_mobile/core/platform/nkas_platform.dart';
 import 'package:nkas_mobile/core/platform/runtime_platform.dart';
 import 'package:nkas_mobile/core/widgets/buttons.dart';
+import 'package:nkas_mobile/core/widgets/form_field.dart';
 import 'package:nkas_mobile/core/widgets/floating_action.dart';
 import 'package:nkas_mobile/core/widgets/page_inset.dart';
 import 'package:nkas_mobile/core/widgets/page_subtitle.dart';
@@ -550,14 +551,13 @@ class _NkasSetupPageState extends State<NkasSetupPage>
                 complete: authorized,
               ),
               const Divider(height: 20),
-              TextField(
+              NkasTextField(
+                label: '远程 Android ADB 地址',
                 controller: serialController,
                 focusNode: serialFocusNode,
                 keyboardType: TextInputType.url,
                 onSubmitted: (_) => unawaited(_saveIosSerial()),
-                decoration: const InputDecoration(
-                  hintText: '远程 Android ADB 地址，例如 100.64.0.2:5555',
-                ),
+                hintText: '例如 100.64.0.2:5555',
               ),
               const SizedBox(height: 8),
               Text(
@@ -957,23 +957,35 @@ class _NkasSetupPageState extends State<NkasSetupPage>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              TextField(
+              NkasTextField(
+                label: '无线调试端口',
                 controller: serialController,
                 focusNode: serialFocusNode,
                 keyboardType: TextInputType.number,
                 onSubmitted: (_) => unawaited(_saveSerial()),
-                decoration: const InputDecoration(hintText: '无线调试端口'),
+                hintText: '填写系统设置中显示的端口号',
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(5),
+                ],
               ),
               const SizedBox(height: 8),
-              TextField(
+              NkasTextField(
+                label: '配对码',
                 controller: pairCodeController,
                 keyboardType: TextInputType.number,
-                decoration: const InputDecoration(hintText: '配对码（可留空，在通知中输入）'),
+                hintText: '填写数字配对码',
+                helperText: '可留空，稍后在通知中输入',
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(8),
+                ],
               ),
               const SizedBox(height: 8),
               SecondaryButton(
                 icon: LucideIcons.link,
                 label: pairingActive ? '配对中…' : '配对',
+                loading: pairingActive,
                 onPressed: pairingActive ? null : _pair,
               ),
               const SizedBox(height: 7),

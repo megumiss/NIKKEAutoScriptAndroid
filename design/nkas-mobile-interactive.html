@@ -21,6 +21,7 @@
       --np-blue-soft: #e0f3ff;
       --np-page: #f6f9fb;
       --np-surface: #ffffff;
+      --np-input: #f5f8fa;
       --np-ink: #172331;
       --np-muted: #70808e;
       --np-line: #e1e9ef;
@@ -264,7 +265,15 @@
     .np-event-time-value.remaining { color:var(--np-success); font-weight:700; }
     .np-event-updated { margin:3px 0 0; color:var(--np-muted); font-size:11px; }
     .np-url-editor { display:flex; gap:7px; align-items:center; width:100%; }
-    .np-url-input { min-width:0; flex:1; height:35px; padding:0 10px; border:1px solid var(--np-line); border-radius:9px; background:#f8fafb; color:var(--np-ink); font:inherit; font-size:12px; }
+    .np-url-input { width:100%; min-width:0; min-height:48px; padding:12px; border:1px solid var(--np-line); border-radius:10px; background:var(--np-input); color:var(--np-ink); font:inherit; font-size:14px; }
+    .np-url-input:focus-visible, .np-schedule-select:focus-visible, .np-schedule-time:focus-visible { outline:2px solid var(--np-blue); outline-offset:-2px; }
+    .np-form-card { padding:12px; border:1px solid var(--np-line); border-radius:16px; background:var(--np-surface); }
+    .np-form-label { display:block; margin:0 0 8px; font-size:13px; font-weight:650; line-height:1.5; }
+    .np-form-help { margin:4px 0 8px; color:var(--np-muted); font-size:12px; line-height:1.5; }
+    .np-form-error { margin:8px 0 0; color:var(--np-danger); font-size:12px; }
+    .np-form-actions { position:absolute; left:18px; right:18px; bottom:14px; }
+    .np-form-actions .np-primary { width:100%; min-height:48px; }
+    .np-form-address { margin:0; font-size:13px; line-height:1.5; overflow-wrap:anywhere; }
     .np-url-save { height:35px; padding:0 10px; border:0; border-radius:9px; background:var(--np-blue); color:#fff; font-size:12px; font-weight:650; cursor:pointer; }
     .np-instance-hero { padding:9px 10px; border-radius:16px; background:var(--np-surface); border:1px solid var(--np-line); }
     .np-instance-hero-row { min-width:0; display:flex; align-items:center; gap:7px; }
@@ -333,7 +342,7 @@
     .np-schedule-toggle.on { background:var(--np-blue); }
     .np-schedule-toggle.on::after { transform:translateX(16px); }
     .np-schedule-editor { display:flex; align-items:center; gap:7px; margin-top:9px; }
-    .np-schedule-select, .np-schedule-time { height:32px; padding:0 8px; border:1px solid var(--np-line); border-radius:8px; background:#f8fbfc; color:var(--np-ink); font:12px inherit; }
+    .np-schedule-select, .np-schedule-time { min-height:48px; min-width:0; padding:0 12px; border:1px solid var(--np-line); border-radius:10px; background:var(--np-input); color:var(--np-ink); font:inherit; font-size:14px; }
     .np-schedule-save { width:100%; margin-top:12px; }
     .np-config-group { margin-top:16px; }
     .np-config-group-title { display:flex; align-items:center; gap:7px; margin:0 0 8px 3px; color:var(--np-muted); font-size:12px; font-weight:700; }
@@ -422,7 +431,7 @@
       const sheetText = root.querySelector('#np-sheet-text');
       const sheetActions = root.querySelector('#np-sheet-actions');
       const state = { page: 'overview', running: true, selected: '主账号', instanceRunning: { '主账号': true, '小号': false, '测试账号': false }, autoScroll: true, filter: '全部', liveLogLevel: 'INFO', initialized: false, starAuthorized: false, setupStage: 3, setupRunning: false, setupCollapsed: {}, theme: '浅色', backend: 'http://127.0.0.1:12271', instanceSection: 'overview', logScope: '全部', logDate: '2026-09-10', task: '', updateAvailable: false, sourceUpdateAvailable: false, updateChecking: false, updating: false, restarting: false };
-      const pages = { overview: '总览', instances: '实例', logs: '日志', settings: '设置', update: '更新', 'star-verify': 'STAR 验证', setup: '初始化 NKAS' };
+      const pages = { overview: '总览', instances: '实例', logs: '日志', settings: '设置', update: '更新', 'star-verify': 'STAR 验证', setup: '初始化 NKAS', backendAddress: '后端地址' };
       const icon = (name) => `<i data-lucide="${name}" aria-hidden="true"></i>`;
       const status = (name) => state.instanceRunning[name] ? ['运行中', 'np-running', name === '主账号' ? '每日任务 · 最后同步 2 分钟前' : '任务执行中'] : name === '小号' ? ['空闲', 'np-warning', '等待初始化 · 上次运行昨天'] : ['已停止', 'np-idle', '尚未运行'];
       function removeImplementationNotes(scope = root) {
@@ -453,7 +462,7 @@
       function draw() {
         title.textContent = pages[state.page];
         root.classList.toggle('np-logs-page', state.page === 'logs');
-        const isSettingsSubpage = state.page === 'update' || state.page === 'star-verify' || state.page === 'setup';
+        const isSettingsSubpage = state.page === 'update' || state.page === 'star-verify' || state.page === 'setup' || state.page === 'backendAddress';
         root.classList.toggle('np-subpage', isSettingsSubpage);
         const pageBack = root.querySelector('#np-page-back');
         if (pageBack) pageBack.hidden = !isSettingsSubpage;
@@ -465,6 +474,7 @@
         if (state.page === 'update') drawUpdate();
         if (state.page === 'star-verify') drawStarVerify();
         if (state.page === 'setup') drawSetup();
+        if (state.page === 'backendAddress') drawBackendAddress();
         if (state.page === 'overview') {
           const eventContent = {
             '全部': ['剧情活动', '当前剧情活动', '活动任务、商店与签到持续开放'],
@@ -794,7 +804,30 @@
       function openDeploy() { state.page = state.starAuthorized ? 'setup' : 'star-verify'; closeSheet(); draw(); }
       function openInit() { state.page = 'setup'; closeSheet(); draw(); }
       function openStarVerify() { state.page = 'star-verify'; closeSheet(); draw(); }
-      function openBackendEditor() { openSheet('修改后端地址', '支持本机或远程 NKAS 后端，例如 http://192.168.1.20:12271。', [{id:'save',icon:'check',label:'保存地址',primary:true,run:() => { const input = sheetActions.querySelector('#np-backend-input'); if (input && input.value.trim()) state.backend = input.value.trim(); closeSheet(); draw(); }},{id:'cancel',icon:'x',label:'取消',run:closeSheet}]); const input = document.createElement('input'); input.id = 'np-backend-input'; input.className = 'np-url-input'; input.value = state.backend; input.setAttribute('aria-label', '后端地址'); sheetActions.prepend(input); }
+      function openBackendEditor() { state.page = 'backendAddress'; draw(); }
+      function drawBackendAddress() {
+        content.innerHTML = `<p class="np-subtitle">配置后端服务地址与安全入口</p><form id="np-backend-form" novalidate><section class="np-setting-group"><p class="np-group-label">连接地址</p><div class="np-form-card"><label class="np-form-label" for="np-backend-input">后端地址或完整安全入口</label><p class="np-form-help" id="np-backend-help">未开启安全入口时填写服务地址；已开启时粘贴完整 /entry/ 入口。</p><input id="np-backend-input" class="np-url-input" inputmode="url" autocomplete="off" spellcheck="false" aria-describedby="np-backend-help np-backend-error" placeholder="http://127.0.0.1:12271"><p class="np-form-help">例如 http://192.168.1.20:12271，公网建议使用 HTTPS。</p><p class="np-form-error" id="np-backend-error" role="alert" hidden></p></div></section><section class="np-setting-group"><p class="np-group-label">当前连接</p><div class="np-form-card"><p class="np-form-label">当前服务地址</p><p class="np-form-address" id="np-backend-current"></p></div></section><div class="np-form-actions"><button class="np-primary" type="submit">${icon('check')}保存并连接</button></div></form>`;
+        const input = content.querySelector('#np-backend-input');
+        const error = content.querySelector('#np-backend-error');
+        input.value = state.backend;
+        content.querySelector('#np-backend-current').textContent = state.backend;
+        input.addEventListener('input', () => { error.hidden = true; input.removeAttribute('aria-invalid'); });
+        content.querySelector('#np-backend-form').addEventListener('submit', (event) => {
+          event.preventDefault();
+          try {
+            const value = input.value.trim();
+            if (!value) throw new Error('请输入后端地址');
+            const address = new URL(value.includes('://') ? value : `http://${value}`);
+            if (!['http:', 'https:'].includes(address.protocol) || address.username || address.password) throw new Error('请输入有效的 HTTP 或 HTTPS 地址');
+            state.backend = address.origin + address.pathname.split('/entry/')[0].replace(/\/$/, '');
+            state.page = 'settings'; draw();
+          } catch (exception) {
+            error.textContent = exception.message;
+            error.hidden = false;
+            input.setAttribute('aria-invalid', 'true');
+          }
+        });
+      }
       function openWebui() { openSheet('原始 WebUI', '这里打开当前后端提供的完整 WebUI，适合处理尚未原生实现的功能。', [{id:'open',icon:'external-link',label:'打开原始 WebUI',primary:true,run:closeSheet},{id:'cancel',icon:'x',label:'取消',run:closeSheet}]); }
       function openFilter() { openSheet('日志筛选', '选择要查看的日志级别。', ['全部','INFO','WARN','ERROR'].map((x) => ({id:x,icon:x === '全部' ? 'list-filter' : 'circle',label:x === state.filter ? `${x} · 当前` : x,primary:x === state.filter,run:() => { state.filter = x; closeSheet(); draw(); }})).concat([{id:'cancel',icon:'x',label:'取消',run:closeSheet}])); }
       root.querySelectorAll('.np-nav-item').forEach((el) => el.addEventListener('click', () => { state.page = el.dataset.page; draw(); }));

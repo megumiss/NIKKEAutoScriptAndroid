@@ -190,6 +190,126 @@ extension NkasColorSchemeX on ShadColorScheme {
   Color get heroMetaIcon => custom[NkasCustomKeys.heroMetaIcon]!;
 }
 
+/// 文本、数字、日期和选择控件共用的尺寸与边界。
+abstract final class NkasInputStyle {
+  static const radius = BorderRadius.all(Radius.circular(10));
+  static const minHeight = 48.0;
+  static const padding = EdgeInsets.symmetric(horizontal: 12, vertical: 12);
+
+  static InputDecorationThemeData decoration(ShadColorScheme scheme) {
+    OutlineInputBorder border(Color color, [double width = 1]) =>
+        OutlineInputBorder(
+          borderRadius: radius,
+          borderSide: BorderSide(color: color, width: width),
+        );
+    return InputDecorationThemeData(
+      filled: true,
+      fillColor: scheme.input,
+      isDense: true,
+      contentPadding: padding,
+      constraints: const BoxConstraints(minHeight: minHeight),
+      border: border(scheme.border),
+      enabledBorder: border(scheme.border),
+      focusedBorder: border(scheme.ring, 1.5),
+      disabledBorder: border(scheme.border.withValues(alpha: .6)),
+      errorBorder: border(scheme.destructive),
+      focusedErrorBorder: border(scheme.destructive, 1.5),
+      hintStyle: TextStyle(
+        color: scheme.mutedForeground,
+        fontSize: 13,
+        height: 1.4,
+      ),
+      helperStyle: TextStyle(
+        color: scheme.mutedForeground,
+        fontSize: 12,
+        height: 1.5,
+      ),
+      errorStyle: TextStyle(
+        color: scheme.destructive,
+        fontSize: 12,
+        height: 1.5,
+      ),
+      helperMaxLines: 5,
+      errorMaxLines: 5,
+      prefixIconColor: scheme.mutedForeground,
+      suffixIconColor: scheme.mutedForeground,
+      prefixIconConstraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+      suffixIconConstraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+    );
+  }
+}
+
+/// Material 提供输入法、表单校验和原生选择器，视觉仍使用 NKAS Tokens。
+ThemeData nkasMaterialTheme(BuildContext context, ThemeData base) {
+  final scheme = base.brightness == Brightness.dark
+      ? nkasColorSchemeDark
+      : nkasColorSchemeLight;
+  const controlShape = RoundedRectangleBorder(
+    borderRadius: NkasInputStyle.radius,
+  );
+  const dialogShape = RoundedRectangleBorder(
+    borderRadius: BorderRadius.all(Radius.circular(18)),
+  );
+  final actionStyle = ButtonStyle(
+    minimumSize: const WidgetStatePropertyAll(Size(48, 48)),
+    shape: const WidgetStatePropertyAll(controlShape),
+    textStyle: const WidgetStatePropertyAll(
+      TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+    ),
+  );
+  return base.copyWith(
+    inputDecorationTheme: NkasInputStyle.decoration(scheme),
+    dialogTheme: DialogThemeData(
+      backgroundColor: scheme.card,
+      surfaceTintColor: Colors.transparent,
+      shape: dialogShape,
+      titleTextStyle: _t(
+        size: 16,
+        height: 22,
+        weight: FontWeight.w700,
+        color: scheme.foreground,
+      ),
+      contentTextStyle: _t(
+        size: 13,
+        height: 19,
+        weight: FontWeight.w400,
+        color: scheme.foreground,
+      ),
+    ),
+    bottomSheetTheme: BottomSheetThemeData(
+      backgroundColor: scheme.card,
+      surfaceTintColor: Colors.transparent,
+      dragHandleColor: scheme.border,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+    ),
+    popupMenuTheme: PopupMenuThemeData(
+      color: scheme.popover,
+      surfaceTintColor: Colors.transparent,
+      shape: controlShape.copyWith(side: BorderSide(color: scheme.border)),
+      textStyle: TextStyle(color: scheme.foreground, fontSize: 13, height: 1.5),
+    ),
+    checkboxTheme: CheckboxThemeData(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+      side: BorderSide(color: scheme.mutedForeground, width: 1.5),
+      materialTapTargetSize: MaterialTapTargetSize.padded,
+    ),
+    textButtonTheme: TextButtonThemeData(style: actionStyle),
+    filledButtonTheme: FilledButtonThemeData(style: actionStyle),
+    datePickerTheme: DatePickerThemeData(
+      backgroundColor: scheme.card,
+      surfaceTintColor: Colors.transparent,
+      shape: dialogShape,
+    ),
+    timePickerTheme: TimePickerThemeData(
+      backgroundColor: scheme.card,
+      shape: dialogShape,
+      inputDecorationTheme: NkasInputStyle.decoration(scheme),
+    ),
+  );
+}
+
 /// 阴影只用于浮起元素：Hero（brand）、主按钮（accent）、底部导航（raised）。
 /// 列表/卡片无阴影，只留 1px 描边。dark 主题各档透明度减半。
 abstract final class NkasShadows {

@@ -12,6 +12,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 
 Widget host(Widget child) => ShadApp(
   theme: nkasThemeData(Brightness.light),
+  materialThemeBuilder: nkasMaterialTheme,
   home: Scaffold(body: child),
 );
 
@@ -181,7 +182,7 @@ void main() {
       );
       expect(find.text('test-registration-key'), findsNothing);
       await tester.ensureVisible(find.text('取消连接'));
-      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 300));
       await tester.tap(find.text('取消连接'));
       await tester.pumpAndSettle();
       expect(find.text('连接已取消'), findsOneWidget);
@@ -196,9 +197,8 @@ void main() {
     _mockPlatform(calls);
     final platform = NkasPlatform.testing(events: const Stream.empty());
     var closed = 0;
-    Widget page() => host(
-      NativeControlPage(platform: platform, onClose: () => closed++),
-    );
+    Widget page() =>
+        host(NativeControlPage(platform: platform, onClose: () => closed++));
     await tester.pumpWidget(page());
     await tester.pumpAndSettle();
     await tester.enterText(
