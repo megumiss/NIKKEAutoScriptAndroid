@@ -91,49 +91,48 @@ class _SchemaPanelState extends State<SchemaPanel> {
     final schema = widget.schema!;
     final task = taskKey == null ? null : schema.tasks[taskKey];
     if (task != null) {
+      const headerGap = 5.0;
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              IconButton(
-                onPressed: () {
-                  setState(() => taskKey = null);
-                  widget.onTaskKeyChanged(null);
-                },
-                icon: const Icon(LucideIcons.arrowLeft, size: 19),
-                tooltip: '返回任务列表',
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints.tightFor(
-                  width: 40,
-                  height: 40,
+              SizedBox(
+                width: kMinInteractiveDimension,
+                child: IconButton(
+                  onPressed: () {
+                    setState(() => taskKey = null);
+                    widget.onTaskKeyChanged(null);
+                  },
+                  icon: const Icon(LucideIcons.arrowLeft, size: 19),
+                  tooltip: '返回任务列表',
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints.tightFor(
+                    width: 40,
+                    height: 40,
+                  ),
                 ),
               ),
-              const SizedBox(width: 5),
+              const SizedBox(width: headerGap),
               Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 2),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        task.name,
-                        style: const TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      if (task.help.isNotEmpty) ...[
-                        const SizedBox(height: 3),
-                        Text(task.help, style: theme.textTheme.muted),
-                      ],
-                    ],
+                child: Text(
+                  task.name,
+                  style: const TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
               ),
             ],
           ),
+          if (task.help.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(
+                left: kMinInteractiveDimension + headerGap,
+                top: 3,
+              ),
+              child: Text(task.help, style: theme.textTheme.muted),
+            ),
           const SizedBox(height: 12),
           for (var index = 0; index < task.groups.length; index++) ...[
             if (index > 0) const SizedBox(height: 14),
