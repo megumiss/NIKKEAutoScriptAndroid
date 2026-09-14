@@ -430,7 +430,7 @@ class _ScreenPanelState extends State<ScreenPanel> {
                 if (platform.supported) ...[
                   IconButton(
                     tooltip: '控制连接设置',
-                    icon: const Icon(LucideIcons.settings2, size: 20),
+                    icon: const Icon(LucideIcons.settings, size: 20),
                     color: foreground,
                     onPressed: widget.accessGranted ? _configure : null,
                   ),
