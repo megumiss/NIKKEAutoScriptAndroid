@@ -350,6 +350,7 @@ class _BackendAddressSheet extends StatefulWidget {
 class _BackendAddressSheetState extends State<_BackendAddressSheet> {
   late final TextEditingController _textController;
   bool _saving = false;
+  String? _error;
 
   @override
   void initState() {
@@ -366,7 +367,10 @@ class _BackendAddressSheetState extends State<_BackendAddressSheet> {
   }
 
   Future<void> _save() async {
-    setState(() => _saving = true);
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
     final connected = await widget.connectionController.connect(
       _textController.text,
       persist: true,
@@ -375,7 +379,10 @@ class _BackendAddressSheetState extends State<_BackendAddressSheet> {
     if (connected) {
       Navigator.pop(context);
     } else {
-      setState(() => _saving = false);
+      setState(() {
+        _saving = false;
+        _error = widget.connectionController.state.message;
+      });
       final message = widget.connectionController.state.message;
       ScaffoldMessenger.of(
         context,
@@ -405,7 +412,7 @@ class _BackendAddressSheetState extends State<_BackendAddressSheet> {
           Text('修改后端地址', style: ShadTheme.of(context).textTheme.h3),
           const SizedBox(height: 6),
           Text(
-            '支持本机或远程 NKAS 后端，例如 http://192.168.1.20:12271。',
+            '未开启安全入口：填写 http://服务器:12271。已开启：粘贴 http://服务器:12271/entry/完整密钥。公网建议使用 HTTPS。',
             style: ShadTheme.of(context).textTheme.muted,
           ),
           const SizedBox(height: 14),
@@ -414,7 +421,11 @@ class _BackendAddressSheetState extends State<_BackendAddressSheet> {
             enabled: !_saving,
             keyboardType: TextInputType.url,
             autocorrect: false,
+            enableSuggestions: false,
             decoration: InputDecoration(
+              labelText: '后端地址或完整安全入口',
+              errorText: _error,
+              errorMaxLines: 3,
               hintText: 'http://127.0.0.1:12271',
               suffixIcon: _textController.text.isEmpty
                   ? null
@@ -428,6 +439,32 @@ class _BackendAddressSheetState extends State<_BackendAddressSheet> {
             onSubmitted: _saving ? null : (_) => _save(),
           ),
           const SizedBox(height: 10),
+          if (isAndroid) ...[
+            SecondaryButton(
+              icon: LucideIcons.smartphone,
+              label: '使用本机 Termux 部署',
+              onPressed: _saving
+                  ? null
+                  : () async {
+                      setState(() {
+                        _saving = true;
+                        _error = null;
+                      });
+                      final connected = await widget.connectionController
+                          .connectLocalDeployment();
+                      if (!context.mounted) return;
+                      if (connected) {
+                        Navigator.pop(context);
+                      } else {
+                        setState(() {
+                          _saving = false;
+                          _error = widget.connectionController.state.message;
+                        });
+                      }
+                    },
+            ),
+            const SizedBox(height: 10),
+          ],
           Text(
             state.message ?? '远程地址仅用于本机或可信网络',
             style: ShadTheme.of(context).textTheme.muted.copyWith(

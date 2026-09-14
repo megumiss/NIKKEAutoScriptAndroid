@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:nkas_mobile/core/connection/authenticated_socket.dart';
 
 import 'package:web_socket_channel/web_socket_channel.dart';
 
@@ -21,9 +22,15 @@ class InstanceStateEvent {
 }
 
 class InstanceStateSocket {
-  InstanceStateSocket({required this.uri});
+  InstanceStateSocket({
+    required this.uri,
+    this.headers = const {},
+    this.onDisconnected,
+  });
 
   final Uri uri;
+  final Map<String, String> headers;
+  final void Function()? onDisconnected;
   WebSocketChannel? _channel;
   StreamSubscription<Object?>? _subscription;
 
@@ -33,11 +40,12 @@ class InstanceStateSocket {
     void Function()? onClosed,
   }) async {
     await close();
-    final channel = WebSocketChannel.connect(uri);
+    final channel = authenticatedSocket(uri, headers);
     _channel = channel;
     try {
       await channel.ready;
     } catch (error) {
+      onDisconnected?.call();
       await close();
       onError?.call(error);
       return;
@@ -53,8 +61,14 @@ class InstanceStateSocket {
           onError?.call(error);
         }
       },
-      onError: onError,
-      onDone: onClosed,
+      onError: (Object error) {
+        onDisconnected?.call();
+        onError?.call(error);
+      },
+      onDone: () {
+        onDisconnected?.call();
+        onClosed?.call();
+      },
     );
   }
 

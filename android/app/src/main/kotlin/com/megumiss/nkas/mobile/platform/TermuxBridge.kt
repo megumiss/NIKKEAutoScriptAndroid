@@ -92,6 +92,21 @@ class TermuxBridge(private val context: Context) {
         runCommand("cat \"\$HOME/.android/adbkey\"", onResult, sensitive = true)
     }
 
+    fun readBackendEntry(onResult: (CommandResult) -> Unit) {
+        val script = """
+            repo="${'$'}HOME/NIKKEAutoScript"
+            [ -f "${'$'}HOME/.nkas/settings.env" ] && [ -f "${'$'}repo/config/deploy.yaml" ] || exit 2
+            enabled="${'$'}(sed -n -E 's/^[[:space:]]*SecurityEntryEnabled:[[:space:]]*(true|false).*/\1/p' "${'$'}repo/config/deploy.yaml" | head -n1)"
+            if [ "${'$'}enabled" = true ]; then
+                printf 'enabled\n'
+                cat "${'$'}repo/config/.security/entry.key"
+            else
+                printf 'disabled\n'
+            fi
+        """.trimIndent()
+        runCommand(script, onResult, sensitive = true)
+    }
+
     fun readNkasSerial(onResult: (CommandResult) -> Unit) {
         runCommand("sed -n 's/.*\"Serial\"[[:space:]]*:[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p' \$HOME/NIKKEAutoScript/config/nkas.json 2>/dev/null | head -n1", onResult)
     }

@@ -455,6 +455,10 @@ void main() {
 
     expect(find.text('修改部署配置可能导致更新失败或程序无法启动，修改需要重启后生效，请谨慎操作。'), findsOneWidget);
     expect(find.text('还原默认'), findsOneWidget);
+    expect(
+      ScaffoldMessenger.maybeOf(tester.element(find.text('还原默认'))),
+      isNotNull,
+    );
     expect(find.text('Git'), findsOneWidget);
     expect(find.text('WebUI'), findsOneWidget);
     expect(find.text('自动更新'), findsOneWidget);

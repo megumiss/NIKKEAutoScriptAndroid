@@ -6,6 +6,8 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:nkas_mobile/core/connection/instance_log_socket.dart';
 import 'package:nkas_mobile/core/widgets/log_line.dart';
 import 'package:nkas_mobile/core/widgets/surface.dart';
+import 'package:nkas_mobile/core/widgets/backend_auth_scope.dart';
+import 'package:nkas_mobile/core/connection/connection_controller.dart';
 import 'package:nkas_mobile/theme.dart';
 
 class LiveLogPanel extends StatefulWidget {
@@ -33,11 +35,31 @@ class _LiveLogPanelState extends State<LiveLogPanel> {
   Timer? reconnectTimer;
   bool connected = false;
   String? error;
+  int _credentialRevision = -1;
+  bool _backendConnected = true;
 
   @override
   void initState() {
     super.initState();
-    unawaited(_connect());
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final controller = BackendAuthScope.maybeOf(context);
+    final revision = controller?.credentialRevision ?? 0;
+    final authorized =
+        controller == null ||
+        controller.state.phase == ConnectionPhase.connected;
+    if (_credentialRevision != revision || _backendConnected != authorized) {
+      _credentialRevision = revision;
+      _backendConnected = authorized;
+      if (authorized) {
+        unawaited(_connect());
+      } else {
+        unawaited(_disconnect());
+      }
+    }
   }
 
   @override
@@ -63,7 +85,7 @@ class _LiveLogPanelState extends State<LiveLogPanel> {
   }
 
   Future<void> _connect() async {
-    if (!mounted || !widget.accessGranted) return;
+    if (!mounted || !widget.accessGranted || !_backendConnected) return;
     reconnectTimer?.cancel();
     final previous = socket;
     socket = null;
@@ -76,7 +98,14 @@ class _LiveLogPanelState extends State<LiveLogPanel> {
       error = null;
       lines.clear();
     });
-    final next = InstanceLogSocket(uri: widget.uri);
+    final controller = BackendAuthScope.maybeOf(context);
+    final next = InstanceLogSocket(
+      uri: widget.uri,
+      headers: controller?.headersFor(widget.uri) ?? const {},
+      onDisconnected: () {
+        if (controller != null) unawaited(controller.refreshAuthorization());
+      },
+    );
     socket = next;
     final connectedNow = await next.connect(
       onLog: _receive,
@@ -114,7 +143,12 @@ class _LiveLogPanelState extends State<LiveLogPanel> {
   }
 
   void _scheduleReconnect(InstanceLogSocket source) {
-    if (!mounted || !widget.accessGranted || socket != source) return;
+    if (!mounted ||
+        !widget.accessGranted ||
+        !_backendConnected ||
+        socket != source) {
+      return;
+    }
     reconnectTimer?.cancel();
     reconnectTimer = Timer(
       const Duration(seconds: 3),

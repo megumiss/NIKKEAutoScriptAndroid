@@ -1,6 +1,9 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
+import 'package:nkas_mobile/core/api/backend_address.dart';
+import 'package:nkas_mobile/core/api/entry_http_client.dart';
 
 import 'package:nkas_mobile/core/api/system_status.dart';
 import 'package:nkas_mobile/core/api/instance_info.dart';
@@ -15,31 +18,37 @@ import 'package:nkas_mobile/core/api/deploy_info.dart';
 
 class ApiClient {
   ApiClient({http.Client? client, this.timeout = const Duration(seconds: 5)})
-    : _client = client ?? http.Client();
+    : _client = EntryHttpClient(client ?? http.Client());
 
-  final http.Client _client;
+  final EntryHttpClient _client;
   final Duration timeout;
+  Future<void>? _entryChange;
+  Future<void> waitForEntryChange() async => await _entryChange;
+
+  Future<T> _withEntryChange<T>(Future<T> Function() action) async {
+    final previous = _entryChange;
+    final done = Completer<void>();
+    _entryChange = done.future;
+    try {
+      await previous;
+      return await action();
+    } finally {
+      done.complete();
+      if (identical(_entryChange, done.future)) _entryChange = null;
+    }
+  }
+
+  Future<void> Function(String baseUrl, Map<String, dynamic> entry)?
+  onEntryChanged;
+  set onUnauthorized(void Function(Uri)? value) =>
+      _client.onUnauthorized = value;
+  void configureEntry(String baseUrl, String? key) =>
+      _client.configure(baseUrl, key);
+  String? get entryKey => _client.key;
+  Map<String, String> headersFor(Uri uri) => _client.headersFor(uri);
 
   static String normalizeBaseUrl(String value) {
-    var input = value.trim();
-    if (input.isEmpty) {
-      throw const FormatException('请输入后端地址');
-    }
-    if (!input.contains('://')) {
-      input = 'http://$input';
-    }
-
-    final uri = Uri.tryParse(input);
-    if (uri == null ||
-        !const {'http', 'https'}.contains(uri.scheme) ||
-        uri.host.isEmpty ||
-        uri.hasQuery ||
-        uri.hasFragment) {
-      throw const FormatException('请输入有效的 HTTP 或 HTTPS 地址');
-    }
-
-    final path = uri.path.replaceFirst(RegExp(r'/+$'), '');
-    return uri.replace(path: path).toString().replaceFirst(RegExp(r'/+$'), '');
+    return BackendAddress.parse(value).baseUrl;
   }
 
   Uri endpoint(String baseUrl, String path) {
@@ -378,7 +387,16 @@ class ApiClient {
     }
   }
 
-  Future<Object?> patchDeploy(String baseUrl, String key, Object? value) async {
+  Future<Object?> patchDeploy(String baseUrl, String key, Object? value) =>
+      key == 'SecurityEntryEnabled'
+      ? _withEntryChange(() => _patchDeploy(baseUrl, key, value))
+      : _patchDeploy(baseUrl, key, value);
+
+  Future<Object?> _patchDeploy(
+    String baseUrl,
+    String key,
+    Object? value,
+  ) async {
     final response = await _client
         .patch(
           endpoint(baseUrl, '/api/system/deploy'),
@@ -405,6 +423,12 @@ class ApiClient {
     try {
       final decoded = jsonDecode(utf8.decode(response.bodyBytes));
       if (decoded is! Map<String, dynamic>) throw const FormatException();
+      if (decoded['security_entry'] is Map<String, dynamic>) {
+        await onEntryChanged?.call(
+          baseUrl,
+          decoded['security_entry'] as Map<String, dynamic>,
+        );
+      }
       return decoded['value'];
     } on FormatException {
       throw const ApiException('后端返回了无效部署数据');
@@ -422,6 +446,36 @@ class ApiClient {
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw ApiException('后端返回 HTTP ${response.statusCode}');
     }
+  }
+
+  Future<Map<String, dynamic>> securityEntry(
+    String baseUrl, {
+    bool regenerate = false,
+  }) => regenerate
+      ? _withEntryChange(() => _securityEntry(baseUrl, regenerate: true))
+      : _securityEntry(baseUrl);
+
+  Future<Map<String, dynamic>> _securityEntry(
+    String baseUrl, {
+    bool regenerate = false,
+  }) async {
+    final uri = endpoint(
+      baseUrl,
+      regenerate ? '/api/security/entry/regenerate' : '/api/security/entry',
+    );
+    final response = await (regenerate ? _client.post(uri) : _client.get(uri))
+        .timeout(timeout);
+    if (response.statusCode != 200) {
+      throw ApiException('后端返回 HTTP ${response.statusCode}');
+    }
+    final decoded = jsonDecode(utf8.decode(response.bodyBytes));
+    if (decoded is! Map<String, dynamic> ||
+        decoded['security_entry'] is! Map<String, dynamic>) {
+      throw const ApiException('后端返回了无效安全入口数据');
+    }
+    final entry = decoded['security_entry'] as Map<String, dynamic>;
+    await onEntryChanged?.call(baseUrl, entry);
+    return entry;
   }
 
   void close() => _client.close();
