@@ -889,10 +889,15 @@ class _NkasSetupPageState extends State<NkasSetupPage>
         return _ExtraPanel(
           text:
               '部分系统不会弹出授权框，需要在系统设置中手动允许 NKAS 使用 Run commands in Termux environment。',
-          child: SecondaryButton(
-            icon: LucideIcons.settings2,
-            label: '打开应用权限设置',
-            onPressed: NkasPlatform.instance.openAppSettings,
+          child: _SetupActions(
+            children: [
+              SecondaryButton(
+                compact: true,
+                icon: LucideIcons.settings2,
+                label: '打开应用权限设置',
+                onPressed: NkasPlatform.instance.openAppSettings,
+              ),
+            ],
           ),
         );
       case 'termux_setting':
@@ -911,30 +916,27 @@ class _NkasSetupPageState extends State<NkasSetupPage>
                 ),
               ),
               const SizedBox(height: 8),
-              Row(
+              _SetupActions(
                 children: [
-                  Expanded(
-                    child: SecondaryButton(
-                      icon: LucideIcons.terminal,
-                      label: '打开 Termux',
-                      onPressed: NkasPlatform.instance.openTermux,
-                    ),
+                  SecondaryButton(
+                    compact: true,
+                    icon: LucideIcons.terminal,
+                    label: '打开 Termux',
+                    onPressed: NkasPlatform.instance.openTermux,
                   ),
-                  const SizedBox(width: 7),
-                  Expanded(
-                    child: SecondaryButton(
-                      icon: LucideIcons.copy,
-                      label: '复制命令',
-                      onPressed: () async {
-                        await Clipboard.setData(
-                          const ClipboardData(
-                            text:
-                                "mkdir -p ~/.termux\necho 'allow-external-apps=true' > ~/.termux/termux.properties",
-                          ),
-                        );
-                        if (mounted) _show('命令已复制');
-                      },
-                    ),
+                  SecondaryButton(
+                    compact: true,
+                    icon: LucideIcons.copy,
+                    label: '复制命令',
+                    onPressed: () async {
+                      await Clipboard.setData(
+                        const ClipboardData(
+                          text:
+                              "mkdir -p ~/.termux\necho 'allow-external-apps=true' > ~/.termux/termux.properties",
+                        ),
+                      );
+                      if (mounted) _show('命令已复制');
+                    },
                   ),
                 ],
               ),
@@ -944,10 +946,15 @@ class _NkasSetupPageState extends State<NkasSetupPage>
       case 'wireless':
         return _ExtraPanel(
           text: '请在 Android 系统设置中开启无线调试，随后返回此页面继续。',
-          child: SecondaryButton(
-            icon: LucideIcons.settings2,
-            label: '打开无线调试设置',
-            onPressed: NkasPlatform.instance.openWirelessSettings,
+          child: _SetupActions(
+            children: [
+              SecondaryButton(
+                compact: true,
+                icon: LucideIcons.settings2,
+                label: '打开无线调试设置',
+                onPressed: NkasPlatform.instance.openWirelessSettings,
+              ),
+            ],
           ),
         );
       case 'adb_device':
@@ -982,11 +989,16 @@ class _NkasSetupPageState extends State<NkasSetupPage>
                 ],
               ),
               const SizedBox(height: 8),
-              SecondaryButton(
-                icon: LucideIcons.link,
-                label: pairingActive ? '配对中…' : '配对',
-                loading: pairingActive,
-                onPressed: pairingActive ? null : _pair,
+              _SetupActions(
+                children: [
+                  SecondaryButton(
+                    compact: true,
+                    icon: LucideIcons.link,
+                    label: pairingActive ? '配对中…' : '配对',
+                    loading: pairingActive,
+                    onPressed: pairingActive ? null : _pair,
+                  ),
+                ],
               ),
               const SizedBox(height: 7),
               Text(
@@ -1125,6 +1137,23 @@ class _StepRow extends StatelessWidget {
     if (extra == null || !expanded) return row;
     return Column(children: [row, extra!]);
   }
+}
+
+/// 同一组操作始终共用一行，按钮平分当前面板的可用宽度。
+class _SetupActions extends StatelessWidget {
+  const _SetupActions({required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    children: [
+      for (var index = 0; index < children.length; index++) ...[
+        if (index > 0) const SizedBox(width: 8),
+        Expanded(child: children[index]),
+      ],
+    ],
+  );
 }
 
 class _ExtraPanel extends StatelessWidget {
