@@ -342,7 +342,11 @@ class _NativeControlPageState extends State<NativeControlPage> {
                             ),
                             const Divider(height: 18),
                             Text(
-                              status.hasPersistedLogin ? '节点已注册' : '节点尚未注册',
+                              status.hasPersistedLogin
+                                  ? (status.hostname.isEmpty
+                                        ? '节点名称暂不可用'
+                                        : status.hostname)
+                                  : '节点尚未注册',
                               style: theme.textTheme.muted,
                             ),
                             const SizedBox(height: 10),

@@ -37,12 +37,14 @@ class NativeControlSettings {
 class TsnetStatus {
   const TsnetStatus({
     this.phase = 'new',
+    this.hostname = '',
     this.addresses = const [],
     this.forwardCount = 0,
     this.hasPersistedLogin = false,
     this.error = '',
   });
   final String phase;
+  final String hostname;
   final List<String> addresses;
   final int forwardCount;
   final bool hasPersistedLogin;
@@ -50,6 +52,7 @@ class TsnetStatus {
 
   factory TsnetStatus.fromMap(Map<Object?, Object?> value) => TsnetStatus(
     phase: value['phase'] as String? ?? 'new',
+    hostname: value['hostname'] as String? ?? '',
     addresses:
         (value['addresses'] as List?)?.whereType<String>().toList() ?? const [],
     forwardCount: (value['forwardCount'] as num?)?.toInt() ?? 0,

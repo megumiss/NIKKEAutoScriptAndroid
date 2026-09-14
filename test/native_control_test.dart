@@ -229,6 +229,50 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets(
+    'connection page shows the registered node until identity clears',
+    (tester) async {
+      final calls = <MethodCall>[];
+      final status = <String, Object?>{
+        'phase': 'closed',
+        'hostname': 'registered-phone',
+        'hasPersistedLogin': true,
+      };
+      _mockPlatform(calls, status: status);
+      await tester.pumpWidget(
+        host(
+          NativeControlPage(
+            platform: NkasPlatform.testing(events: const Stream.empty()),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('清除身份'));
+      expect(find.text('registered-phone'), findsOneWidget);
+      expect(find.text('节点已注册'), findsNothing);
+
+      final nameField = find.byType(TextFormField).at(1);
+      await tester.ensureVisible(nameField);
+      await tester.enterText(nameField, 'unsaved-phone');
+      await tester.pump();
+      expect(find.text('registered-phone'), findsOneWidget);
+
+      status['hasPersistedLogin'] = false;
+      await tester.ensureVisible(find.text('清除身份'));
+      await tester.tap(find.text('清除身份'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('清除'));
+      await tester.pumpAndSettle();
+      expect(
+        calls.where((call) => call.method == 'tsnetClearState'),
+        hasLength(1),
+      );
+      expect(find.text('registered-phone'), findsNothing);
+      expect(find.text('节点尚未注册'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets('screen stops control when leaving and reconnects manually', (
     tester,
   ) async {
@@ -346,7 +390,11 @@ void main() {
   );
 }
 
-void _mockPlatform(List<MethodCall> calls, {Completer<Object?>? connection}) {
+void _mockPlatform(
+  List<MethodCall> calls, {
+  Completer<Object?>? connection,
+  Map<String, Object?> status = const {'hasPersistedLogin': false},
+}) {
   TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
       .setMockMethodCallHandler(
         const MethodChannel('com.megumiss.nkas/platform'),
@@ -363,7 +411,7 @@ void _mockPlatform(List<MethodCall> calls, {Completer<Object?>? connection}) {
           if (call.method == 'nativeScrcpyStart') {
             return {'scid': 1, 'textureId': 9, 'video': true, 'control': true};
           }
-          if (call.method == 'tsnetStatus') return {'hasPersistedLogin': false};
+          if (call.method == 'tsnetStatus') return status;
           if (call.method == 'tsnetConnect' && connection != null) {
             return connection.future;
           }
