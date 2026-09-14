@@ -58,6 +58,7 @@ class _NkasSetupPageState extends State<NkasSetupPage>
   final pairCodeController = TextEditingController();
   final stageStates = <String, String>{};
   final stageLogs = <String, String>{};
+  final stageErrors = <String, String>{};
   final stepCompletion = <String, bool>{};
   String? activeStage;
   String? failedStage;
@@ -156,13 +157,7 @@ class _NkasSetupPageState extends State<NkasSetupPage>
         setState(() {
           running = state != 'ready' && state != 'failed';
           if (state == 'failed') {
-            error = message ?? '初始化失败';
-            setupFailed = true;
-            running = false;
-            failedStage ??= activeStage ?? 'tools';
-          }
-          if (state == 'failed') {
-            stageStates[activeStage ?? 'tools'] = '失败';
+            _markSetupFailed(message ?? '初始化失败');
           } else if (state == 'ready' && !setupFailed) {
             output = '初始化完成';
             setupFailed = false;
@@ -180,13 +175,16 @@ class _NkasSetupPageState extends State<NkasSetupPage>
           final text = error != null
               ? 'Termux 下载失败：$error'
               : message ?? '正在下载 Termux\n进度：$progress%';
-          output = text;
-          stageLogs['termux'] = text;
+          if (error != null) {
+            stageErrors['termux'] = text;
+          } else {
+            stageLogs['termux'] = text;
+            stageErrors.remove('termux');
+          }
           expanded.add('termux');
           termuxDownloadActive = error == null && message == null;
           termuxDownloadNeedsCheck = error == null && message != null;
           termuxDownloadFailed = error != null;
-          if (error != null) this.error = error;
         });
       case SetupSerialEvent(:final serial):
         serialController.text = isIOS ? serial : serial.split(':').last;
@@ -221,6 +219,7 @@ class _NkasSetupPageState extends State<NkasSetupPage>
       setState(() {
         status = value;
         loading = false;
+        error = null;
         _syncStepExpansion('termux', value.termuxInstalled);
         _syncStepExpansion('permission', value.runCommandPermission);
         _syncStepExpansion('wireless', value.wirelessDebug);
@@ -271,6 +270,7 @@ class _NkasSetupPageState extends State<NkasSetupPage>
       activeStage = 'tools';
       stageStates.clear();
       stageLogs.clear();
+      stageErrors.clear();
       stageStates['tools'] = '执行中';
       expanded.add('tools');
     });
@@ -284,9 +284,7 @@ class _NkasSetupPageState extends State<NkasSetupPage>
     } on Object catch (exception) {
       if (mounted) {
         setState(() {
-          running = false;
-          setupFailed = true;
-          error = exception.toString();
+          _markSetupFailed(exception.toString());
         });
       }
     }
@@ -430,9 +428,11 @@ class _NkasSetupPageState extends State<NkasSetupPage>
   void _markSetupFailed(String message) {
     running = false;
     setupFailed = true;
-    error = message.trim();
     failedStage ??= activeStage ?? 'tools';
+    final detail = message.trim();
+    stageErrors[failedStage!] = detail.isEmpty ? '初始化失败' : detail;
     stageStates[failedStage!] = '失败';
+    expanded.add(failedStage!);
     refreshTimer?.cancel();
   }
 
@@ -465,6 +465,15 @@ class _NkasSetupPageState extends State<NkasSetupPage>
               ),
               const SizedBox(height: 14),
               if (loading) const LinearProgressIndicator(minHeight: 2),
+              if (error != null) ...[
+                const SizedBox(height: 12),
+                Text(
+                  error!,
+                  style: TextStyle(
+                    color: ShadTheme.of(context).colorScheme.destructive,
+                  ),
+                ),
+              ],
               for (final group in groups) ...[
                 const SizedBox(height: 19),
                 Text(group.$1, style: ShadTheme.of(context).textTheme.muted),
@@ -478,15 +487,6 @@ class _NkasSetupPageState extends State<NkasSetupPage>
                         _setupStepRow(group.$2[index], index + 1),
                       ],
                     ],
-                  ),
-                ),
-              ],
-              if (error != null) ...[
-                const SizedBox(height: 12),
-                Text(
-                  error!,
-                  style: TextStyle(
-                    color: ShadTheme.of(context).colorScheme.destructive,
                   ),
                 ),
               ],
@@ -698,6 +698,8 @@ class _NkasSetupPageState extends State<NkasSetupPage>
       if (termuxDownloadNeedsCheck) return _refresh();
       setState(() {
         error = null;
+        stageErrors.remove('termux');
+        stageLogs.remove('termux');
         termuxDownloadNeedsCheck = false;
         termuxDownloadFailed = false;
         termuxDownloadActive = true;
@@ -888,6 +890,22 @@ class _NkasSetupPageState extends State<NkasSetupPage>
   }
 
   Widget? _stepExtra(String key) {
+    final help = _stepHelp(key);
+    final error = stageErrors[key];
+    final rawLog = stageLogs[key] ?? (activeStage == key ? output : '');
+    final log = rawLog.trim() == error ? '' : rawLog;
+    if (help == null && log.isEmpty && error == null) return null;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        ?help,
+        if (log.isNotEmpty || error != null)
+          _ExtraPanel(text: log, monospace: true, error: error),
+      ],
+    );
+  }
+
+  Widget? _stepHelp(String key) {
     final scheme = ShadTheme.of(context).colorScheme;
     switch (key) {
       case 'permission':
@@ -1009,10 +1027,6 @@ class _NkasSetupPageState extends State<NkasSetupPage>
           ),
         );
       default:
-        final log = stageLogs[key] ?? (activeStage == key ? output : '');
-        if (log.isNotEmpty) {
-          return _ExtraPanel(text: log, monospace: true);
-        }
         return null;
     }
   }
@@ -1157,15 +1171,26 @@ class _SetupActions extends StatelessWidget {
 }
 
 class _ExtraPanel extends StatelessWidget {
-  const _ExtraPanel({required this.text, this.child, this.monospace = false});
+  const _ExtraPanel({
+    required this.text,
+    this.child,
+    this.monospace = false,
+    this.error,
+  });
 
   final String text;
   final Widget? child;
   final bool monospace;
+  final String? error;
 
   @override
   Widget build(BuildContext context) {
     final scheme = ShadTheme.of(context).colorScheme;
+    const logStyle = TextStyle(
+      fontFamily: 'monospace',
+      fontSize: 10,
+      height: 1.55,
+    );
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(48, 10, 12, 12),
@@ -1180,13 +1205,19 @@ class _ExtraPanel extends StatelessWidget {
             ConstrainedBox(
               constraints: const BoxConstraints(maxHeight: 190),
               child: SingleChildScrollView(
-                child: Text(
-                  text,
-                  style: const TextStyle(
-                    fontFamily: 'monospace',
-                    fontSize: 10,
-                    height: 1.55,
-                  ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (error != null) ...[
+                      Text(
+                        error!,
+                        style: logStyle.copyWith(color: scheme.destructive),
+                      ),
+                      if (text.isNotEmpty) const SizedBox(height: 8),
+                    ],
+                    if (text.isNotEmpty) Text(text, style: logStyle),
+                  ],
                 ),
               ),
             )
