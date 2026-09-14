@@ -346,23 +346,26 @@ class _NativeControlPageState extends State<NativeControlPage> {
                               style: theme.textTheme.muted,
                             ),
                             const SizedBox(height: 10),
-                            Wrap(
-                              spacing: 8,
-                              runSpacing: 8,
+                            Row(
                               children: [
-                                SecondaryButton(
-                                  icon: LucideIcons.plug,
-                                  label: '验证连接',
-                                  onPressed: busy
-                                      ? null
-                                      : () => _save(register: true),
+                                Expanded(
+                                  child: SecondaryButton(
+                                    icon: LucideIcons.plug,
+                                    label: '验证连接',
+                                    onPressed: busy
+                                        ? null
+                                        : () => _save(register: true),
+                                  ),
                                 ),
-                                SecondaryButton(
-                                  icon: LucideIcons.trash2,
-                                  label: '清除身份',
-                                  onPressed: busy || !status.hasPersistedLogin
-                                      ? null
-                                      : _clearState,
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: SecondaryButton(
+                                    icon: LucideIcons.trash2,
+                                    label: '清除身份',
+                                    onPressed: busy || !status.hasPersistedLogin
+                                        ? null
+                                        : _clearState,
+                                  ),
                                 ),
                               ],
                             ),
