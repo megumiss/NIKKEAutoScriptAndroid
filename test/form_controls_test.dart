@@ -148,6 +148,7 @@ void main() {
           label: '任务文本',
           initialValue: '',
           multiline: true,
+          fullWidthSaveButton: true,
           onSubmit: (value) async {
             submitted.add(value);
             return true;

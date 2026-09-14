@@ -14,6 +14,7 @@ class NkasConfigInput extends StatefulWidget {
     this.enabled = true,
     this.number = false,
     this.multiline = false,
+    this.fullWidthSaveButton = false,
     super.key,
   });
 
@@ -24,6 +25,9 @@ class NkasConfigInput extends StatefulWidget {
   final bool enabled;
   final bool number;
   final bool multiline;
+
+  /// 多行输入的保存按钮是否占满输入区域宽度。
+  final bool fullWidthSaveButton;
 
   @override
   State<NkasConfigInput> createState() => _NkasConfigInputState();
@@ -145,12 +149,15 @@ class _NkasConfigInputState extends State<NkasConfigInput> {
           const SizedBox(height: 8),
           Align(
             alignment: Alignment.centerRight,
-            child: SecondaryButton(
-              compact: true,
-              icon: LucideIcons.check,
-              label: submitting ? '保存中…' : '保存',
-              loading: submitting,
-              onPressed: widget.enabled && dirty ? _submit : null,
+            child: SizedBox(
+              width: widget.fullWidthSaveButton ? double.infinity : null,
+              child: SecondaryButton(
+                compact: true,
+                icon: LucideIcons.check,
+                label: submitting ? '保存中…' : '保存',
+                loading: submitting,
+                onPressed: widget.enabled && dirty ? _submit : null,
+              ),
             ),
           ),
         ],

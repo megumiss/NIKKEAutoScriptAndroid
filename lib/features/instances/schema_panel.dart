@@ -519,6 +519,7 @@ class _SchemaFieldView extends StatelessWidget {
         enabled: !disabled,
         number: number,
         multiline: field.widget == 'textarea',
+        fullWidthSaveButton: true,
         onSubmit: (value) => onPatch(
           field.key,
           number
