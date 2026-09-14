@@ -6,6 +6,7 @@
 - Windows / Flutter 3.47.2：本任务涉及的 38 个 Dart 文件定向静态分析通过，8 个相关测试文件共 70 项测试通过。初始化居中布局另已通过浅深色、小屏与放大字体预览。
 - 发布版本为 `1.2.0+2`，关于页显示 `1.2.0`。此前本地正式 APK 的构建号为 1，本次将两端共同使用的构建号写入 `pubspec.yaml`，由本地和 CI 构建统一读取。
 - 本次未追加本地打包、安装或真机验收；Android/iOS 构建及原生检查以发布标签对应的 `Flutter Release` 工作流结果为准。
+- 首次云端构建 [34885095781](https://github.com/megumiss/NIKKEAutoScriptAndroid/actions/runs/34885095781) 的公共检查、Kotlin 回归及 iOS 全流程通过；Android 在复制已生成的 APK 时因 runner 磁盘不足失败。Android 作业已增加构建前清理未使用预装工具的步骤，同一候选版本重新验证。
 
 ## 初始化日志自动滚动回归（2026-09-15）
 

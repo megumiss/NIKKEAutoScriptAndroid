@@ -216,6 +216,8 @@ flutter build apk --release --build-number 42
 
 当前工作流读取 `pubspec.yaml` 的版本信息，不自动分配递增构建号或发布 Release。计划分发其产物时，须先将已分配的构建号写入 `version` 的 `+N`；不能假定 GitHub 的运行序号或提交哈希已被写入安装包。
 
+Android 作业在构建前清理 GitHub 临时 runner 中未使用的 .NET、Haskell 和 CodeQL 预装工具，并记录清理前后的磁盘余量，为 Go、NDK、Gradle 中间产物及 APK 复制预留空间。
+
 ## Android Secrets
 
 Android Release 使用仓库现有的 release keystore。将以下内容添加到 GitHub repository secrets：
