@@ -11,7 +11,7 @@ import 'package:nkas_mobile/core/widgets/surface.dart';
 import 'package:nkas_mobile/core/widgets/tag.dart';
 import 'package:nkas_mobile/theme.dart';
 
-const appVersion = '1.2.2';
+const appVersion = '1.2.3';
 
 const _projectRepoUrl = 'https://github.com/megumiss/NIKKEAutoScriptMobile';
 const _projectIssuesUrl = '$_projectRepoUrl/issues';
