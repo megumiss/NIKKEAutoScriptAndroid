@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
+
 import 'package:nkas_mobile/core/widgets/buttons.dart';
+import 'package:nkas_mobile/theme.dart';
 
 /// 键盘弹出时悬浮按钮会遮住正在编辑的输入框：键盘打开期间把
 /// 按钮固定在列表下方，收起后恢复悬浮。Scaffold 调整布局后会把
@@ -103,6 +106,23 @@ class NkasFloatingAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 禁用态保持实心：透明的主色按钮叠在滚动内容上看起来像故障，
+    // 改用次要按钮配色 + 禁用时不降透明度
+    if (!enabled && !loading) {
+      final scheme = ShadTheme.of(context).colorScheme;
+      return SizedBox(
+        width: double.infinity,
+        child: NkasButton(
+          icon: icon,
+          label: label,
+          onPressed: null,
+          background: scheme.secondaryButtonBg,
+          foreground: scheme.secondaryButtonText,
+          borderColor: scheme.secondaryButtonBorder,
+          disabledOpacity: 1,
+        ),
+      );
+    }
     return SizedBox(
       width: double.infinity,
       child: PrimaryButton(

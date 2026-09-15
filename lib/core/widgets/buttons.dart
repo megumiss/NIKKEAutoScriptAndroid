@@ -20,6 +20,7 @@ class NkasButton extends StatelessWidget {
     this.radius = 11,
     this.horizontalPadding = 13,
     this.loading = false,
+    this.disabledOpacity = .45,
   });
   final IconData icon;
   final String label;
@@ -34,6 +35,9 @@ class NkasButton extends StatelessWidget {
   final double horizontalPadding;
   final bool loading;
 
+  /// 禁用态透明度；希望禁用按钮保持实心（如底部悬浮主按钮）时传 1
+  final double disabledOpacity;
+
   @override
   Widget build(BuildContext context) {
     final r = BorderRadius.circular(radius);
@@ -45,7 +49,7 @@ class NkasButton extends StatelessWidget {
       button: true,
       enabled: enabled,
       child: Opacity(
-        opacity: enabled || loading ? 1 : .45,
+        opacity: enabled || loading ? 1 : disabledOpacity,
         child: Material(
           type: MaterialType.transparency,
           child: InkWell(
