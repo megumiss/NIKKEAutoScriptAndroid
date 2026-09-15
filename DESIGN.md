@@ -5,12 +5,12 @@
 
 ## 1. 产品定位
 
-NKAS Mobile 是 Android/iOS 移动控制端，不是营销页，也不是完整 WebUI 的缩小版。主要任务是查看后端状态、Android 本机服务控制、实例切换、任务/调度查看、历史日志和设置入口。
+NKAS Mobile 是 Android/iOS 移动控制端，主要任务是管理后端实例、任务和调度，查看日志，实时控制 Android 设备，以及管理 Android 本机部署。
 
-- 一级页面固定为：总览、实例、画面、日志、部署、设置；
-- STAR 验证和 Android 初始化复用现有 Android 原生流程；
+- 一级页面固定为：总览、实例、任务、画面、日志、设置；
+- STAR 验证通过对应平台桥处理，初始化 NKAS 仅在 Android 提供；
 - 后端地址、原始 WebUI、更新从设置进入；
-- 实时日志、进入控制、后台通知、日志自动滚动在方案确定前保持可插拔，不显示假接入状态。
+- 实时日志、控制状态和初始化进度使用实际事件，日志支持跟随末尾和手动阅读。
 
 ## 2. 原型基准
 
@@ -207,24 +207,13 @@ AppBar 只保留页面标题和连接状态 pill。设置子页显示返回按�
 
 ## 11. Flutter 实现约束
 
-推荐结构：
-
-```text
-lib/
-├── app/             # Shell、路由、主题、本地语言
-├── core/
-│   ├── api/         # ApiClient、WS 地址、错误模型
-│   ├── models/      # system、instance、schema、queue、schedule、log
-│   ├── platform/    # Android Star/初始化/Termux 平台桥
-│   └── widgets/     # surface、status、sheet、empty/error
-└── features/        # overview、instances、logs、settings
-```
+工程目录与模块职责见[项目结构与执行流程](docs/ARCHITECTURE.md#目录与模块)。
 
 - `shadcn_ui` 作为组件基础，最终视觉由 `theme.dart` tokens 控制；
 - 使用声明式路由和 `PopScope`；动态列表使用稳定 `ValueKey`；
-- API 请求集中在 repository，不在 Widget 中散落；
-- `controlBaseUrl` 与 Android `localServiceUrl` 分离，远程地址不能改写本地 Termux 配置；
-- 第一阶段 token 不阻塞直连，但 ApiClient 预留认证拦截器；
+- API 请求与解析集中在 `ApiClient` 和 `lib/core/api/`，连接与订阅复用 `lib/core/connection/`；
+- 后端地址、原生控制目标与 Android 本机部署配置分别管理，远程地址不能改写本机 Termux 配置；
+- 安全入口由连接层解析和存储，未授权时显示实际错误；STAR 验证与后端入口分别判断；
 - REST 使用 `http/https`，WebSocket 根据 scheme 转为 `ws/wss`；
 - 按 Android/iOS 平台隐藏本机专属控件；
 - 保持 `shadcn_ui` 组件的尺寸、圆角、颜色和文字与本原型一致，不直接套用默认主题外观。

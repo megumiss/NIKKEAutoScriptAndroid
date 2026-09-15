@@ -6,7 +6,7 @@
 
 - 先查看 `git status --short` 和相关文件，保留已有的未提交改动，只修改当前任务需要的内容。
 - 当前 `main` 分支的仓库根目录就是 Flutter Android/iOS 工程，`android/` 是 Flutter 的 Android 宿主。旧版独立 Kotlin 应用只在 `codex/legacy-kotlin` 分支维护，使用该分支自己的指南与构建入口。
-- 按任务读取相关文档章节。处理架构或构建问题时查 [移动端说明](README.md)；原生控制契约需要背景时查 [实施计划](docs/PLAN.md) 的对应部分；需要设备验收时查 [验收记录](docs/VALIDATION.md) 的对应场景。旧版 Kotlin 工程的文档与验证独立维护。
+- 按任务读取相关文档章节。项目介绍见 [README](README.md)，连接配置见 [使用说明](docs/USAGE.md)；架构和原生控制契约见 [项目结构与执行流程](docs/ARCHITECTURE.md)，开发检查见 [开发与验证](docs/DEVELOPMENT.md)，编译签名见 [构建与发布](BUILD.md)；需要设备验收时查 [设备验收](docs/VALIDATION.md) 的对应场景。旧版 Kotlin 工程的文档与验证独立维护。
 - 文档中的计划、历史验证结果和历史授权不代表当前实现、当前测试结果或本次任务授权；当前会话用户已明确给出的授权在原范围内有效。发现差异时结合当前代码和用户要求核实，按本次改动同步相关文档。
 - 本任务已读且未变更的内容不重复读取。目标明确的低风险、可逆操作按上下文继续；仅在关键信息无法推断，或敏感、范围外操作尚缺必要授权时确认。
 - 按任务和技术栈选择 Skill：视觉、交互或可访问性变化才使用 UI 设计指导；纯协议、数据解析、文档或构建说明修改不触发 UI、品牌或营销流程。Flutter 与 Kotlin 使用各自现有组件，不能套用 React 组件安装步骤。
@@ -93,7 +93,7 @@ python3 tool/verify_native.py --ios
 flutter build ios --simulator --debug --no-codesign
 ```
 
-XCTest、签名和发布产物校验参考 `.github/workflows/flutter-release.yml` 与 `README.md`。
+XCTest、签名和发布产物校验参考 `.github/workflows/flutter-release.yml` 与 [构建与发布](BUILD.md)。
 
 ## 提交、发布与版本号
 
