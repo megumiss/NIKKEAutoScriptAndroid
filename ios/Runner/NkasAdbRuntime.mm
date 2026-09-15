@@ -74,8 +74,13 @@ void adb_connect_status_updated(const char *serial, const char *status) {
       failure = @"ADB 原生库初始化失败";
     }
     if (result != 0) {
+      const char *native = nkas_adb_last_error();
+      if (!failure && native && *native) failure = @(native);
+      NSString *message = failure
+          ? [NSString stringWithFormat:@"ADB 原生库初始化失败：%@", failure]
+          : @"ADB 原生库初始化失败，请重试";
       if (error) *error = [NSError errorWithDomain:@"NkasAdb" code:result
-                                         userInfo:@{NSLocalizedDescriptionKey: failure ?: @"ADB 原生库初始化失败，请重启应用"}];
+                                         userInfo:@{NSLocalizedDescriptionKey: message}];
       return 0;
     }
     _port = port;
