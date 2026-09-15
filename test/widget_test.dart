@@ -680,6 +680,11 @@ void main() {
       tester.view.viewInsets = const FakeViewPadding(bottom: 260);
       await tester.enterText(find.byType(TextField), 'ftp://invalid.example');
       await tester.pumpAndSettle();
+      // 键盘弹出时保存按钮固定在列表下方，不再悬浮遮挡输入框
+      expect(
+        tester.getBottomLeft(find.byType(TextField)).dy,
+        lessThan(tester.getTopLeft(find.text('保存并连接')).dy),
+      );
       expect(find.text('保存并连接').hitTestable(), findsOneWidget);
       await tester.tap(find.text('保存并连接'));
       await tester.pumpAndSettle();

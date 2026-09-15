@@ -276,12 +276,23 @@ void main() {
       await tester.pumpWidget(host(NativeControlPage(platform: platform)));
       await tester.pumpAndSettle();
       expect(find.byType(BottomSheet), findsNothing);
+      // 键盘弹出后列表视口变矮，AuthKey 字段尚未构建，先滚动构建再输入
+      await tester.scrollUntilVisible(
+        find.text('Tailscale AuthKey'),
+        150,
+        scrollable: find.byType(Scrollable).first,
+      );
       await tester.enterText(
         find.byType(TextFormField).last,
         'test-registration-key',
       );
       await tester.ensureVisible(find.text('验证连接'));
       await tester.pumpAndSettle();
+      // 键盘弹出时保存按钮固定在列表下方，不再悬浮遮挡输入框
+      expect(
+        tester.getBottomLeft(find.byType(TextFormField).last).dy,
+        lessThan(tester.getTopLeft(find.text('保存')).dy),
+      );
       await tester.tap(find.text('验证连接'));
       await tester.pump();
       await tester.pump();
@@ -290,6 +301,11 @@ void main() {
         hasLength(1),
       );
       expect(find.text('test-registration-key'), findsNothing);
+      await tester.scrollUntilVisible(
+        find.text('取消连接'),
+        150,
+        scrollable: find.byType(Scrollable).first,
+      );
       await tester.ensureVisible(find.text('取消连接'));
       await tester.pump(const Duration(milliseconds: 300));
       await tester.tap(find.text('取消连接'));

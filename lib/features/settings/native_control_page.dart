@@ -173,264 +173,262 @@ class _NativeControlPageState extends State<NativeControlPage> {
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
     final inset = nkasPageInset(context);
-    return Stack(
-      children: [
-        Positioned.fill(
-          child: Form(
-            key: form,
-            child: ListView(
-              padding: EdgeInsets.fromLTRB(inset, 5, inset, 92),
-              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-              children: [
-                PageSubtitle(
-                  isAndroid
-                      ? '远程 Android、本机虚拟屏幕与 Tailscale'
-                      : '远程 Android 与 Tailscale',
+    final saveButton = SafeArea(
+      top: false,
+      child: NkasFloatingAction(
+        label: busy ? '正在保存…' : '保存',
+        icon: LucideIcons.check,
+        loading: busy,
+        enabled: !busy && !loading,
+        onPressed: () => _save(),
+      ),
+    );
+    final content = Form(
+      key: form,
+      child: ListView(
+        padding: EdgeInsets.fromLTRB(inset, 5, inset, 92),
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+        children: [
+          PageSubtitle(
+            isAndroid
+                ? '远程 Android、本机虚拟屏幕与 Tailscale'
+                : '远程 Android 与 Tailscale',
+          ),
+          if (loading || busy)
+            const Padding(
+              padding: EdgeInsets.only(bottom: 8),
+              child: LinearProgressIndicator(minHeight: 2),
+            ),
+          if (!loading) ...[
+            if (isAndroid) ...[
+              const GroupLabel('控制设备'),
+              Surface(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    FieldSelect(
+                      label: '设备类型',
+                      value: mode == NativeControlMode.remoteAdb
+                          ? '远程 Android'
+                          : '本机虚拟屏幕',
+                      selectedValue: mode == NativeControlMode.remoteAdb
+                          ? 'remote_adb'
+                          : 'local_virtual_display',
+                      options: const [
+                        FieldSelectOption('remote_adb', '远程 Android'),
+                        FieldSelectOption('local_virtual_display', '本机虚拟屏幕'),
+                      ],
+                      onChanged: busy
+                          ? null
+                          : (value) => setState(
+                              () => mode = value == 'local_virtual_display'
+                                  ? NativeControlMode.localVirtualDisplay
+                                  : NativeControlMode.remoteAdb,
+                            ),
+                    ),
+                  ],
                 ),
-                if (loading || busy)
-                  const Padding(
-                    padding: EdgeInsets.only(bottom: 8),
-                    child: LinearProgressIndicator(minHeight: 2),
-                  ),
-                if (!loading) ...[
-                  if (isAndroid) ...[
-                    const GroupLabel('控制设备'),
-                    Surface(
-                      padding: const EdgeInsets.all(12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+              ),
+              const SizedBox(height: 20),
+            ],
+            if (mode == NativeControlMode.remoteAdb) ...[
+              const GroupLabel('远程设备'),
+              Surface(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    NkasTextField(
+                      label: 'Android ADB 地址',
+                      description: '支持 host:port 和 adb://host:port',
+                      controller: endpoint,
+                      enabled: !busy,
+                      hintText: '设备地址:5555',
+                      keyboardType: TextInputType.url,
+                      autocorrect: false,
+                      validator: (value) {
+                        final text = value?.trim() ?? '';
+                        final uri = Uri.tryParse(
+                          text.startsWith('adb://') ? text : 'adb://$text',
+                        );
+                        if (uri == null ||
+                            uri.scheme != 'adb' ||
+                            uri.host.isEmpty ||
+                            !uri.hasPort ||
+                            uri.port < 1 ||
+                            uri.port > 65535 ||
+                            uri.userInfo.isNotEmpty ||
+                            uri.path.isNotEmpty ||
+                            uri.hasQuery ||
+                            uri.hasFragment) {
+                          return '请输入有效的设备地址和端口';
+                        }
+                        return null;
+                      },
+                    ),
+                    const Divider(height: 18),
+                    GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: busy
+                          ? null
+                          : () => setState(() => tailscale = !tailscale),
+                      child: Row(
                         children: [
-                          FieldSelect(
-                            label: '设备类型',
-                            value: mode == NativeControlMode.remoteAdb
-                                ? '远程 Android'
-                                : '本机虚拟屏幕',
-                            selectedValue: mode == NativeControlMode.remoteAdb
-                                ? 'remote_adb'
-                                : 'local_virtual_display',
-                            options: const [
-                              FieldSelectOption('remote_adb', '远程 Android'),
-                              FieldSelectOption(
-                                'local_virtual_display',
-                                '本机虚拟屏幕',
-                              ),
-                            ],
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  '通过 Tailscale 连接',
+                                  style: TextStyle(fontWeight: FontWeight.w600),
+                                ),
+                                const SizedBox(height: 3),
+                                Text(
+                                  '访问 tailnet 中的设备，仅影响当前应用',
+                                  style: theme.textTheme.muted,
+                                ),
+                              ],
+                            ),
+                          ),
+                          NkasSwitch(
+                            label: '通过 Tailscale 连接',
+                            value: tailscale,
                             onChanged: busy
                                 ? null
-                                : (value) => setState(
-                                    () =>
-                                        mode = value == 'local_virtual_display'
-                                        ? NativeControlMode.localVirtualDisplay
-                                        : NativeControlMode.remoteAdb,
-                                  ),
+                                : (value) => setState(() => tailscale = value),
                           ),
                         ],
                       ),
                     ),
-                    const SizedBox(height: 20),
                   ],
-                  if (mode == NativeControlMode.remoteAdb) ...[
-                    const GroupLabel('远程设备'),
-                    Surface(
-                      padding: const EdgeInsets.all(12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          NkasTextField(
-                            label: 'Android ADB 地址',
-                            description: '支持 host:port 和 adb://host:port',
-                            controller: endpoint,
-                            enabled: !busy,
-                            hintText: '设备地址:5555',
-                            keyboardType: TextInputType.url,
-                            autocorrect: false,
-                            validator: (value) {
-                              final text = value?.trim() ?? '';
-                              final uri = Uri.tryParse(
-                                text.startsWith('adb://')
-                                    ? text
-                                    : 'adb://$text',
-                              );
-                              if (uri == null ||
-                                  uri.scheme != 'adb' ||
-                                  uri.host.isEmpty ||
-                                  !uri.hasPort ||
-                                  uri.port < 1 ||
-                                  uri.port > 65535 ||
-                                  uri.userInfo.isNotEmpty ||
-                                  uri.path.isNotEmpty ||
-                                  uri.hasQuery ||
-                                  uri.hasFragment) {
-                                return '请输入有效的设备地址和端口';
-                              }
-                              return null;
-                            },
-                          ),
-                          const Divider(height: 18),
-                          GestureDetector(
-                            behavior: HitTestBehavior.opaque,
-                            onTap: busy
-                                ? null
-                                : () => setState(() => tailscale = !tailscale),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      const Text(
-                                        '通过 Tailscale 连接',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 3),
-                                      Text(
-                                        '访问 tailnet 中的设备，仅影响当前应用',
-                                        style: theme.textTheme.muted,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                NkasSwitch(
-                                  label: '通过 Tailscale 连接',
-                                  value: tailscale,
-                                  onChanged: busy
-                                      ? null
-                                      : (value) =>
-                                            setState(() => tailscale = value),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
+                ),
+              ),
+              if (tailscale) ...[
+                const SizedBox(height: 20),
+                const GroupLabel('Tailscale'),
+                Surface(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      NkasTextField(
+                        label: 'Tailscale 节点名称',
+                        controller: hostname,
+                        enabled: !busy,
+                        autocorrect: false,
+                        validator: (value) =>
+                            RegExp(
+                              r'^[A-Za-z0-9][A-Za-z0-9-]{0,62}$',
+                            ).hasMatch(value?.trim() ?? '')
+                            ? null
+                            : '使用字母、数字和连字符，最多 63 个字符',
                       ),
-                    ),
-                    if (tailscale) ...[
-                      const SizedBox(height: 20),
-                      const GroupLabel('Tailscale'),
-                      Surface(
-                        padding: const EdgeInsets.all(12),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            NkasTextField(
-                              label: 'Tailscale 节点名称',
-                              controller: hostname,
-                              enabled: !busy,
-                              autocorrect: false,
-                              validator: (value) =>
-                                  RegExp(
-                                    r'^[A-Za-z0-9][A-Za-z0-9-]{0,62}$',
-                                  ).hasMatch(value?.trim() ?? '')
-                                  ? null
-                                  : '使用字母、数字和连字符，最多 63 个字符',
-                            ),
-                            const Divider(height: 18),
-                            NkasTextField(
-                              label: 'Tailscale AuthKey',
-                              description:
-                                  '用于将本应用注册到目标设备所在的 Tailscale 网络。\n'
-                                  '在 Tailscale 管理后台 Settings → Keys → Generate auth key 创建，密钥以 tskey-auth- 开头。\n'
-                                  '首次注册或清除身份后填写；注册后可留空，密钥不会保存到设置。',
-                              controller: authKey,
-                              enabled: !busy,
-                              obscureText: true,
-                              autocorrect: false,
-                              enableSuggestions: false,
-                              validator: (value) =>
-                                  !busy &&
-                                      !status.hasPersistedLogin &&
-                                      (value?.trim().isEmpty ?? true)
-                                  ? '首次连接请填写 Tailscale AuthKey'
-                                  : null,
-                            ),
-                            const Divider(height: 18),
-                            Text(
-                              status.hasPersistedLogin
-                                  ? (status.hostname.isEmpty
-                                        ? '节点名称暂不可用'
-                                        : status.hostname)
-                                  : '节点尚未注册',
-                              style: theme.textTheme.muted,
-                            ),
-                            const SizedBox(height: 10),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: SecondaryButton(
-                                    icon: LucideIcons.plug,
-                                    label: '验证连接',
-                                    onPressed: busy
-                                        ? null
-                                        : () => _save(register: true),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: SecondaryButton(
-                                    destructive: true,
-                                    icon: LucideIcons.trash2,
-                                    label: '清除身份',
-                                    onPressed: busy || !status.hasPersistedLogin
-                                        ? null
-                                        : _clearState,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
+                      const Divider(height: 18),
+                      NkasTextField(
+                        label: 'Tailscale AuthKey',
+                        description:
+                            '用于将本应用注册到目标设备所在的 Tailscale 网络。\n'
+                            '在 Tailscale 管理后台 Settings → Keys → Generate auth key 创建，密钥以 tskey-auth- 开头。\n'
+                            '首次注册或清除身份后填写；注册后可留空，密钥不会保存到设置。',
+                        controller: authKey,
+                        enabled: !busy,
+                        obscureText: true,
+                        autocorrect: false,
+                        enableSuggestions: false,
+                        validator: (value) =>
+                            !busy &&
+                                !status.hasPersistedLogin &&
+                                (value?.trim().isEmpty ?? true)
+                            ? '首次连接请填写 Tailscale AuthKey'
+                            : null,
                       ),
-                    ],
-                  ] else
-                    Surface(
-                      padding: const EdgeInsets.all(12),
-                      child: Text(
-                        '使用已完成无线调试配对的本机，创建独立虚拟屏幕。可在“初始化 NKAS”中完成配对。',
+                      const Divider(height: 18),
+                      Text(
+                        status.hasPersistedLogin
+                            ? (status.hostname.isEmpty
+                                  ? '节点名称暂不可用'
+                                  : status.hostname)
+                            : '节点尚未注册',
                         style: theme.textTheme.muted,
                       ),
-                    ),
-                  if (error != null) ...[
-                    const SizedBox(height: 12),
-                    Text(
-                      error!,
-                      style: TextStyle(color: theme.colorScheme.destructive),
-                    ),
-                  ],
-                  if (message != null) ...[
-                    const SizedBox(height: 12),
-                    Text(message!, style: theme.textTheme.muted),
-                  ],
-                  if (busy)
-                    Center(
-                      child: TextButton(
-                        style: NkasActionStyle.destructiveText(context),
-                        onPressed: _cancelConnection,
-                        child: const Text('取消连接'),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: SecondaryButton(
+                              icon: LucideIcons.plug,
+                              label: '验证连接',
+                              onPressed: busy
+                                  ? null
+                                  : () => _save(register: true),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: SecondaryButton(
+                              destructive: true,
+                              icon: LucideIcons.trash2,
+                              label: '清除身份',
+                              onPressed: busy || !status.hasPersistedLogin
+                                  ? null
+                                  : _clearState,
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                ],
+                    ],
+                  ),
+                ),
               ],
-            ),
+            ] else
+              Surface(
+                padding: const EdgeInsets.all(12),
+                child: Text(
+                  '使用已完成无线调试配对的本机，创建独立虚拟屏幕。可在“初始化 NKAS”中完成配对。',
+                  style: theme.textTheme.muted,
+                ),
+              ),
+            if (error != null) ...[
+              const SizedBox(height: 12),
+              Text(
+                error!,
+                style: TextStyle(color: theme.colorScheme.destructive),
+              ),
+            ],
+            if (message != null) ...[
+              const SizedBox(height: 12),
+              Text(message!, style: theme.textTheme.muted),
+            ],
+            if (busy)
+              Center(
+                child: TextButton(
+                  style: NkasActionStyle.destructiveText(context),
+                  onPressed: _cancelConnection,
+                  child: const Text('取消连接'),
+                ),
+              ),
+          ],
+        ],
+      ),
+    );
+    // 键盘弹出时悬浮按钮会遮住正在编辑的输入框：
+    // 收起键盘前固定在列表下方，不再悬浮在内容上
+    if (nkasKeyboardOpen(context)) {
+      return Column(
+        children: [
+          Expanded(child: content),
+          Padding(
+            padding: EdgeInsets.fromLTRB(inset, 8, inset, 12),
+            child: saveButton,
           ),
-        ),
-        Positioned(
-          left: inset,
-          right: inset,
-          bottom: 12,
-          child: SafeArea(
-            top: false,
-            child: NkasFloatingAction(
-              label: busy ? '正在保存…' : '保存',
-              icon: LucideIcons.check,
-              loading: busy,
-              enabled: !busy && !loading,
-              onPressed: () => _save(),
-            ),
-          ),
-        ),
+        ],
+      );
+    }
+    return Stack(
+      children: [
+        Positioned.fill(child: content),
+        Positioned(left: inset, right: inset, bottom: 12, child: saveButton),
       ],
     );
   }
