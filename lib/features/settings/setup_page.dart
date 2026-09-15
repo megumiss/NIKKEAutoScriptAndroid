@@ -48,6 +48,7 @@ class _NkasSetupPageState extends State<NkasSetupPage>
   bool loading = true;
   bool running = false;
   bool setupFailed = false;
+  bool setupCompleted = false;
   bool termuxDownloadActive = false;
   bool termuxDownloadNeedsCheck = false;
   bool termuxDownloadFailed = false;
@@ -136,6 +137,8 @@ class _NkasSetupPageState extends State<NkasSetupPage>
     if (!mounted) return;
     switch (event) {
       case SetupOutputEvent(:final output, :final log, :final exitCode):
+        // A buffered poll must not reopen an installation already confirmed ready.
+        if (log && setupCompleted) return;
         // -2 is the bridge callback timeout, not a bootstrap exit status.
         // The installation continues; preserve its state and keep polling.
         if (!log && exitCode == -2) return;
@@ -174,6 +177,7 @@ class _NkasSetupPageState extends State<NkasSetupPage>
             _markSetupFailed(message ?? '初始化失败');
           } else if (state == 'ready' && !setupFailed) {
             output = '初始化完成';
+            setupCompleted = true;
             setupFailed = false;
             failedStage = null;
             if (activeStage != null) expanded.remove(activeStage);
@@ -283,6 +287,7 @@ class _NkasSetupPageState extends State<NkasSetupPage>
     if (failedStage case final failed?) stageErrors.remove(failed);
     failedStage = null;
     setupFailed = false;
+    setupCompleted = false;
     running = true;
     activeStage ??= 'tools';
     stageStates[activeStage!] = '执行中';
@@ -303,6 +308,7 @@ class _NkasSetupPageState extends State<NkasSetupPage>
     setState(() {
       running = true;
       setupFailed = false;
+      setupCompleted = false;
       error = null;
       failedStage = null;
       output = '正在请求 Termux 恢复安装脚本……';
@@ -463,6 +469,7 @@ class _NkasSetupPageState extends State<NkasSetupPage>
   void _markSetupFailed(String message) {
     running = false;
     setupFailed = true;
+    setupCompleted = false;
     failedStage ??= activeStage ?? 'tools';
     final detail = message.trim();
     stageErrors[failedStage!] = detail.isEmpty ? '初始化失败' : detail;
@@ -845,7 +852,7 @@ class _NkasSetupPageState extends State<NkasSetupPage>
     }
     if (running && stageStates[key] != null) return stageStates[key]!;
     if (status.artifacts[key] == true) {
-      return key == 'service' ? '运行中' : '已检测';
+      return key == 'service' ? '完成' : '已检测';
     }
     if (stageStates[key] != null) return stageStates[key]!;
     if (_projectEnvironmentBlocked &&
@@ -1093,7 +1100,7 @@ class _StepRow extends StatelessWidget {
     final done = const [
       '已完成',
       '已检测',
-      '运行中',
+      '完成',
       '已安装',
       '已授权',
       '已开启',

@@ -16,24 +16,27 @@ const _timeout = SetupOutputEvent(
 
 const _alreadyRunning = '[nkas] bootstrap already running (PID 4312)\n';
 
-SetupStatus _status({bool complete = false, bool termuxInstalled = true}) =>
-    SetupStatus(
-      authorized: true,
-      termuxInstalled: termuxInstalled,
-      runCommandPermission: true,
-      wirelessDebug: true,
-      serial: '',
-      commandExitCode: 0,
-      artifacts: {
-        'termux_setting': true,
-        'adb_device': true,
-        'tools': complete,
-        'source': complete,
-        'config': complete,
-        'container': complete,
-        'service': complete,
-      },
-    );
+SetupStatus _status({
+  bool complete = false,
+  bool termuxInstalled = true,
+  bool adbDeviceReady = true,
+}) => SetupStatus(
+  authorized: true,
+  termuxInstalled: termuxInstalled,
+  runCommandPermission: true,
+  wirelessDebug: true,
+  serial: '',
+  commandExitCode: 0,
+  artifacts: {
+    'termux_setting': true,
+    'adb_device': adbDeviceReady,
+    'tools': complete,
+    'source': complete,
+    'config': complete,
+    'container': complete,
+    'service': complete,
+  },
+);
 
 class _SetupPlatform extends NkasPlatform {
   _SetupPlatform(Stream<NkasPlatformEvent> events)
@@ -197,6 +200,65 @@ void main() {
           await _emit(tester, events, _timeout);
           expect(_action(tester).label, '打开 NKAS UI');
           expect(_action(tester).enabled, isTrue);
+          expect(tester.takeException(), isNull);
+        } finally {
+          await tester.pumpWidget(const SizedBox.shrink());
+          await events.close();
+        }
+      },
+    );
+  }
+
+  for (final adbDeviceReady in [false, true]) {
+    testWidgets(
+      'service completion updates the step and action with ADB ${adbDeviceReady ? 'connected' : 'pending'}',
+      (tester) async {
+        final events = StreamController<NkasPlatformEvent>.broadcast();
+        final platform = _SetupPlatform(events.stream);
+        try {
+          await _startSetup(tester, platform);
+          await _emit(tester, events, _log('starting-nkas', '正在启动服务'));
+          platform.status = _status(
+            complete: true,
+            adbDeviceReady: adbDeviceReady,
+          );
+          await tester.pump(const Duration(seconds: 4));
+          expect(find.text('服务已响应'), findsOneWidget);
+
+          // The final snapshot still contains earlier installation stages.
+          await _emit(
+            tester,
+            events,
+            _log(
+              'ready',
+              '[nkas] state=installing-container\n'
+                  '[nkas] state=starting-nkas\n'
+                  '[nkas] bootstrap complete',
+            ),
+          );
+          await _emit(tester, events, const SetupStateEvent('ready', null));
+          final label = adbDeviceReady ? '打开 NKAS UI' : '等待 ADB 设备';
+          _expectStepState(tester, '容器服务', '完成');
+          expect(
+            find.descendant(
+              of: find.ancestor(
+                of: find.text('容器服务'),
+                matching: find.byType(Row),
+              ),
+              matching: find.byIcon(LucideIcons.check),
+            ),
+            findsOneWidget,
+          );
+          expect(_action(tester).label, label);
+          expect(_action(tester).enabled, adbDeviceReady);
+
+          // A buffered log from an earlier poll must not reopen the install.
+          await _emit(tester, events, _log('starting-nkas', '延迟到达的启动日志'));
+          await tester.pump(const Duration(seconds: 4));
+          _expectStepState(tester, '容器服务', '完成');
+          expect(_action(tester).label, label);
+          expect(_action(tester).enabled, adbDeviceReady);
+          expect(platform.starts, 1);
           expect(tester.takeException(), isNull);
         } finally {
           await tester.pumpWidget(const SizedBox.shrink());

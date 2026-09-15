@@ -11,6 +11,7 @@ import com.megumiss.nkas.mobile.platform.AccessGate
 import com.megumiss.nkas.mobile.platform.BackendEntry
 import com.megumiss.nkas.mobile.platform.AdbMdns
 import com.megumiss.nkas.mobile.platform.AdbPairingService
+import com.megumiss.nkas.mobile.platform.BootstrapLog
 import com.megumiss.nkas.mobile.platform.BootstrapService
 import com.megumiss.nkas.mobile.platform.GateConfig
 import com.megumiss.nkas.mobile.platform.LogStore
@@ -246,18 +247,15 @@ class NkasPlatformBridge(private val activity: FlutterActivity) :
         BootstrapService(activity).readLog { command ->
             val output = command.stdout + if (command.stderr.isBlank()) "" else "\n${command.stderr}"
             emit(mapOf("type" to "setupLog", "output" to output.takeLast(12000)))
-            if (output.contains("state=installing-") || output.contains("state=cloning-") ||
-                output.contains("state=creating-") || output.contains("state=installing-container") ||
-                output.contains("state=starting-nkas")) {
-                main.postDelayed({ pollSetupLog() }, 2000)
-            } else if (output.contains("state=ready")) {
-                emit(mapOf("type" to "setup", "state" to "ready"))
-            } else if (output.contains("state=failed")) {
-                emit(mapOf(
+            when (BootstrapLog.state(command.stdout)) {
+                "ready" -> emit(mapOf("type" to "setup", "state" to "ready"))
+                "failed" -> emit(mapOf(
                     "type" to "setup",
                     "state" to "failed",
                     "message" to output.takeLast(1000),
                 ))
+                // The first read can precede the state file; retry incomplete reads too.
+                else -> main.postDelayed({ pollSetupLog() }, 2000)
             }
         }
     }
