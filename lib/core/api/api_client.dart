@@ -353,6 +353,25 @@ class ApiClient {
     }
   }
 
+  Future<Map<String, dynamic>> fetchInstanceConfig(
+    String baseUrl,
+    String name,
+  ) async {
+    final response = await _client
+        .get(endpoint(baseUrl, '/api/${Uri.encodeComponent(name)}/config'))
+        .timeout(timeout);
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw ApiException('后端返回 HTTP ${response.statusCode}');
+    }
+    try {
+      final decoded = jsonDecode(utf8.decode(response.bodyBytes));
+      if (decoded is! Map<String, dynamic>) throw const FormatException();
+      return decoded;
+    } on FormatException {
+      throw const ApiException('后端返回了无效实例配置');
+    }
+  }
+
   Future<void> patchConfig(
     String baseUrl,
     String name,

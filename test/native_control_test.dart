@@ -3,7 +3,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nkas_mobile/core/api/instance_info.dart';
 import 'package:nkas_mobile/core/platform/nkas_platform.dart';
+import 'package:nkas_mobile/core/widgets/floating_action.dart';
 import 'package:nkas_mobile/features/screen/native_video_surface.dart';
 import 'package:nkas_mobile/features/screen/screen_page.dart';
 import 'package:nkas_mobile/features/settings/native_control_page.dart';
@@ -268,6 +270,138 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
     await events.close();
   });
+
+  testWidgets('keyboard opening on a built page pins the save button below', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(360, 640);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final calls = <MethodCall>[];
+    _mockPlatform(calls);
+    final platform = NkasPlatform.testing(events: const Stream.empty());
+    await tester.pumpWidget(host(NativeControlPage(platform: platform)));
+    await tester.pumpAndSettle();
+
+    // 键盘在页面构建之后弹出：按钮必须从悬浮切换为固定在列表下方。
+    // 悬浮分支中列表占满按钮所在区域，固定分支中列表底部即按钮顶部
+    tester.view.viewInsets = const FakeViewPadding(bottom: 260);
+    await tester.pumpAndSettle();
+    expect(
+      tester.getBottomLeft(find.byType(ListView)).dy,
+      lessThanOrEqualTo(tester.getTopLeft(find.byType(NkasFloatingAction)).dy),
+    );
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('control page lists instances and saves per-instance overrides', (
+    tester,
+  ) async {
+    final calls = <MethodCall>[];
+    _mockPlatform(calls);
+    final platform = NkasPlatform.testing(events: const Stream.empty());
+    await tester.pumpWidget(
+      host(
+        NativeControlPage(
+          platform: platform,
+          instances: const [
+            InstanceInfo(name: 'nkas', state: 1, mod: 'nkas'),
+            InstanceInfo(name: 'nkas2', state: 2, mod: 'nkas'),
+          ],
+          resolveBackendSerial: (name) async =>
+              name == 'nkas' ? '10.0.0.1:5555' : null,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // 后端 Serial 到达后行摘要展示来源；多实例时有全局默认地址框
+    expect(find.text('默认控制地址'), findsOneWidget);
+    expect(find.text('跟随后端：10.0.0.1:5555'), findsOneWidget);
+    expect(find.text('未配置'), findsOneWidget);
+
+    // 展开 nkas2 行填写覆盖地址，行摘要即时刷新
+    await tester.tap(find.text('nkas2'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const ValueKey('control-endpoint-nkas2')),
+      '10.0.0.2:5555',
+    );
+    await tester.pump();
+    expect(find.text('10.0.0.2:5555'), findsWidgets);
+
+    // 展开 nkas 行也填写覆盖地址后保存
+    await tester.ensureVisible(find.text('nkas'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('nkas'));
+    await tester.pumpAndSettle();
+    expect(find.text('默认使用后端 Serial：10.0.0.1:5555'), findsOneWidget);
+    await tester.enterText(
+      find.byKey(const ValueKey('control-endpoint-nkas')),
+      '10.0.0.3:5555',
+    );
+    // mock 默认启用 Tailscale 且未保存身份，关掉后 AuthKey 校验才不拦截保存
+    await tester.ensureVisible(find.text('通过 Tailscale 连接'));
+    await tester.tap(find.text('通过 Tailscale 连接'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('保存'));
+    await tester.pumpAndSettle();
+    final save = calls.singleWhere(
+      (call) => call.method == 'saveNativeControlSettings',
+    );
+    expect((save.arguments as Map)['endpoints'], {
+      'nkas': '10.0.0.3:5555',
+      'nkas2': '10.0.0.2:5555',
+    });
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets(
+    'connect uses the resolved endpoint and flags a missing address',
+    (tester) async {
+      final calls = <MethodCall>[];
+      _mockPlatform(calls);
+      final platform = NkasPlatform.testing(events: const Stream.empty());
+      Widget panel(Future<String?> Function() resolver) => host(
+        SingleChildScrollView(
+          child: ScreenPanel(
+            platform: platform,
+            accessGranted: true,
+            loadScreenshot: () async => null,
+            resolveEndpoint: resolver,
+          ),
+        ),
+      );
+
+      // 解析结果优先于设置里的全局地址（mock 的全局地址是 redroid:5555）
+      await tester.pumpWidget(panel(() async => 'adb://10.0.0.9:5555'));
+      await tester.pump();
+      await tester.tap(find.byTooltip('连接设备'));
+      await tester.pump();
+      final start = calls.singleWhere(
+        (call) => call.method == 'nativeScrcpyStart',
+      );
+      expect((start.arguments as Map)['endpoint'], 'adb://10.0.0.9:5555');
+      expect(find.text('控制目标：adb://10.0.0.9:5555'), findsOneWidget);
+
+      // 解析为空：不发起连接，提示配置控制地址
+      await tester.pumpWidget(const SizedBox.shrink());
+      calls.clear();
+      await tester.pumpWidget(panel(() async => null));
+      await tester.pump();
+      await tester.tap(find.byTooltip('连接设备'));
+      await tester.pump();
+      expect(
+        calls.where((call) => call.method == 'nativeScrcpyStart'),
+        isEmpty,
+      );
+      expect(find.textContaining('未配置控制地址'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
 
   testWidgets('fullscreen closes from its own button', (tester) async {
     final events = StreamController<NkasPlatformEvent>.broadcast();

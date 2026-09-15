@@ -6,6 +6,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 
 import 'package:nkas_mobile/theme.dart';
 
+import 'package:nkas_mobile/core/api/instance_info.dart';
 import 'package:nkas_mobile/core/platform/native_control_settings.dart';
 import 'package:nkas_mobile/core/platform/nkas_platform.dart';
 import 'package:nkas_mobile/core/platform/runtime_platform.dart';
@@ -21,8 +22,20 @@ import 'package:nkas_mobile/core/widgets/tag.dart';
 import 'package:nkas_mobile/core/widgets/toggle.dart';
 
 class NativeControlPage extends StatefulWidget {
-  const NativeControlPage({required this.platform, this.onClose, super.key});
+  const NativeControlPage({
+    required this.platform,
+    this.instances = const [],
+    this.resolveBackendSerial,
+    this.onClose,
+    super.key,
+  });
   final NkasPlatform platform;
+
+  /// 后端实例列表；多实例时可分别设置控制地址，为空时编辑全局默认地址
+  final List<InstanceInfo> instances;
+
+  /// 读取实例后端配置的 ADB Serial（空或 auto 返回 null）
+  final Future<String?> Function(String name)? resolveBackendSerial;
 
   /// 保存成功后返回上一页（路由 pop）
   final VoidCallback? onClose;
@@ -43,10 +56,31 @@ class _NativeControlPageState extends State<NativeControlPage> {
   String? message;
   TsnetStatus status = const TsnetStatus();
 
+  /// 每个实例的覆盖地址输入框；多实例时另有全局默认地址框
+  final endpointControllers = <String, TextEditingController>{};
+  final defaultEndpoint = TextEditingController();
+  final serials = <String, String?>{};
+  String? expandedInstance;
+  String savedEndpoint = '';
+
   @override
   void initState() {
     super.initState();
     unawaited(_load());
+  }
+
+  TextEditingController _controllerFor(String name) =>
+      endpointControllers.putIfAbsent(name, TextEditingController.new);
+
+  Future<void> _loadSerial(String name) async {
+    final resolve = widget.resolveBackendSerial;
+    if (resolve == null) return;
+    try {
+      final serial = await resolve(name);
+      if (mounted) setState(() => serials[name] = serial);
+    } catch (_) {
+      /* 后端 Serial 缺失时不影响手动覆盖 */
+    }
   }
 
   Future<void> _load() async {
@@ -55,12 +89,21 @@ class _NativeControlPageState extends State<NativeControlPage> {
       final state = await widget.platform.tsnetStatus();
       if (!mounted) return;
       setState(() {
+        savedEndpoint = values.endpoint;
         endpoint.text = values.endpoint;
+        defaultEndpoint.text = values.endpoint;
         hostname.text = values.hostname;
         mode = values.mode;
         tailscale = values.tailscaleEnabled;
         status = state;
+        for (final instance in widget.instances) {
+          _controllerFor(instance.name).text =
+              values.endpoints[instance.name] ?? '';
+        }
       });
+      for (final instance in widget.instances) {
+        unawaited(_loadSerial(instance.name));
+      }
     } catch (exception) {
       if (mounted) setState(() => error = _message(exception));
     } finally {
@@ -73,14 +116,27 @@ class _NativeControlPageState extends State<NativeControlPage> {
     endpoint.dispose();
     hostname.dispose();
     authKey.dispose();
+    defaultEndpoint.dispose();
+    for (final controller in endpointControllers.values) {
+      controller.dispose();
+    }
     super.dispose();
   }
 
   NativeControlSettings get values => NativeControlSettings(
     mode: mode,
-    endpoint: endpoint.text.trim(),
+    endpoint: widget.instances.isEmpty
+        ? endpoint.text.trim()
+        : widget.instances.length > 1
+        ? defaultEndpoint.text.trim()
+        : savedEndpoint,
     hostname: hostname.text.trim(),
     tailscaleEnabled: tailscale,
+    endpoints: {
+      for (final entry in endpointControllers.entries)
+        if (entry.value.text.trim().isNotEmpty)
+          entry.key: entry.value.text.trim(),
+    },
   );
 
   Future<void> _save({bool register = false}) async {
@@ -273,34 +329,36 @@ class _NativeControlPageState extends State<NativeControlPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    NkasTextField(
-                      label: 'Android ADB 地址',
-                      description: '支持 host:port 和 adb://host:port',
-                      controller: endpoint,
-                      enabled: !busy,
-                      hintText: '设备地址:5555',
-                      keyboardType: TextInputType.url,
-                      autocorrect: false,
-                      validator: (value) {
-                        final text = value?.trim() ?? '';
-                        final uri = Uri.tryParse(
-                          text.startsWith('adb://') ? text : 'adb://$text',
-                        );
-                        if (uri == null ||
-                            uri.scheme != 'adb' ||
-                            uri.host.isEmpty ||
-                            !uri.hasPort ||
-                            uri.port < 1 ||
-                            uri.port > 65535 ||
-                            uri.userInfo.isNotEmpty ||
-                            uri.path.isNotEmpty ||
-                            uri.hasQuery ||
-                            uri.hasFragment) {
-                          return '请输入有效的设备地址和端口';
-                        }
-                        return null;
-                      },
-                    ),
+                    if (widget.instances.isEmpty)
+                      NkasTextField(
+                        label: 'Android ADB 地址',
+                        description: '支持 host:port 和 adb://host:port',
+                        controller: endpoint,
+                        enabled: !busy,
+                        hintText: '设备地址:5555',
+                        keyboardType: TextInputType.url,
+                        autocorrect: false,
+                        validator: _endpointValidator,
+                      )
+                    else ...[
+                      if (widget.instances.length > 1) ...[
+                        NkasTextField(
+                          label: '默认控制地址',
+                          description: '所有实例共用的手动地址，留空时使用后端实例配置的 Serial',
+                          controller: defaultEndpoint,
+                          enabled: !busy,
+                          hintText: '设备地址:5555',
+                          keyboardType: TextInputType.url,
+                          autocorrect: false,
+                          validator: _optionalEndpointValidator,
+                        ),
+                        const Divider(height: 18),
+                      ],
+                      for (var i = 0; i < widget.instances.length; i++) ...[
+                        if (i > 0) const Divider(height: 18),
+                        _instanceEndpointRow(widget.instances[i]),
+                      ],
+                    ],
                   ],
                 ),
               ),

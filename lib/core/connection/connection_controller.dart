@@ -451,6 +451,13 @@ class ConnectionController extends ChangeNotifier {
     return _api.fetchSchema(_state.baseUrl, name);
   }
 
+  Future<Map<String, dynamic>> fetchInstanceConfig(String name) {
+    if (_state.phase != ConnectionPhase.connected) {
+      return Future.error(const ApiException('后端未连接'));
+    }
+    return _api.fetchInstanceConfig(_state.baseUrl, name);
+  }
+
   Future<void> patchConfig(String name, String key, Object? value) {
     if (_state.phase != ConnectionPhase.connected) {
       return Future.error(const ApiException('后端未连接'));

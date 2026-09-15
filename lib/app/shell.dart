@@ -13,6 +13,7 @@ import 'package:nkas_mobile/core/connection/instance_queue_socket.dart';
 import 'package:nkas_mobile/core/api/queue_info.dart';
 import 'package:nkas_mobile/core/api/calendar_info.dart';
 import 'package:nkas_mobile/core/api/schema_info.dart';
+import 'package:nkas_mobile/core/platform/native_control_settings.dart';
 import 'package:nkas_mobile/core/platform/nkas_platform.dart';
 import 'package:nkas_mobile/core/platform/runtime_platform.dart';
 import 'package:nkas_mobile/core/widgets/buttons.dart';
@@ -271,6 +272,32 @@ class _NkasShellState extends State<NkasShell> {
     stateSocket = null;
     stateSocketBaseUrl = null;
     await socket?.close();
+  }
+
+  /// 实例后端配置的 ADB Serial（空或 auto 返回 null）
+  Future<String?> _backendSerial(String name) async {
+    if (widget.connectionController.state.phase != ConnectionPhase.connected) {
+      return null;
+    }
+    try {
+      return backendSerialOf(
+        await widget.connectionController.fetchInstanceConfig(name),
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// 实例的生效控制地址：实例覆盖 → 全局手填 → 后端 Serial
+  Future<String?> _resolveControlEndpoint(String name) async {
+    try {
+      final settings = await NkasPlatform.instance.nativeControlSettings();
+      final resolved = settings.endpointFor(name);
+      if (resolved.isNotEmpty) return resolved;
+      return await _backendSerial(name);
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<void> _loadInstances() async {
@@ -655,10 +682,13 @@ class _NkasShellState extends State<NkasShell> {
       loadScreenshot: () =>
           widget.connectionController.fetchScreenshot(instance),
       accessGranted: _starAccessGranted,
+      resolveEndpoint: _resolveControlEndpoint,
       onOpenNativeControl: () => _pushSubPage(
         '控制连接',
         NativeControlPage(
           platform: NkasPlatform.instance,
+          instances: instances,
+          resolveBackendSerial: _backendSerial,
           onClose: () => Navigator.of(context).pop(),
         ),
       ),
@@ -693,6 +723,8 @@ class _NkasShellState extends State<NkasShell> {
         '控制连接',
         NativeControlPage(
           platform: NkasPlatform.instance,
+          instances: instances,
+          resolveBackendSerial: _backendSerial,
           onClose: () => Navigator.of(context).pop(),
         ),
       ),

@@ -29,6 +29,7 @@ class ScreenPage extends StatelessWidget {
     required this.loadScreenshot,
     required this.accessGranted,
     required this.onOpenNativeControl,
+    this.resolveEndpoint,
     super.key,
   });
   final List<InstanceInfo> instances;
@@ -41,6 +42,9 @@ class ScreenPage extends StatelessWidget {
   final Future<ScreenshotFrame?> Function() loadScreenshot;
   final bool accessGranted;
   final VoidCallback onOpenNativeControl;
+
+  /// 解析实例的生效控制地址：实例覆盖 → 全局手填 → 后端 Serial
+  final Future<String?> Function(String instance)? resolveEndpoint;
 
   @override
   Widget build(BuildContext context) {
@@ -76,6 +80,9 @@ class ScreenPage extends StatelessWidget {
               loadScreenshot: loadScreenshot,
               accessGranted: accessGranted,
               onOpenNativeControl: onOpenNativeControl,
+              resolveEndpoint: resolveEndpoint == null
+                  ? null
+                  : () => resolveEndpoint!(selected),
             ),
           ),
         ),
@@ -90,12 +97,16 @@ class ScreenPanel extends StatefulWidget {
     required this.accessGranted,
     this.onOpenNativeControl,
     this.platform,
+    this.resolveEndpoint,
     super.key,
   });
   final Future<ScreenshotFrame?> Function() loadScreenshot;
   final bool accessGranted;
   final VoidCallback? onOpenNativeControl;
   final NkasPlatform? platform;
+
+  /// 解析当前实例的生效控制地址；为空时回退到设置中的全局地址
+  final Future<String?> Function()? resolveEndpoint;
   @override
   State<ScreenPanel> createState() => _ScreenPanelState();
 }
@@ -219,24 +230,29 @@ class _ScreenPanelState extends State<ScreenPanel> {
         await platform.nativeScrcpyStop(requestId: previous);
       }
       final settings = await platform.nativeControlSettings();
+      var endpoint = settings.endpoint;
+      final resolver = widget.resolveEndpoint;
+      if (settings.mode == NativeControlMode.remoteAdb && resolver != null) {
+        endpoint = (await resolver())?.trim() ?? '';
+      }
       if (!mounted || requestId != id || !widget.accessGranted) return;
       setState(() {
         controlTarget = settings.mode == NativeControlMode.localVirtualDisplay
             ? '本机虚拟屏幕'
-            : settings.endpoint.isEmpty
+            : endpoint.isEmpty
             ? null
-            : settings.endpoint;
+            : endpoint;
       });
-      if (settings.mode == NativeControlMode.remoteAdb &&
-          settings.endpoint.isEmpty) {
+      if (settings.mode == NativeControlMode.remoteAdb && endpoint.isEmpty) {
         setState(() {
           nativeState = 'idle';
+          nativeError = '未配置控制地址，请在控制连接中设置，或在实例 Emulator 配置中填写 Serial';
           requestId = null;
         });
         return;
       }
       await platform.nativeScrcpyStart(
-        settings.mode == NativeControlMode.remoteAdb ? settings.endpoint : '',
+        settings.mode == NativeControlMode.remoteAdb ? endpoint : '',
         mode: settings.modeName,
         useTailscale:
             settings.tailscaleEnabled &&

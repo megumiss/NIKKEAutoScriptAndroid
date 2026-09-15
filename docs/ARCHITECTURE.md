@@ -21,7 +21,7 @@ flowchart LR
     NATIVE -->|Texture 与状态事件| UI
 ```
 
-“后端地址”选择 HTTP/WebSocket 服务，“控制连接”选择接受 ADB 操作的 Android 设备。两者可以在同一台机器，也可以分开部署；实例选择不会自动更改控制目标。后端的 PC 自动化能力不意味着移动端 scrcpy 可以控制 PC 桌面。
+“后端地址”选择 HTTP/WebSocket 服务，“控制连接”选择接受 ADB 操作的 Android 设备。两者可以在同一台机器，也可以分开部署。控制目标按“实例覆盖地址 → 默认控制地址（全局手填）→ 实例后端配置的 `Emulator.Emulator.Serial`（空或 `auto` 视为未配置）”解析，切换实例按新实例重新解析，但不改写已保存的地址。后端的 PC 自动化能力不意味着移动端 scrcpy 可以控制 PC 桌面。
 
 应用内 tsnet 仅为原生控制提供 TCP 转发，后端流量仍使用系统网络。视频和触摸不经过 NKAS 后端，也不通过 WebView、VNC 或 `ws-scrcpy` 中转。
 

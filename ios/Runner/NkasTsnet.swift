@@ -6,9 +6,11 @@ final class NkasControlSettings {
   var endpoint: String { defaults.string(forKey: "nkas_control_endpoint") ?? defaults.string(forKey: "nkas_serial") ?? "" }
   var hostname: String { defaults.string(forKey: "nkas_tsnet_hostname") ?? "nkas-ios" }
   var tailscaleEnabled: Bool { defaults.bool(forKey: "nkas_tsnet_enabled") }
+  var endpoints: [String: String] { defaults.dictionary(forKey: "nkas_control_endpoints") as? [String: String] ?? [:] }
 
   func snapshot() -> [String: Any] {
-    ["mode": "remote_adb", "endpoint": endpoint, "hostname": hostname, "tailscaleEnabled": tailscaleEnabled]
+    ["mode": "remote_adb", "endpoint": endpoint, "hostname": hostname, "tailscaleEnabled": tailscaleEnabled,
+     "endpoints": endpoints]
   }
 
   func save(_ values: [String: Any]) throws -> [String: Any] {
@@ -21,10 +23,20 @@ final class NkasControlSettings {
     guard hostname.range(of: "^[A-Za-z0-9][A-Za-z0-9-]{0,62}$", options: .regularExpression) != nil else {
       throw NkasIosAdbError.protocolError("节点名称只能包含字母、数字和连字符")
     }
+    var endpoints: [String: String] = [:]
+    for (name, address) in values["endpoints"] as? [String: String] ?? [:] {
+      let value = address.trimmingCharacters(in: .whitespacesAndNewlines)
+      guard !name.isEmpty else { throw NkasIosAdbError.protocolError("实例名不能为空") }
+      if !value.isEmpty {
+        _ = try NkasIosAdbEndpoint(value)
+        endpoints[name] = value
+      }
+    }
     defaults.set(endpoint, forKey: "nkas_control_endpoint")
     defaults.set(endpoint, forKey: "nkas_serial")
     defaults.set(hostname, forKey: "nkas_tsnet_hostname")
     defaults.set(values["tailscaleEnabled"] as? Bool ?? false, forKey: "nkas_tsnet_enabled")
+    defaults.set(endpoints, forKey: "nkas_control_endpoints")
     return snapshot()
   }
 }
