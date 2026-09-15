@@ -1,5 +1,6 @@
 #import "NkasAdbRuntime.h"
 #import <netinet/in.h>
+#import <stdlib.h>
 #import <sys/socket.h>
 #import <unistd.h>
 #include <exception>
@@ -31,10 +32,21 @@ void adb_connect_status_updated(const char *serial, const char *status) {
   @synchronized(self) {
     if (_port != 0) return _port;
     NSFileManager *files = NSFileManager.defaultManager;
-    NSURL *keyDirectory = [NSURL fileURLWithPath:[NSHomeDirectory() stringByAppendingPathComponent:@".android"]];
+    // iOS 沙盒不允许在容器根目录（NSHomeDirectory()）直接创建文件，
+    // ADB 主目录放到可写的 Application Support 下
+    NSURL *appSupport = [files URLForDirectory:NSApplicationSupportDirectory
+                                      inDomain:NSUserDomainMask
+                             appropriateForURL:nil create:YES error:error];
+    if (!appSupport) return 0;
+    NSURL *adbHome = [appSupport URLByAppendingPathComponent:@"adb" isDirectory:YES];
+    if (![files createDirectoryAtURL:adbHome withIntermediateDirectories:YES
+                         attributes:@{NSFilePosixPermissions: @0700} error:error]) return 0;
+    NSURL *keyDirectory = [adbHome URLByAppendingPathComponent:@".android" isDirectory:YES];
     if (![files createDirectoryAtURL:keyDirectory withIntermediateDirectories:YES
                          attributes:@{NSFilePosixPermissions: @0700} error:error]) return 0;
     if (![keyDirectory setResourceValue:@YES forKey:NSURLIsExcludedFromBackupKey error:error]) return 0;
+    // 嵌入式 adb 原生库经 $HOME/.android 定位密钥，重定向到可写目录
+    setenv("HOME", adbHome.fileSystemRepresentation, 1);
 
     // The embedded adb server uses the same loopback smart-socket API as desktop adb.
     int probe = socket(AF_INET, SOCK_STREAM, 0);
