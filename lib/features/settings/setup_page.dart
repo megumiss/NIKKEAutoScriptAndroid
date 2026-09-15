@@ -545,6 +545,7 @@ class _NkasSetupPageState extends State<NkasSetupPage>
               label: _actionLabel,
               icon: _actionIcon,
               enabled: !_actionDisabled,
+              loading: running || termuxDownloadActive,
               onPressed: _handleAction,
             ),
           ),

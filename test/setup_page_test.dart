@@ -608,7 +608,9 @@ void main() {
         );
         await tester.ensureVisible(_installationLog());
         await tester.drag(_installationLog(), const Offset(0, 120));
-        await tester.pumpAndSettle();
+        // The install button keeps animating while the log scroll settles.
+        await tester.pump();
+        await tester.pump(const Duration(seconds: 1));
         final previousOffset = _installationLogPosition(tester).pixels;
         expect(_installationLogPosition(tester).extentAfter, greaterThan(50));
 
@@ -628,7 +630,8 @@ void main() {
         );
 
         await tester.drag(_installationLog(), const Offset(0, -4000));
-        await tester.pumpAndSettle();
+        await tester.pump();
+        await tester.pump(const Duration(seconds: 1));
         expect(_installationLogPosition(tester).extentAfter, lessThan(1));
         await _emit(
           tester,
