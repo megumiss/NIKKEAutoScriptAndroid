@@ -33,6 +33,7 @@ Map<String, dynamic> _schemaFixture() => {
     {
       'key': 'NKAS',
       'name': 'NKAS',
+      'icon': 'gear',
       'tasks': [
         {'key': 'NKAS', 'name': 'NKAS设置', 'help': ''},
       ],
@@ -477,6 +478,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('NKAS'), findsOneWidget);
+    // 分组图标沿用 webui schema 下发的 icon（gear → settings）
+    expect(find.byIcon(LucideIcons.settings), findsOneWidget);
     expect(find.text('NKAS设置'), findsOneWidget);
     await tester.tap(find.text('NKAS设置'));
     await tester.pumpAndSettle();

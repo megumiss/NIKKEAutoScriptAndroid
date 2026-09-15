@@ -29,12 +29,14 @@ class SchemaMenu {
   const SchemaMenu({
     required this.key,
     required this.name,
+    required this.icon,
     required this.tasks,
   });
 
   factory SchemaMenu.fromJson(Map<String, dynamic> json) => SchemaMenu(
     key: json['key']?.toString() ?? '',
     name: json['name']?.toString() ?? '',
+    icon: json['icon']?.toString() ?? '',
     tasks: (json['tasks'] is List ? json['tasks'] as List : const [])
         .whereType<Map<String, dynamic>>()
         .map(SchemaMenuTask.fromJson)
@@ -43,6 +45,9 @@ class SchemaMenu {
 
   final String key;
   final String name;
+
+  /// webui 分组图标名（reicon 风格，如 `gift`、`calendar`），由后端 menu.json 下发
+  final String icon;
   final List<SchemaMenuTask> tasks;
 }
 

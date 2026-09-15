@@ -158,7 +158,7 @@ class _SchemaPanelState extends State<SchemaPanel> {
           if (menuIndex > 0) const SizedBox(height: 16),
           _SchemaMenuGroup(
             menu: schema.menus[menuIndex],
-            icon: _menuIcon(menuIndex, schema.menus[menuIndex].name),
+            icon: _menuIcon(schema.menus[menuIndex].icon),
             onTask: (key) {
               setState(() => taskKey = key);
               widget.onTaskKeyChanged(key);
@@ -195,18 +195,39 @@ class _SchemaPanelState extends State<SchemaPanel> {
     );
   }
 
-  static IconData _menuIcon(int index, String name) {
-    final normalized = name.toLowerCase();
-    if (normalized.contains('活动')) return LucideIcons.calendarDays;
-    if (normalized.contains('工具') || normalized.contains('设置')) {
-      return LucideIcons.wrench;
-    }
-    return switch (index) {
-      0 => LucideIcons.sun,
-      1 => LucideIcons.calendarDays,
-      _ => LucideIcons.wrench,
-    };
-  }
+  /// 与 webui `menu.json` / AppIcon 一致的分组图标映射（reicon 名称 → Lucide），
+  /// 未知图标回退为 webui 默认的 `box`
+  static IconData _menuIcon(String icon) => switch (icon) {
+    'gear' => LucideIcons.settings,
+    'gift' => LucideIcons.gift,
+    'calendar' => LucideIcons.calendarDays,
+    'building' => LucideIcons.building2,
+    'bank' => LucideIcons.landmark,
+    'timer' => LucideIcons.timer,
+    'book' => LucideIcons.bookOpen,
+    'map' => LucideIcons.map,
+    'message' => LucideIcons.messageSquare,
+    'trend-up' => LucideIcons.trendingUp,
+    'designtools' => LucideIcons.pencilRuler,
+    'sun' => LucideIcons.sun,
+    'moon' => LucideIcons.moon,
+    'rocket' => LucideIcons.rocket,
+    'globe' => LucideIcons.globe,
+    'coffee' => LucideIcons.coffee,
+    'grid' => LucideIcons.layoutGrid,
+    'lightbulb' => LucideIcons.lightbulb,
+    'terminal-square' => LucideIcons.squareTerminal,
+    'chart-square' => LucideIcons.chartColumn,
+    'layers' => LucideIcons.layers,
+    'file-text' => LucideIcons.fileText,
+    'info-circle' => LucideIcons.info,
+    'plus' => LucideIcons.plus,
+    'download' => LucideIcons.download,
+    'alert-triangle' => LucideIcons.triangleAlert,
+    'import' => LucideIcons.import,
+    'refresh' => LucideIcons.refreshCw,
+    _ => LucideIcons.box,
+  };
 
   Future<bool> _patch(String key, Object? value) async {
     setState(() => savingKey = key);
