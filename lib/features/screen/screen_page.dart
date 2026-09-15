@@ -69,15 +69,13 @@ class ScreenPage extends StatelessWidget {
           ),
         ),
         Expanded(
-          child: Padding(
+          child: SingleChildScrollView(
             padding: EdgeInsets.fromLTRB(inset, 8, inset, 88),
-            child: SizedBox.expand(
-              child: ScreenPanel(
-                key: ValueKey(selected),
-                loadScreenshot: loadScreenshot,
-                accessGranted: accessGranted,
-                onOpenNativeControl: onOpenNativeControl,
-              ),
+            child: ScreenPanel(
+              key: ValueKey(selected),
+              loadScreenshot: loadScreenshot,
+              accessGranted: accessGranted,
+              onOpenNativeControl: onOpenNativeControl,
             ),
           ),
         ),
@@ -491,29 +489,37 @@ class _ScreenPanelState extends State<ScreenPanel> {
                 style: const TextStyle(color: foreground, fontSize: 12),
               ),
             ),
-          Expanded(
-            child: Center(
-              child: live && id != null
-                  ? AspectRatio(
-                      aspectRatio: videoWidth / videoHeight,
-                      child: NativeVideoSurface(
-                        key: ValueKey('$id:$textureId'),
-                        textureId: textureId!,
-                        width: videoWidth,
-                        height: videoHeight,
-                        onTouch: (touch) => _sendTouch(id, touch),
-                        onError: _nativeFailure,
-                      ),
-                    )
-                  : frame != null
-                  ? Image.memory(
-                      frame!.bytes,
-                      fit: BoxFit.contain,
-                      gaplessPlayback: true,
-                    )
-                  : Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: Text(
+          // 画面宽度铺满卡片，高度按视频比例推导；竖屏视频超出视口时整页滚动，
+          // 不再用卡片剩余高度限制画面宽度
+          if (live && id != null)
+            AspectRatio(
+              aspectRatio: videoWidth / videoHeight,
+              child: NativeVideoSurface(
+                key: ValueKey('$id:$textureId'),
+                textureId: textureId!,
+                width: videoWidth,
+                height: videoHeight,
+                onTouch: (touch) => _sendTouch(id, touch),
+                onError: _nativeFailure,
+              ),
+            )
+          else if (frame != null)
+            Image.memory(
+              frame!.bytes,
+              width: double.infinity,
+              fit: BoxFit.contain,
+              gaplessPlayback: true,
+            )
+          else
+            SizedBox(
+              height: 240,
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
                         nativeError ??
                             (error != null
                                 ? '画面加载失败'
@@ -523,9 +529,25 @@ class _ScreenPanelState extends State<ScreenPanel> {
                         textAlign: TextAlign.center,
                         style: const TextStyle(color: NkasColors.screenText),
                       ),
-                    ),
+                      if (platform.supported &&
+                          nativeError == null &&
+                          error == null &&
+                          !loading) ...[
+                        const SizedBox(height: 8),
+                        const Text(
+                          '点击右上角插头按钮连接设备，开始实时控制',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: NkasColors.screenText,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
             ),
-          ),
           if (nativeError != null && (frame != null || live))
             Padding(
               padding: const EdgeInsets.all(10),

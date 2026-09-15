@@ -90,6 +90,52 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
+  testWidgets('video fills the card width for a portrait stream', (
+    tester,
+  ) async {
+    final events = StreamController<NkasPlatformEvent>.broadcast();
+    final platform = NkasPlatform.testing(events: events.stream);
+    final calls = <MethodCall>[];
+    _mockPlatform(calls);
+    await tester.pumpWidget(
+      host(
+        SingleChildScrollView(
+          child: ScreenPanel(
+            platform: platform,
+            accessGranted: true,
+            loadScreenshot: () async => null,
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.tap(find.byTooltip('连接设备'));
+    await tester.pump();
+    final id =
+        (calls.lastWhere((c) => c.method == 'nativeScrcpyStart').arguments
+                as Map)['requestId']
+            as String;
+
+    // 竖屏视频（NIKKE 竖屏）：高度按宽度推导，超出视口时整页滚动而不是压缩宽度
+    events.add(
+      ScrcpyVideoEvent(
+        state: 'started',
+        requestId: id,
+        textureId: 9,
+        width: 1080,
+        height: 2400,
+      ),
+    );
+    await tester.pump();
+    final cardWidth = tester.getSize(find.byType(ScreenPanel)).width;
+    final size = tester.getSize(find.byType(Texture));
+    expect(size.width, cardWidth - 2);
+    expect(size.height, closeTo((cardWidth - 2) * 2400 / 1080, 0.01));
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await events.close();
+  });
+
   testWidgets('first frame enables texture; failure resumes screenshot polling', (
     tester,
   ) async {
@@ -100,13 +146,15 @@ void main() {
     var captures = 0;
     await tester.pumpWidget(
       host(
-        ScreenPanel(
-          platform: platform,
-          accessGranted: true,
-          loadScreenshot: () async {
-            captures++;
-            return null;
-          },
+        SingleChildScrollView(
+          child: ScreenPanel(
+            platform: platform,
+            accessGranted: true,
+            loadScreenshot: () async {
+              captures++;
+              return null;
+            },
+          ),
         ),
       ),
     );
@@ -162,10 +210,12 @@ void main() {
     _mockPlatform(calls);
     await tester.pumpWidget(
       host(
-        ScreenPanel(
-          platform: platform,
-          accessGranted: true,
-          loadScreenshot: () async => null,
+        SingleChildScrollView(
+          child: ScreenPanel(
+            platform: platform,
+            accessGranted: true,
+            loadScreenshot: () async => null,
+          ),
         ),
       ),
     );
@@ -226,10 +276,12 @@ void main() {
     _mockPlatform(calls);
     await tester.pumpWidget(
       host(
-        ScreenPanel(
-          platform: platform,
-          accessGranted: true,
-          loadScreenshot: () async => null,
+        SingleChildScrollView(
+          child: ScreenPanel(
+            platform: platform,
+            accessGranted: true,
+            loadScreenshot: () async => null,
+          ),
         ),
       ),
     );
@@ -437,11 +489,13 @@ void main() {
     final platform = NkasPlatform.testing(events: const Stream.empty());
     var opened = 0;
     Widget screen() => host(
-      ScreenPanel(
-        platform: platform,
-        accessGranted: true,
-        loadScreenshot: () async => null,
-        onOpenNativeControl: () => opened++,
+      SingleChildScrollView(
+        child: ScreenPanel(
+          platform: platform,
+          accessGranted: true,
+          loadScreenshot: () async => null,
+          onOpenNativeControl: () => opened++,
+        ),
       ),
     );
     await tester.pumpWidget(screen());
@@ -492,11 +546,13 @@ void main() {
       final calls = <MethodCall>[];
       _mockPlatform(calls);
       Widget screen(bool access) => host(
-        ScreenPanel(
-          key: const ValueKey('screen'),
-          platform: platform,
-          accessGranted: access,
-          loadScreenshot: () async => null,
+        SingleChildScrollView(
+          child: ScreenPanel(
+            key: const ValueKey('screen'),
+            platform: platform,
+            accessGranted: access,
+            loadScreenshot: () async => null,
+          ),
         ),
       );
       await tester.pumpWidget(screen(true));
