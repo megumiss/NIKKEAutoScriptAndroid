@@ -153,6 +153,115 @@ void main() {
     await events.close();
   });
 
+  testWidgets('fullscreen shows live video and exits when the session ends', (
+    tester,
+  ) async {
+    final events = StreamController<NkasPlatformEvent>.broadcast();
+    final platform = NkasPlatform.testing(events: events.stream);
+    final calls = <MethodCall>[];
+    _mockPlatform(calls);
+    await tester.pumpWidget(
+      host(
+        ScreenPanel(
+          platform: platform,
+          accessGranted: true,
+          loadScreenshot: () async => null,
+        ),
+      ),
+    );
+    await tester.pump();
+    // 无画面时全屏不可用
+    expect(
+      tester
+          .widget<IconButton>(
+            find.widgetWithIcon(IconButton, LucideIcons.maximize),
+          )
+          .onPressed,
+      isNull,
+    );
+    await tester.tap(find.byTooltip('连接设备'));
+    await tester.pump();
+    final id =
+        (calls.firstWhere((c) => c.method == 'nativeScrcpyStart').arguments
+                as Map)['requestId']
+            as String;
+    events.add(
+      ScrcpyVideoEvent(
+        state: 'started',
+        requestId: id,
+        textureId: 9,
+        width: 720,
+        height: 1280,
+      ),
+    );
+    await tester.pump();
+    await tester.tap(find.byTooltip('全屏'));
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('退出全屏'), findsOneWidget);
+    // 画面页与全屏页同时挂载同一纹理（下层路由离屏），720x1280 竖屏宽高比一致
+    expect(find.byType(Texture, skipOffstage: false), findsNWidgets(2));
+    expect(
+      tester.widget<AspectRatio>(find.byType(AspectRatio)).aspectRatio,
+      720 / 1280,
+    );
+
+    // 会话结束自动退出全屏，回到截图回退
+    events.add(
+      ScrcpyVideoEvent(state: 'failed', requestId: id, error: 'disconnected'),
+    );
+    await tester.pump();
+    await tester.pump();
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('退出全屏'), findsNothing);
+    expect(find.byType(Texture), findsNothing);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await events.close();
+  });
+
+  testWidgets('fullscreen closes from its own button', (tester) async {
+    final events = StreamController<NkasPlatformEvent>.broadcast();
+    final platform = NkasPlatform.testing(events: events.stream);
+    final calls = <MethodCall>[];
+    _mockPlatform(calls);
+    await tester.pumpWidget(
+      host(
+        ScreenPanel(
+          platform: platform,
+          accessGranted: true,
+          loadScreenshot: () async => null,
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.tap(find.byTooltip('连接设备'));
+    await tester.pump();
+    final id =
+        (calls.firstWhere((c) => c.method == 'nativeScrcpyStart').arguments
+                as Map)['requestId']
+            as String;
+    events.add(
+      ScrcpyVideoEvent(
+        state: 'started',
+        requestId: id,
+        textureId: 9,
+        width: 720,
+        height: 1280,
+      ),
+    );
+    await tester.pump();
+    await tester.tap(find.byTooltip('全屏'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('退出全屏'));
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('退出全屏'), findsNothing);
+    // 退出全屏不影响控制会话
+    expect(find.byType(Texture), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await events.close();
+  });
+
   testWidgets(
     'connection page fits a small keyboard viewport and cancels pending registration',
     (tester) async {

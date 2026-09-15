@@ -117,6 +117,8 @@ class _ScreenPanelState extends State<ScreenPanel> {
   String nativeState = 'idle';
   String? requestId;
   String? controlTarget;
+  bool _fullscreenOpen = false;
+  NavigatorState? _rootNavigator;
 
   @override
   void initState() {
@@ -151,6 +153,7 @@ class _ScreenPanelState extends State<ScreenPanel> {
   void dispose() {
     timer?.cancel();
     unawaited(platformEvents?.cancel());
+    _closeFullscreen();
     final id = requestId;
     requestId = null;
     if (id != null) {
@@ -197,6 +200,8 @@ class _ScreenPanelState extends State<ScreenPanel> {
         nativeError = event.error ?? '控制连接已断开';
       }
     });
+    // 会话结束后全屏画面不再更新，退出全屏回到截图回退
+    _closeFullscreen();
     _startPolling();
     unawaited(_load());
   }
@@ -258,6 +263,7 @@ class _ScreenPanelState extends State<ScreenPanel> {
         nativeError = null;
       });
     }
+    _closeFullscreen();
     try {
       if (id != null) await platform.nativeScrcpyStop(requestId: id);
     } catch (exception) {
@@ -276,8 +282,60 @@ class _ScreenPanelState extends State<ScreenPanel> {
       nativeState = 'failed';
       nativeError = _message(exception);
     });
+    _closeFullscreen();
     _startPolling();
     unawaited(_load());
+  }
+
+  /// 抽出触摸转发，画面内嵌与全屏共用同一套坐标映射与压力规则
+  Future<void> _sendTouch(String id, NativeTouch touch) =>
+      platform.nativeScrcpyTouch(
+        action: touch.action,
+        pointerId: touch.pointerId,
+        x: touch.x,
+        y: touch.y,
+        screenWidth: touch.width,
+        screenHeight: touch.height,
+        pressure: touch.action == 1 || touch.action == 3 ? 0 : 1,
+        requestId: id,
+      );
+
+  void _openFullscreen() {
+    final id = requestId;
+    final texture = textureId;
+    final image = frame;
+    final live = texture != null && id != null;
+    if (!live && image == null) return;
+    final navigator = Navigator.of(context, rootNavigator: true);
+    _rootNavigator = navigator;
+    _fullscreenOpen = true;
+    unawaited(
+      navigator
+          .push(
+            PageRouteBuilder<void>(
+              transitionDuration: const Duration(milliseconds: 160),
+              pageBuilder: (context, _, _) => _FullscreenVideoPage(
+                textureId: live ? texture : null,
+                width: videoWidth,
+                height: videoHeight,
+                frame: live ? null : image,
+                onTouch: live ? (touch) => _sendTouch(id, touch) : null,
+                onError: live ? _nativeFailure : null,
+              ),
+            ),
+          )
+          .then((_) => _fullscreenOpen = false),
+    );
+  }
+
+  void _closeFullscreen() {
+    if (!_fullscreenOpen) return;
+    _fullscreenOpen = false;
+    final navigator = _rootNavigator;
+    // 面板可能正在销毁，异步退出避免在 dispose 中同步 pop
+    if (navigator != null && navigator.mounted) {
+      unawaited(Future(() => navigator.pop()));
+    }
   }
 
   void _startPolling() {
@@ -374,6 +432,15 @@ class _ScreenPanelState extends State<ScreenPanel> {
                     style: const TextStyle(color: foreground, fontSize: 12),
                   ),
                 ),
+                IconButton(
+                  tooltip: '全屏',
+                  icon: const Icon(LucideIcons.maximize, size: 20),
+                  color: foreground,
+                  disabledColor: foreground.withValues(alpha: .38),
+                  onPressed: !widget.accessGranted || !(live || frame != null)
+                      ? null
+                      : _openFullscreen,
+                ),
                 if (platform.supported) ...[
                   IconButton(
                     tooltip: '控制连接设置',
@@ -434,18 +501,7 @@ class _ScreenPanelState extends State<ScreenPanel> {
                         textureId: textureId!,
                         width: videoWidth,
                         height: videoHeight,
-                        onTouch: (touch) => platform.nativeScrcpyTouch(
-                          action: touch.action,
-                          pointerId: touch.pointerId,
-                          x: touch.x,
-                          y: touch.y,
-                          screenWidth: touch.width,
-                          screenHeight: touch.height,
-                          pressure: touch.action == 1 || touch.action == 3
-                              ? 0
-                              : 1,
-                          requestId: id,
-                        ),
+                        onTouch: (touch) => _sendTouch(id, touch),
                         onError: _nativeFailure,
                       ),
                     )
@@ -531,6 +587,93 @@ class _ScreenPanelState extends State<ScreenPanel> {
 
   String _message(Object error) =>
       error is PlatformException ? error.message ?? '原生连接失败' : error.toString();
+}
+
+/// 全屏画面：隐藏系统栏沉浸式展示，触摸映射与画面内嵌一致；
+/// 会话结束或离开画面页时由 [ScreenPanel] 负责退出
+class _FullscreenVideoPage extends StatefulWidget {
+  const _FullscreenVideoPage({
+    required this.textureId,
+    required this.width,
+    required this.height,
+    required this.frame,
+    required this.onTouch,
+    required this.onError,
+  });
+
+  final int? textureId;
+  final int width;
+  final int height;
+  final ScreenshotFrame? frame;
+  final Future<void> Function(NativeTouch touch)? onTouch;
+  final void Function(Object error)? onError;
+
+  @override
+  State<_FullscreenVideoPage> createState() => _FullscreenVideoPageState();
+}
+
+class _FullscreenVideoPageState extends State<_FullscreenVideoPage> {
+  @override
+  void initState() {
+    super.initState();
+    unawaited(
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky),
+    );
+  }
+
+  @override
+  void dispose() {
+    unawaited(SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge));
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final textureId = widget.textureId;
+    final frame = widget.frame;
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: Center(
+              child: textureId != null && widget.width > 0 && widget.height > 0
+                  ? AspectRatio(
+                      aspectRatio: widget.width / widget.height,
+                      child: NativeVideoSurface(
+                        textureId: textureId,
+                        width: widget.width,
+                        height: widget.height,
+                        onTouch: widget.onTouch ?? (_) async {},
+                        onError: widget.onError ?? (_) {},
+                      ),
+                    )
+                  : frame != null
+                  ? Image.memory(
+                      frame.bytes,
+                      fit: BoxFit.contain,
+                      gaplessPlayback: true,
+                    )
+                  : const SizedBox.shrink(),
+            ),
+          ),
+          Positioned(
+            top: MediaQuery.of(context).padding.top + 6,
+            right: 6,
+            child: IconButton(
+              tooltip: '退出全屏',
+              style: IconButton.styleFrom(
+                backgroundColor: const Color(0x80101D25),
+                foregroundColor: const Color(0xFFD6E3EA),
+              ),
+              icon: const Icon(LucideIcons.minimize, size: 20),
+              onPressed: () => Navigator.of(context).pop(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _NativeTextDialog extends StatefulWidget {
