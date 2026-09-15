@@ -1,6 +1,6 @@
 # NKAS Mobile
 
-`main` 分支以仓库根目录作为 Flutter 工程，直接在这里运行 Flutter 和 `tool/` 下的构建命令。旧版原生 Kotlin Android 客户端已独立保存到 [`codex/legacy-kotlin` 分支](https://github.com/megumiss/NIKKEAutoScriptAndroid/tree/codex/legacy-kotlin)，两套工程分别构建。
+本项目仓库为 [`NIKKEAutoScriptMobile`](https://github.com/megumiss/NIKKEAutoScriptMobile)。`main` 分支以仓库根目录作为 Flutter 工程，直接在这里运行 Flutter 和 `tool/` 下的构建命令。旧版原生 Kotlin Android 客户端已独立保存到 [`codex/legacy-kotlin` 分支](https://github.com/megumiss/NIKKEAutoScriptMobile/tree/codex/legacy-kotlin)，两套工程分别构建。
 
 Flutter 移动客户端连接 NKAS API v2，提供实例、任务、日志、更新和画面页面。Android / iOS 的实时控制由应用内原生 ADB、scrcpy 与可选 tsnet 转发完成。
 

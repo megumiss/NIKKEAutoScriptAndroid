@@ -2,7 +2,7 @@
 
 ## 项目定位
 
-本计划在 `NIKKEAutoScriptAndroid` 仓库根目录 执行，覆盖 Android 和 iOS 的应用内 Tailscale、原生 ADB、scrcpy 视频与输入、Flutter 页面及构建交付。
+本计划在 `NIKKEAutoScriptMobile` 仓库根目录执行，覆盖 Android 和 iOS 的应用内 Tailscale、原生 ADB、scrcpy 视频与输入、Flutter 页面及构建交付。
 
 基础库已重命名为 `tsnet-forwarder`，模块路径为 `github.com/megumiss/tsnet-forwarder`，Go 源码和公开包在该仓库根目录。其本地目录仍为 `D:\PCR\libtsnet-android`。基础库保持独立，不包含 NKAS 业务或 Flutter 页面。
 

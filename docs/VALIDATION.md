@@ -83,7 +83,7 @@ iOS 构建、XCTest 和 Go race 由 GitHub Actions 验证。交付时核对拆�
 
 阶段提交 `8655cb3`（计划迁移与 Go 核心）、`fde8854`（Android / Flutter 控制）、`8818366`（iOS 原生控制与固定 ADB 构建）及后续 CI 修复已推送到 `android/main`。用户已授权自动构建、修复、提交和推送循环。
 
-已验证的 CI 记录：[Android APK 与 33 项 JVM 测试](https://github.com/megumiss/NIKKEAutoScriptAndroid/actions/runs/34747072044/job/103697074164)；[iOS 完整构建、九项 XCTest 与未签名 IPA](https://github.com/megumiss/NIKKEAutoScriptAndroid/actions/runs/34749063803/job/103702315459)。这些记录分别对应提交 `4f46ea4` 和 `2cdfd81`；下载交付产物时，应核对完整双端构建的提交号，并确认两项任务均成功。
+已验证的 CI 记录：[Android APK 与 33 项 JVM 测试](https://github.com/megumiss/NIKKEAutoScriptMobile/actions/runs/34747072044/job/103697074164)；[iOS 完整构建、九项 XCTest 与未签名 IPA](https://github.com/megumiss/NIKKEAutoScriptMobile/actions/runs/34749063803/job/103702315459)。这些记录分别对应提交 `4f46ea4` 和 `2cdfd81`；下载交付产物时，应核对完整双端构建的提交号，并确认两项任务均成功。
 
 ## 真机验收准备
 

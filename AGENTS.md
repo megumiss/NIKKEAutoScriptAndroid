@@ -1,6 +1,6 @@
 # 项目协作指南
 
-本文件只适用于 NIKKEAutoScriptAndroid 仓库；NIKKEAutoScript 的规则、构建和验证独立处理。默认使用简体中文沟通，代码标识符沿用所在模块的命名风格。
+本文件只适用于 NIKKEAutoScriptMobile 仓库；NIKKEAutoScript 的规则、构建和验证独立处理。默认使用简体中文沟通，代码标识符沿用所在模块的命名风格。
 
 ## 开始工作
 

@@ -2,14 +2,13 @@
 
 本文面向仓库根目录的 Flutter 客户端，命令使用 Windows PowerShell。Windows 可以生成 Android APK；iOS 本地构建需要 macOS 和 Xcode，步骤见 [移动端说明](README.md#ios-构建)。
 
-## 这台电脑直接打包
+## 已准备环境的本地打包
 
-当前工程在 `D:\PCR\NIKKEAutoScriptAndroid`，Flutter、Android SDK、原生 AAR 和正式版签名均已准备好。在 PowerShell 中执行：
+确认 Flutter、Android SDK、原生 AAR 和正式版签名均已准备好后，在 `NIKKEAutoScriptMobile` 的本地仓库根目录打开 PowerShell 并执行以下命令。仓库改名不要求重命名本地目录；示例中的工具路径按实际安装位置调整。
 
 以下命令可用于本地构建验证，不会自动分配发布构建号。对外分发前按[版本与构建标识](#版本与构建标识)准备构建号，并传给 Flutter。
 
 ```powershell
-Set-Location 'D:\PCR\NIKKEAutoScriptAndroid'
 $env:ANDROID_HOME = 'D:\Android\Sdk'
 $env:Path = "D:\tools\flutter\bin;$env:Path"
 
@@ -23,10 +22,10 @@ if ($LASTEXITCODE -ne 0) { throw 'APK 原生资源校验失败。' }
 if ($LASTEXITCODE -ne 0) { throw 'APK 签名校验失败。' }
 ```
 
-成功后安装包位于：
+成功后安装包位于仓库根目录下的：
 
 ```text
-D:\PCR\NIKKEAutoScriptAndroid\build\app\outputs\flutter-apk\app-release.apk
+build/app/outputs/flutter-apk/app-release.apk
 ```
 
 把 APK 复制到手机后打开安装即可。每次构建会覆盖这个文件，版本名称取自 `pubspec.yaml`。
@@ -39,7 +38,7 @@ D:\PCR\NIKKEAutoScriptAndroid\build\app\outputs\flutter-apk\app-release.apk
 
 ### 工具版本和路径
 
-先安装下列工具。表中路径是当前电脑的实际位置，在其他电脑上应替换成自己的安装路径。
+先安装下列工具。表中路径来自已有 Windows 构建环境，仅作示例，应替换成自己的安装路径。
 
 | 工具 | 版本要求 | 本机位置或检查方式 |
 | --- | --- | --- |
@@ -51,10 +50,9 @@ D:\PCR\NIKKEAutoScriptAndroid\build\app\outputs\flutter-apk\app-release.apk
 | Python | Python 3，本机为 3.12 | `python --version` |
 | Git | 可在终端调用 | `git --version` |
 
-设置当前 PowerShell 窗口的环境变量：
+在本地仓库根目录设置当前 PowerShell 窗口的环境变量：
 
 ```powershell
-Set-Location 'D:\PCR\NIKKEAutoScriptAndroid'
 $env:ANDROID_HOME = 'D:\Android\Sdk'
 $env:JAVA_HOME = 'C:\Program Files\Java\jdk-17.0.2'
 $env:GOROOT = 'D:\PCR\tools\go1.23.12'
@@ -103,7 +101,7 @@ AAR 缺失，或 `native/tsnet/` 中的 Go 源码、依赖、绑定构建参数�
 正式包读取**仓库根目录**的 `keystore.properties`。已有配置和密钥时继续使用原文件；新电脑需要一并迁移它们。以下是文件布局示例：
 
 ```text
-NIKKEAutoScriptAndroid/
+NIKKEAutoScriptMobile/
   keystore.properties
   release.jks
   android/

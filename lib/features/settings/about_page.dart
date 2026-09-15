@@ -13,8 +13,8 @@ import 'package:nkas_mobile/theme.dart';
 
 const appVersion = '1.2.0';
 
-const _projectRepoUrl = 'https://github.com/megumiss/NIKKEAutoScript';
-const _projectIssuesUrl = 'https://github.com/megumiss/NIKKEAutoScript/issues';
+const _projectRepoUrl = 'https://github.com/megumiss/NIKKEAutoScriptMobile';
+const _projectIssuesUrl = '$_projectRepoUrl/issues';
 
 class AboutPage extends StatefulWidget {
   const AboutPage({required this.connectionController, super.key});
