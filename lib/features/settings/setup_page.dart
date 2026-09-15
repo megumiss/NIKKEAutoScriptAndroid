@@ -209,7 +209,7 @@ class _NkasSetupPageState extends State<NkasSetupPage>
           termuxDownloadFailed = error != null;
         });
       case SetupSerialEvent(:final serial):
-        serialController.text = isIOS ? serial : serial.split(':').last;
+        serialController.text = serial.split(':').last;
         unawaited(_refresh());
       case SetupNoticeEvent(:final message):
         setState(() {
@@ -234,9 +234,7 @@ class _NkasSetupPageState extends State<NkasSetupPage>
       final value = await platform.setupStatus();
       if (!mounted) return;
       if (!serialFocusNode.hasFocus) {
-        serialController.text = isIOS
-            ? value.serial
-            : value.serial.split(':').last;
+        serialController.text = value.serial.split(':').last;
       }
       setState(() {
         status = value;
@@ -392,23 +390,8 @@ class _NkasSetupPageState extends State<NkasSetupPage>
 
   void _onSerialFocusChanged() {
     if (!serialFocusNode.hasFocus) {
-      unawaited(isIOS ? _saveIosSerial() : _saveSerial());
+      unawaited(_saveSerial());
     }
-  }
-
-  Future<void> _saveIosSerial() async {
-    final endpoint = serialController.text.trim();
-    if (endpoint.isEmpty) return;
-    if (!RegExp(
-      r'^(adb://)?(?:\[[0-9a-fA-F:]+\]|[^:]+):\d{1,5}$',
-    ).hasMatch(endpoint)) {
-      if (mounted) _show('请输入 host:port 或 adb://host:port');
-      return;
-    }
-    await platform.setSerial(
-      endpoint.startsWith('adb://') ? endpoint : 'adb://$endpoint',
-    );
-    if (mounted) await _refresh();
   }
 
   Future<bool> _saveSerial({bool refresh = true}) async {
@@ -668,17 +651,6 @@ class _NkasSetupPageState extends State<NkasSetupPage>
                 complete: authorized,
               ),
               const Divider(height: 20),
-              NkasTextField(
-                label: '远程 Android ADB 地址',
-                description:
-                    'iOS 原生 scrcpy 使用此地址直接连接远程 Android；设备需开启 TCP ADB 并确认 RSA 授权。',
-                controller: serialController,
-                focusNode: serialFocusNode,
-                keyboardType: TextInputType.url,
-                onSubmitted: (_) => unawaited(_saveIosSerial()),
-                hintText: '例如 100.64.0.2:5555',
-              ),
-              const Divider(height: 20),
               _IosSetupStep(
                 icon: LucideIcons.server,
                 title: '连接后端服务',
@@ -689,7 +661,7 @@ class _NkasSetupPageState extends State<NkasSetupPage>
               _IosSetupStep(
                 icon: LucideIcons.smartphone,
                 title: '开始控制实例',
-                detail: '从实例页面进入任务、日志和画面',
+                detail: '在设置的控制连接中配置地址，默认使用实例后端 Serial',
                 complete: false,
               ),
             ],
