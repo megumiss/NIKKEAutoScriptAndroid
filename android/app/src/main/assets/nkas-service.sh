@@ -25,15 +25,21 @@ is_healthy() {
     curl -fsS --max-time 3 "${WEBUI_URL}/api/system/status" >/dev/null 2>&1
 }
 
+kill_service() {
+    if is_running; then
+        kill "$(cat "$PID_FILE")" 2>/dev/null || true
+    fi
+    # proot-distro 不转发信号，启动器退出后内层 python 可能继续占用端口
+    pkill -f 'gui[.]py' 2>/dev/null || true
+    rm -f "$PID_FILE"
+}
+
 start_service() {
     if is_running && is_healthy; then
         echo "running"
         return 0
     fi
-    if is_running; then
-        kill "$(cat "$PID_FILE")" 2>/dev/null || true
-        rm -f "$PID_FILE"
-    fi
+    kill_service
     [ -d "$REPO_DIR" ] || { echo "NKAS repository is missing" >&2; return 1; }
     nohup proot-distro run \
         -b "$REPO_DIR:/app/NIKKEAutoScript" \
@@ -45,10 +51,7 @@ start_service() {
 }
 
 stop_service() {
-    if is_running; then
-        kill "$(cat "$PID_FILE")" 2>/dev/null || true
-    fi
-    rm -f "$PID_FILE"
+    kill_service
     echo "stopped"
 }
 

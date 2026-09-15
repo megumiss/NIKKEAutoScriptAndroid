@@ -31,6 +31,8 @@ class OverviewPage extends StatelessWidget {
     required this.calendarLoading,
     required this.calendarError,
     required this.onRefreshCalendar,
+    this.onRestartService,
+    this.restartingService = false,
     super.key,
   });
   final bool serviceRunning;
@@ -47,6 +49,10 @@ class OverviewPage extends StatelessWidget {
   final bool calendarLoading;
   final String? calendarError;
   final Future<void> Function() onRefreshCalendar;
+
+  /// 仅 Android 本机 Termux 部署提供；为 null 时不显示重启按钮
+  final Future<void> Function()? onRestartService;
+  final bool restartingService;
 
   @override
   Widget build(BuildContext context) {
@@ -168,6 +174,18 @@ class OverviewPage extends StatelessWidget {
                     label: '刷新状态',
                     onPressed: () => onRefreshStatus(),
                   ),
+                  if (onRestartService != null) ...[
+                    const SizedBox(width: 8),
+                    SecondaryButton(
+                      compact: true,
+                      icon: LucideIcons.rotateCcw,
+                      label: '重启服务',
+                      loading: restartingService,
+                      onPressed: restartingService
+                          ? null
+                          : () => onRestartService!(),
+                    ),
+                  ],
                 ],
               ),
             ],

@@ -89,6 +89,7 @@ class _NkasShellState extends State<NkasShell> {
   bool loadingCalendar = false;
   String? calendarError;
   String? calendarBaseUrl;
+  bool restartingService = false;
   SchemaInfo? schema;
   bool loadingSchema = false;
   String? schemaError;
@@ -612,6 +613,11 @@ class _NkasShellState extends State<NkasShell> {
       onRefreshStatus: () => widget.connectionController.connect(
         widget.connectionController.state.baseUrl,
       ),
+      onRestartService:
+          isAndroid && widget.connectionController.isLocalDeployment
+          ? _restartLocalService
+          : null,
+      restartingService: restartingService,
       onOpenInstances: () => _pushPage(NkasPage.instances),
       onSelectInstance: (value) {
         setState(() {
@@ -837,6 +843,33 @@ class _NkasShellState extends State<NkasShell> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('无法打开原始 WebUI')));
+    }
+  }
+
+  /// 重启 Termux 中的 NKAS 服务：proot 不转发停止信号，原生侧已连带
+  /// 清理内层 python；进程重启需要几秒，等待后再重连后端
+  Future<void> _restartLocalService() async {
+    if (restartingService) return;
+    setState(() => restartingService = true);
+    try {
+      await NkasPlatform.instance.restartNkasService();
+      await Future<void>.delayed(const Duration(seconds: 4));
+      if (!mounted) return;
+      await widget.connectionController.connect(
+        widget.connectionController.state.baseUrl,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('服务已重启')));
+    } catch (exception) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('重启服务失败：$exception')));
+      }
+    } finally {
+      if (mounted) setState(() => restartingService = false);
     }
   }
 

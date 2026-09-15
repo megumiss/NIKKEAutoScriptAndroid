@@ -419,6 +419,14 @@ class NkasPlatform {
     });
   }
 
+  /// 重启本机 Termux 中的 NKAS 服务（停止会连带清理 proot 内层进程）
+  Future<String> restartNkasService() async {
+    if (!_androidSupported) {
+      throw UnsupportedError('重启服务仅支持 Android 本机部署');
+    }
+    return await _channel.invokeMethod<String>('restartNkasService') ?? '';
+  }
+
   Future<Map<Object?, Object?>> nativeAdbConnect(
     String endpoint, {
     bool useTailscale = false,

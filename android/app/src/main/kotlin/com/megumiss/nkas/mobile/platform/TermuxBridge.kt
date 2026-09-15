@@ -116,6 +116,12 @@ class TermuxBridge(private val context: Context) {
         runCommand("sed -i -E 's/(\"Serial\"[[:space:]]*:[[:space:]]*)\"[^\"]*\"/\\1\"$safe\"/' \$HOME/NIKKEAutoScript/config/nkas.json; sed -i -E 's|^NKAS_SERIAL=.*|NKAS_SERIAL=$safe|' \$HOME/.nkas/settings.env 2>/dev/null; exit 0", onResult)
     }
 
+    fun restartService(onResult: (CommandResult) -> Unit) {
+        val service = Base64.encodeToString(readAssetScript("nkas-service.sh"), Base64.NO_WRAP)
+        val command = "mkdir -p \$HOME/.nkas; echo $service | base64 -d > \$HOME/.nkas/nkas-service.sh; chmod 700 \$HOME/.nkas/nkas-service.sh; \$HOME/.nkas/nkas-service.sh restart"
+        runCommand(command, onResult)
+    }
+
     fun readFullLogs(onResult: (CommandResult) -> Unit) {
         runCommand("printf '%s\\n' '── bootstrap.log ──'; tail -n 300 \$HOME/.nkas/bootstrap.log 2>/dev/null || true; printf '%s\\n' '── nkas-service.log ──'; tail -n 200 \$HOME/.nkas/nkas-service.log 2>/dev/null || true", onResult)
     }

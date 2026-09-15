@@ -117,6 +117,7 @@ class NkasPlatformBridge(private val activity: FlutterActivity) :
                 result.success(value)
             }
             "getNkasSerial" -> readNkasSerial(result)
+            "restartNkasService" -> restartNkasService(result)
             "getLocalBackendEntry" -> readLocalBackendEntry(result)
             "setNkasSerial" -> writeNkasSerial(call, result)
             "getInitConfig" -> result.success(
@@ -335,6 +336,15 @@ class NkasPlatformBridge(private val activity: FlutterActivity) :
             main.post {
                 if (command.exitCode == 0) result.success(command.stdout.trim())
                 else result.error("read_nkas_serial", command.stderr.ifBlank { "无法读取 nkas.json 的 Serial" }, null)
+            }
+        }
+    }
+
+    private fun restartNkasService(result: MethodChannel.Result) {
+        TermuxBridge(activity).restartService { command ->
+            main.post {
+                if (command.exitCode == 0) result.success(command.stdout.trim())
+                else result.error("restart_failed", command.stderr.ifBlank { command.stdout }.ifBlank { "重启 NKAS 服务失败" }, null)
             }
         }
     }
