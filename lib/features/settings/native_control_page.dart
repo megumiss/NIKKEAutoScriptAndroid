@@ -17,6 +17,7 @@ import 'package:nkas_mobile/core/widgets/group_label.dart';
 import 'package:nkas_mobile/core/widgets/page_inset.dart';
 import 'package:nkas_mobile/core/widgets/page_subtitle.dart';
 import 'package:nkas_mobile/core/widgets/surface.dart';
+import 'package:nkas_mobile/core/widgets/tag.dart';
 import 'package:nkas_mobile/core/widgets/toggle.dart';
 
 class NativeControlPage extends StatefulWidget {
@@ -104,10 +105,8 @@ class _NativeControlPageState extends State<NativeControlPage> {
         status = await widget.platform.tsnetStatus();
       }
       if (!mounted) return;
-      setState(() {
-        busy = false;
-        message = 'Tailscale 身份已保存，可连接设备';
-      });
+      // 验证结果由 Tailscale 区的「连接状态」展示，不再用底部小字
+      setState(() => busy = false);
       if (!register) widget.onClose?.call();
     } catch (exception) {
       if (mounted) {
@@ -115,8 +114,43 @@ class _NativeControlPageState extends State<NativeControlPage> {
           busy = false;
           error = _message(exception);
         });
+        unawaited(_refreshStatus());
       }
     }
+  }
+
+  /// 失败后尽力刷新转发器状态，让「连接状态」显示最近错误
+  Future<void> _refreshStatus() async {
+    try {
+      final value = await widget.platform.tsnetStatus();
+      if (mounted) setState(() => status = value);
+    } catch (_) {}
+  }
+
+  /// Tailscale 连接状态徽标：优先展示错误，其次是实时连接与已保存身份
+  String get _statusLabel {
+    if (status.error.isNotEmpty || status.phase == 'error') return '连接出错';
+    if (status.phase == 'connected') return '已连接';
+    if (status.hasPersistedLogin) return '已验证';
+    return '未验证';
+  }
+
+  Color _statusColor(ShadColorScheme scheme) {
+    if (status.error.isNotEmpty || status.phase == 'error') {
+      return scheme.destructive;
+    }
+    if (status.phase == 'connected' || status.hasPersistedLogin) {
+      return scheme.success;
+    }
+    return scheme.mutedForeground;
+  }
+
+  String get _statusDetail {
+    if (status.error.isNotEmpty) return status.error;
+    if (status.hasPersistedLogin) {
+      return status.hostname.isEmpty ? '身份已保存' : '节点 ${status.hostname}';
+    }
+    return '';
   }
 
   Future<void> _clearState() async {
@@ -336,6 +370,10 @@ class _NativeControlPageState extends State<NativeControlPage> {
                         obscureText: true,
                         autocorrect: false,
                         enableSuggestions: false,
+                        // 身份已保存时显示占位符；密钥本身不落盘，输入新密钥可重新注册
+                        hintText: status.hasPersistedLogin
+                            ? '••••••••（已保存）'
+                            : null,
                         validator: (value) =>
                             !busy &&
                                 !status.hasPersistedLogin &&
@@ -344,14 +382,38 @@ class _NativeControlPageState extends State<NativeControlPage> {
                             : null,
                       ),
                       const Divider(height: 18),
-                      Text(
-                        status.hasPersistedLogin
-                            ? (status.hostname.isEmpty
-                                  ? '节点名称暂不可用'
-                                  : status.hostname)
-                            : '节点尚未注册',
-                        style: theme.textTheme.muted,
+                      Row(
+                        children: [
+                          Text(
+                            '连接状态',
+                            style: theme.textTheme.p.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Align(
+                              alignment: Alignment.centerRight,
+                              child: Tag(
+                                label: _statusLabel,
+                                color: _statusColor(theme.colorScheme),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
+                      if (_statusDetail.isNotEmpty) ...[
+                        const SizedBox(height: 6),
+                        Text(
+                          _statusDetail,
+                          style: status.error.isNotEmpty
+                              ? TextStyle(
+                                  color: theme.colorScheme.destructive,
+                                  fontSize: 12,
+                                )
+                              : theme.textTheme.muted,
+                        ),
+                      ],
                       const SizedBox(height: 10),
                       Row(
                         children: [

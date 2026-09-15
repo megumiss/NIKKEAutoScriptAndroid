@@ -373,14 +373,17 @@ void main() {
       );
       await tester.pumpAndSettle();
       await tester.ensureVisible(find.text('清除身份'));
-      expect(find.text('registered-phone'), findsOneWidget);
-      expect(find.text('节点已注册'), findsNothing);
+      // 连接状态单独展示：已验证 + 节点名，AuthKey 输入框显示占位符
+      expect(find.text('连接状态'), findsOneWidget);
+      expect(find.text('已验证'), findsOneWidget);
+      expect(find.textContaining('registered-phone'), findsOneWidget);
+      expect(find.text('••••••••（已保存）'), findsOneWidget);
 
       final nameField = find.byType(TextFormField).at(1);
       await tester.ensureVisible(nameField);
       await tester.enterText(nameField, 'unsaved-phone');
       await tester.pump();
-      expect(find.text('registered-phone'), findsOneWidget);
+      expect(find.textContaining('registered-phone'), findsOneWidget);
 
       status['hasPersistedLogin'] = false;
       await tester.ensureVisible(find.text('清除身份'));
@@ -392,11 +395,39 @@ void main() {
         calls.where((call) => call.method == 'tsnetClearState'),
         hasLength(1),
       );
-      expect(find.text('registered-phone'), findsNothing);
-      expect(find.text('节点尚未注册'), findsOneWidget);
+      expect(find.textContaining('registered-phone'), findsNothing);
+      expect(find.text('未验证'), findsOneWidget);
+      expect(find.text('••••••••（已保存）'), findsNothing);
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets('connection page surfaces tsnet errors in the status row', (
+    tester,
+  ) async {
+    final calls = <MethodCall>[];
+    _mockPlatform(
+      calls,
+      status: const {
+        'phase': 'error',
+        'hostname': '',
+        'hasPersistedLogin': false,
+        'error': 'auth key expired',
+      },
+    );
+    await tester.pumpWidget(
+      host(
+        NativeControlPage(
+          platform: NkasPlatform.testing(events: const Stream.empty()),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('连接状态'));
+    expect(find.text('连接出错'), findsOneWidget);
+    expect(find.text('auth key expired'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('screen stops control when leaving and reconnects manually', (
     tester,

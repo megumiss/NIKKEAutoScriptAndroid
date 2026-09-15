@@ -58,7 +58,7 @@ https://nkas.example.com/entry/<部署页生成的入口密钥>
 
 1. 在控制连接中开启 Tailscale，设置节点名。
 2. 在 [Tailscale 管理后台](https://login.tailscale.com/admin/settings/keys)创建 AuthKey（以 `tskey-auth-` 开头），使应用加入目标设备所在的 tailnet。
-3. 首次注册或清除身份后填写 AuthKey，点击“验证连接”；已保存节点身份时可以留空。
+3. 首次注册或清除身份后填写 AuthKey，点击“验证连接”；已保存节点身份时可以留空，输入框会显示占位符，密钥本身不会保存。验证结果、节点名和最近的连接错误显示在 Tailscale 区的“连接状态”中。
 4. 确认 tailnet ACL 允许访问目标 ADB 端口，再连接画面。
 
 应用内 Tailscale 为 ADB 控制链路提供转发，不要求安装系统 Tailscale 客户端或授权 VPN。它不会接管后端 HTTP/WebSocket 流量；若后端只有 tailnet 地址，手机还需要可访问该地址的系统网络、VPN 或隧道。
