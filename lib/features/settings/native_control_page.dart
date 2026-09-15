@@ -474,23 +474,109 @@ class _NativeControlPageState extends State<NativeControlPage> {
         ],
       ),
     );
-    // 键盘弹出时悬浮按钮会遮住正在编辑的输入框：
-    // 收起键盘前固定在列表下方，不再悬浮在内容上
-    if (nkasKeyboardOpen(context)) {
-      return Column(
-        children: [
-          Expanded(child: content),
-          Padding(
-            padding: EdgeInsets.fromLTRB(inset, 8, inset, 12),
-            child: saveButton,
-          ),
-        ],
-      );
+    return NkasKeyboardGuard(
+      content: content,
+      action: saveButton,
+      inset: inset,
+    );
+  }
+
+  String? _endpointValidator(String? value) {
+    final text = value?.trim() ?? '';
+    final uri = Uri.tryParse(text.startsWith('adb://') ? text : 'adb://$text');
+    if (uri == null ||
+        uri.scheme != 'adb' ||
+        uri.host.isEmpty ||
+        !uri.hasPort ||
+        uri.port < 1 ||
+        uri.port > 65535 ||
+        uri.userInfo.isNotEmpty ||
+        uri.path.isNotEmpty ||
+        uri.hasQuery ||
+        uri.hasFragment) {
+      return '请输入有效的设备地址和端口';
     }
-    return Stack(
+    return null;
+  }
+
+  /// 覆盖地址可留空：留空表示清除覆盖，回退到全局默认或后端 Serial
+  String? _optionalEndpointValidator(String? value) {
+    if ((value?.trim() ?? '').isEmpty) return null;
+    return _endpointValidator(value);
+  }
+
+  /// 实例控制地址行：多实例时可展开编辑单个实例的覆盖地址
+  Widget _instanceEndpointRow(InstanceInfo instance) {
+    final theme = ShadTheme.of(context);
+    final name = instance.name;
+    final multi = widget.instances.length > 1;
+    final expanded = !multi || expandedInstance == name;
+    final override = endpointControllers[name]?.text.trim() ?? '';
+    final serial = serials[name];
+    final summary = override.isNotEmpty
+        ? override
+        : serial != null
+        ? '跟随后端：$serial'
+        : '未配置';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Positioned.fill(child: content),
-        Positioned(left: inset, right: inset, bottom: 12, child: saveButton),
+        if (multi)
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: busy
+                ? null
+                : () => setState(
+                    () => expandedInstance = expandedInstance == name
+                        ? null
+                        : name,
+                  ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          name,
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          summary,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.muted,
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(
+                    expanded ? LucideIcons.chevronUp : LucideIcons.chevronDown,
+                    size: 15,
+                    color: theme.colorScheme.mutedForeground,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        if (expanded)
+          NkasTextField(
+            key: ValueKey('control-endpoint-$name'),
+            label: multi ? '控制地址' : '$name 控制地址',
+            description: serial == null
+                ? '该实例后端 Serial 为空或为 auto，需手动填写；留空使用默认控制地址'
+                : '留空使用后端 Serial；填写后优先于默认控制地址',
+            controller: _controllerFor(name),
+            enabled: !busy,
+            hintText: serial != null ? '默认使用后端 Serial：$serial' : '设备地址:5555',
+            keyboardType: TextInputType.url,
+            autocorrect: false,
+            onChanged: (_) => setState(() {}),
+            validator: _optionalEndpointValidator,
+          ),
       ],
     );
   }

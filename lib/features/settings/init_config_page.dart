@@ -227,24 +227,10 @@ class _InitConfigPageState extends State<InitConfigPage> {
         ],
       ],
     );
-    // 键盘弹出时悬浮按钮会遮住正在编辑的输入框：
-    // 收起键盘前固定在列表下方，不再悬浮在内容上
-    if (nkasKeyboardOpen(context)) {
-      return Column(
-        children: [
-          Expanded(child: content),
-          Padding(
-            padding: EdgeInsets.fromLTRB(inset, 8, inset, 12),
-            child: saveButton,
-          ),
-        ],
-      );
-    }
-    return Stack(
-      children: [
-        Positioned.fill(child: content),
-        Positioned(left: inset, right: inset, bottom: 12, child: saveButton),
-      ],
+    return NkasKeyboardGuard(
+      content: content,
+      action: saveButton,
+      inset: inset,
     );
   }
 }

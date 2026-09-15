@@ -717,4 +717,48 @@ void main() {
       }
     },
   );
+
+  testWidgets('keyboard open pins the action button below the step inputs', (
+    tester,
+  ) async {
+    final events = StreamController<NkasPlatformEvent>.broadcast();
+    final platform = _SetupPlatform(events.stream);
+    try {
+      await _mountSetup(tester, platform);
+
+      // 展开 ADB 设备连接步骤，露出端口与配对码输入框
+      await tester.scrollUntilVisible(
+        find.text('ADB 设备连接'),
+        150,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('ADB 设备连接'));
+      await tester.tap(find.text('ADB 设备连接'));
+      await tester.pumpAndSettle();
+      expect(find.byType(TextFormField), findsNWidgets(2));
+
+      // 键盘弹出后操作按钮固定在列表下方，不再悬浮遮挡输入框
+      tester.view.physicalSize = const Size(360, 640);
+      tester.view.devicePixelRatio = 1;
+      tester.view.viewInsets = const FakeViewPadding(bottom: 260);
+      addTearDown(tester.view.reset);
+      await tester.pumpAndSettle();
+      // 键盘弹出后列表视口变矮，输入框尚未构建，先滚动构建
+      await tester.scrollUntilVisible(
+        find.text('配对码'),
+        100,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.pumpAndSettle();
+      expect(
+        tester.getBottomLeft(find.byType(TextFormField).last).dy,
+        lessThan(tester.getTopLeft(find.byType(NkasFloatingAction)).dy),
+      );
+      expect(tester.takeException(), isNull);
+    } finally {
+      await tester.pumpWidget(const SizedBox.shrink());
+      await events.close();
+    }
+  });
 }

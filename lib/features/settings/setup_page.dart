@@ -494,135 +494,130 @@ class _NkasSetupPageState extends State<NkasSetupPage>
   Widget build(BuildContext context) {
     if (isIOS) return _buildIos(context);
     final inset = nkasPageInset(context);
-    return Stack(
+    final actionButton = SafeArea(
+      top: false,
+      child: NkasFloatingAction(
+        label: _actionLabel,
+        icon: _actionIcon,
+        enabled: !_actionDisabled,
+        loading: running || termuxDownloadActive,
+        onPressed: _handleAction,
+      ),
+    );
+    final content = ListView(
+      padding: EdgeInsets.fromLTRB(inset, 5, inset, 92),
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       children: [
-        Positioned.fill(
-          child: ListView(
-            padding: EdgeInsets.fromLTRB(inset, 5, inset, 92),
-            children: [
-              Text(
-                '准备 Termux、NKAS 服务和本地 Web UI\n'
-                '请开启 Termux 和 NKAS 的自启动、关联启动，并允许后台运行',
-                style: TextStyle(
-                  color: ShadTheme.of(context).colorScheme.mutedForeground,
-                  fontSize: 13,
-                  height: 19 / 13,
-                ),
-              ),
-              const SizedBox(height: 14),
-              if (loading) const LinearProgressIndicator(minHeight: 2),
-              if (error != null) ...[
-                const SizedBox(height: 12),
-                Text(
-                  error!,
-                  style: TextStyle(
-                    color: ShadTheme.of(context).colorScheme.destructive,
-                  ),
-                ),
+        Text(
+          '准备 Termux、NKAS 服务和本地 Web UI\n'
+          '请开启 Termux 和 NKAS 的自启动、关联启动，并允许后台运行',
+          style: TextStyle(
+            color: ShadTheme.of(context).colorScheme.mutedForeground,
+            fontSize: 13,
+            height: 19 / 13,
+          ),
+        ),
+        const SizedBox(height: 14),
+        if (loading) const LinearProgressIndicator(minHeight: 2),
+        if (error != null) ...[
+          const SizedBox(height: 12),
+          Text(
+            error!,
+            style: TextStyle(
+              color: ShadTheme.of(context).colorScheme.destructive,
+            ),
+          ),
+        ],
+        for (final group in groups) ...[
+          const SizedBox(height: 19),
+          Text(group.$1, style: ShadTheme.of(context).textTheme.muted),
+          const SizedBox(height: 8),
+          Surface(
+            padding: EdgeInsets.zero,
+            child: Column(
+              children: [
+                for (var index = 0; index < group.$2.length; index++) ...[
+                  if (index > 0) const Divider(height: 1),
+                  _setupStepRow(group.$2[index], index + 1),
+                ],
               ],
-              for (final group in groups) ...[
-                const SizedBox(height: 19),
-                Text(group.$1, style: ShadTheme.of(context).textTheme.muted),
-                const SizedBox(height: 8),
-                Surface(
-                  padding: EdgeInsets.zero,
-                  child: Column(
-                    children: [
-                      for (var index = 0; index < group.$2.length; index++) ...[
-                        if (index > 0) const Divider(height: 1),
-                        _setupStepRow(group.$2[index], index + 1),
-                      ],
-                    ],
-                  ),
-                ),
-              ],
-              if (widget.onOpenInitConfig != null) ...[
-                const SizedBox(height: 19),
-                Text('下载与仓库', style: ShadTheme.of(context).textTheme.muted),
-                const SizedBox(height: 8),
-                Surface(
-                  padding: EdgeInsets.zero,
-                  child: Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      onTap: widget.onOpenInitConfig,
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(minHeight: 61),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 9,
-                          ),
-                          child: Row(
+            ),
+          ),
+        ],
+        if (widget.onOpenInitConfig != null) ...[
+          const SizedBox(height: 19),
+          Text('下载与仓库', style: ShadTheme.of(context).textTheme.muted),
+          const SizedBox(height: 8),
+          Surface(
+            padding: EdgeInsets.zero,
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: widget.onOpenInitConfig,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(minHeight: 61),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 9,
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          LucideIcons.settings2,
+                          size: 16,
+                          color: ShadTheme.of(
+                            context,
+                          ).colorScheme.mutedForeground,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Icon(
-                                LucideIcons.settings2,
-                                size: 16,
-                                color: ShadTheme.of(
-                                  context,
-                                ).colorScheme.mutedForeground,
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const Text(
-                                      '初始化配置',
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 3),
-                                    Text(
-                                      '下载源、项目仓库、Docker 镜像与 WebUI 地址',
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(
-                                        color: ShadTheme.of(
-                                          context,
-                                        ).colorScheme.mutedForeground,
-                                        fontSize: 11,
-                                      ),
-                                    ),
-                                  ],
+                              const Text(
+                                '初始化配置',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
                                 ),
                               ),
-                              Icon(
-                                LucideIcons.chevronRight,
-                                size: 15,
-                                color: ShadTheme.of(
-                                  context,
-                                ).colorScheme.mutedForeground,
+                              const SizedBox(height: 3),
+                              Text(
+                                '下载源、项目仓库、Docker 镜像与 WebUI 地址',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: ShadTheme.of(
+                                    context,
+                                  ).colorScheme.mutedForeground,
+                                  fontSize: 11,
+                                ),
                               ),
                             ],
                           ),
                         ),
-                      ),
+                        Icon(
+                          LucideIcons.chevronRight,
+                          size: 15,
+                          color: ShadTheme.of(
+                            context,
+                          ).colorScheme.mutedForeground,
+                        ),
+                      ],
                     ),
                   ),
                 ),
-              ],
-            ],
-          ),
-        ),
-        Positioned(
-          left: inset,
-          right: inset,
-          bottom: 12,
-          child: SafeArea(
-            top: false,
-            child: NkasFloatingAction(
-              label: _actionLabel,
-              icon: _actionIcon,
-              enabled: !_actionDisabled,
-              loading: running || termuxDownloadActive,
-              onPressed: _handleAction,
+              ),
             ),
           ),
-        ),
+        ],
       ],
+    );
+    return NkasKeyboardGuard(
+      content: content,
+      action: actionButton,
+      inset: inset,
     );
   }
 
