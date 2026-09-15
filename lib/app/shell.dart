@@ -25,6 +25,7 @@ import 'package:nkas_mobile/features/deploy/deploy_page.dart';
 import 'package:nkas_mobile/features/overview/overview_page.dart';
 import 'package:nkas_mobile/features/settings/settings_page.dart';
 import 'package:nkas_mobile/features/settings/backend_address_page.dart';
+import 'package:nkas_mobile/features/settings/init_config_page.dart';
 import 'package:nkas_mobile/features/settings/setup_page.dart';
 import 'package:nkas_mobile/features/settings/native_control_page.dart';
 import 'package:nkas_mobile/features/settings/star_verify_page.dart';
@@ -778,6 +779,9 @@ class _NkasShellState extends State<NkasShell> {
         StarVerifyPage(onOpenSetup: () => unawaited(_openSetup())),
       ),
       onOpenUi: _openWebUi,
+      onOpenInitConfig: isAndroid
+          ? () => _pushSubPage('初始化配置', const InitConfigPage())
+          : null,
     );
     if (!isAndroid && !isIOS) {
       _pushSubPage('初始化', page());

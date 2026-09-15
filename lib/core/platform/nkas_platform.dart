@@ -7,6 +7,54 @@ import 'package:nkas_mobile/core/platform/runtime_platform.dart';
 import 'package:nkas_mobile/core/platform/native_control_settings.dart';
 import 'package:nkas_mobile/core/api/backend_address.dart';
 
+class InitConfigSource {
+  const InitConfigSource({required this.label, required this.value});
+
+  final String label;
+  final String value;
+}
+
+/// Android 初始化（Termux 安装）使用的下载源与仓库配置，
+/// 与原生 SettingsStore 的 SharedPreferences 保持一致。
+class InitConfig {
+  const InitConfig({
+    required this.webUiUrl,
+    required this.repository,
+    required this.aptSource,
+    required this.dockerImage,
+    this.repositorySources = const [],
+    this.aptSources = const [],
+  });
+
+  final String webUiUrl;
+  final String repository;
+  final String aptSource;
+  final String dockerImage;
+  final List<InitConfigSource> repositorySources;
+  final List<InitConfigSource> aptSources;
+
+  factory InitConfig.fromMap(Map<Object?, Object?> map) {
+    List<InitConfigSource> sources(Object? raw) => raw is List
+        ? [
+            for (final item in raw)
+              if (item is Map)
+                InitConfigSource(
+                  label: item['label'] as String? ?? '',
+                  value: item['value'] as String? ?? '',
+                ),
+          ]
+        : const [];
+    return InitConfig(
+      webUiUrl: map['webUiUrl'] as String? ?? '',
+      repository: map['repository'] as String? ?? '',
+      aptSource: map['aptSource'] as String? ?? '',
+      dockerImage: map['dockerImage'] as String? ?? '',
+      repositorySources: sources(map['repositorySources']),
+      aptSources: sources(map['aptSources']),
+    );
+  }
+}
+
 class StarAuthorization {
   const StarAuthorization({
     required this.authorized,
@@ -265,6 +313,28 @@ class NkasPlatform {
     }
     final value = await _channel.invokeMethod<Object?>('getSetupStatus');
     return SetupStatus.fromMap(_map(value));
+  }
+
+  Future<InitConfig?> initConfig() async {
+    if (!_androidSupported) return null;
+    return InitConfig.fromMap(
+      _map(await _channel.invokeMethod<Object?>('getInitConfig')),
+    );
+  }
+
+  Future<void> saveInitConfig({
+    required String webUiUrl,
+    required String repository,
+    required String aptSource,
+    required String dockerImage,
+  }) async {
+    if (!_androidSupported) throw UnsupportedError('初始化配置仅支持 Android');
+    await _channel.invokeMethod<void>('saveInitConfig', <String, Object?>{
+      'webUiUrl': webUiUrl,
+      'repository': repository,
+      'aptSource': aptSource,
+      'dockerImage': dockerImage,
+    });
   }
 
   Future<void> startSetup() async {

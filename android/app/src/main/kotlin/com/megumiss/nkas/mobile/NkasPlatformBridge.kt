@@ -119,6 +119,21 @@ class NkasPlatformBridge(private val activity: FlutterActivity) :
             "getNkasSerial" -> readNkasSerial(result)
             "getLocalBackendEntry" -> readLocalBackendEntry(result)
             "setNkasSerial" -> writeNkasSerial(call, result)
+            "getInitConfig" -> result.success(
+                mapOf(
+                    "webUiUrl" to SettingsStore.webUiUrl(activity),
+                    "repository" to SettingsStore.repository(activity),
+                    "aptSource" to SettingsStore.aptSource(activity),
+                    "dockerImage" to SettingsStore.dockerImage(activity),
+                    "repositorySources" to SettingsStore.repositorySources.map {
+                        mapOf("label" to it.label, "value" to it.value)
+                    },
+                    "aptSources" to SettingsStore.aptSources.map {
+                        mapOf("label" to it.label, "value" to it.value)
+                    },
+                ),
+            )
+            "saveInitConfig" -> saveInitConfig(call, result)
             "getInitialNoticeShown" -> result.success(
                 activity.getSharedPreferences(SETUP_PREFS_NAME, 0)
                     .getBoolean(KEY_INITIAL_NOTICE_SHOWN, false),
@@ -153,6 +168,36 @@ class NkasPlatformBridge(private val activity: FlutterActivity) :
         "repository" to license.repository,
         "expiresAt" to license.expiresAt,
     )
+
+    private fun saveInitConfig(call: MethodCall, result: MethodChannel.Result) {
+        val webUi = SettingsStore.normalizeWebUiUrl(call.argument<String>("webUiUrl").orEmpty())
+        if (webUi == null) {
+            result.error("invalid_webui", "WebUI 地址格式不正确，例如：http://127.0.0.1:12271", null)
+            return
+        }
+        val repository = call.argument<String>("repository")?.trim().orEmpty()
+        if (SettingsStore.repositorySources.none { it.value == repository }) {
+            result.error("invalid_repository", "项目仓库不在可选列表中", null)
+            return
+        }
+        val apt = call.argument<String>("aptSource")?.trim().orEmpty()
+        if (SettingsStore.aptSources.none { it.value == apt }) {
+            result.error("invalid_apt", "Termux apt 源不在可选列表中", null)
+            return
+        }
+        val docker = call.argument<String>("dockerImage")?.trim().orEmpty()
+        if (!docker.matches(Regex("[A-Za-z0-9._/-]+:[A-Za-z0-9._-]+"))) {
+            result.error("invalid_docker", "Docker 镜像格式不正确，例如：docker.1ms.run/megumiss/nkas:latest", null)
+            return
+        }
+        activity.getSharedPreferences(SettingsStore.PREFS_NAME, 0).edit()
+            .putString("apt_source", apt)
+            .putString("repository", repository)
+            .putString("docker_image", docker)
+            .putString("webui_url", webUi)
+            .apply()
+        result.success(true)
+    }
 
     private fun beginStar(result: MethodChannel.Result) {
         val state = UUID.randomUUID().toString()

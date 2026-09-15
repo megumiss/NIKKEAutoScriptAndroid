@@ -18,12 +18,16 @@ class NkasSetupPage extends StatefulWidget {
   const NkasSetupPage({
     required this.onOpenStar,
     required this.onOpenUi,
+    this.onOpenInitConfig,
     this.platform,
     super.key,
   });
 
   final VoidCallback onOpenStar;
   final VoidCallback onOpenUi;
+
+  /// Android 初始化下载源与仓库配置入口；为空时隐藏入口卡片
+  final VoidCallback? onOpenInitConfig;
   final NkasPlatform? platform;
 
   @override
@@ -529,6 +533,74 @@ class _NkasSetupPageState extends State<NkasSetupPage>
                         _setupStepRow(group.$2[index], index + 1),
                       ],
                     ],
+                  ),
+                ),
+              ],
+              if (widget.onOpenInitConfig != null) ...[
+                const SizedBox(height: 19),
+                Text('下载与仓库', style: ShadTheme.of(context).textTheme.muted),
+                const SizedBox(height: 8),
+                Surface(
+                  padding: EdgeInsets.zero,
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: widget.onOpenInitConfig,
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(minHeight: 61),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 9,
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                LucideIcons.settings2,
+                                size: 16,
+                                color: ShadTheme.of(
+                                  context,
+                                ).colorScheme.mutedForeground,
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text(
+                                      '初始化配置',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 3),
+                                    Text(
+                                      '下载源、项目仓库、Docker 镜像与 WebUI 地址',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        color: ShadTheme.of(
+                                          context,
+                                        ).colorScheme.mutedForeground,
+                                        fontSize: 11,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Icon(
+                                LucideIcons.chevronRight,
+                                size: 15,
+                                color: ShadTheme.of(
+                                  context,
+                                ).colorScheme.mutedForeground,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
                 ),
               ],
