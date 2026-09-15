@@ -161,11 +161,11 @@ python3 tool/verify_native.py --app build/ios/iphoneos/Runner.app
 [Flutter Release](.github/workflows/flutter-release.yml) 通过 `workflow_dispatch` 手动触发，流程为：
 
 1. 公共检查：核对显示版本和正整数构建号，执行 Flutter analyze/test、Go race、原生工具测试、许可证和资源核查。
-2. Android：生成 AAR、执行 Kotlin 测试，构建并逐个校验 armeabi-v7a、arm64-v8a、x86_64 分包和 universal 通用包，共四个签名 APK。
+2. Android：生成 AAR、执行 Kotlin 测试，构建并逐个校验 armeabi-v7a、arm64-v8a、x86_64 三个签名分包 APK。
 3. iOS：生成 XCFramework、编译模拟器应用、执行 XCTest、生成 IPA 并检查包内资源。
 4. 完整双端构建成功后：下载本次运行的安装包，生成 `SHA256SUMS`，自动创建并发布与显示版本对应的 GitHub Release（例如 `v1.2.1`），标签指向本次构建提交。
 
-默认构建两端。`ios_only` 用于排障，跳过 Android 和 Release 发布，保留公共检查与 iOS artifacts；`ios_signed` 选择带 Apple 签名的 IPA，默认生成未签名 IPA。工作流保留 Actions artifacts，安装包使用 `nkas-mobile-<显示版本>-<构建号>-android-<ABI或universal>.apk`、`nkas-mobile-<显示版本>-<构建号>-ios-<signed或unsigned>.ipa` 命名。
+默认构建两端。`ios_only` 用于排障，跳过 Android 和 Release 发布，保留公共检查与 iOS artifacts；`ios_signed` 选择带 Apple 签名的 IPA，默认生成未签名 IPA。工作流保留 Actions artifacts，安装包使用 `nkas-mobile-<显示版本>-<构建号>-android-<ABI>.apk`、`nkas-mobile-<显示版本>-<构建号>-ios-<signed或unsigned>.ipa` 命名。
 
 仅发布任务授予 `contents: write`，使用内置 `GITHUB_TOKEN` 创建 Release，无需额外发布令牌。新 Release 先创建草稿，全部附件上传成功后公开；同版本、同提交重试会复用 Release 并更新同名附件。已有版本标签若指向其他提交则拒绝发布，需要先升版。构建失败或取消不会进入发布任务。工作流不自动修改源码版本或分配构建号，发布前须按下节分配版本。
 
