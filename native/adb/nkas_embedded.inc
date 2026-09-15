@@ -25,7 +25,8 @@ extern "C" const char* nkas_adb_last_error() {
 }
 
 extern "C" int nkas_adb_start_server(const char* socket_spec) {
-    if (!socket_spec || std::string_view(socket_spec).find("tcp:127.0.0.1:") != 0) return -1;
+    // adb 的监听器只接受 localhost/空主机名，127.0.0.1 会被拒绝
+    if (!socket_spec || std::string_view(socket_spec).find("tcp:localhost:") != 0) return -1;
     std::unique_lock<std::mutex> lock(nkas_start_mutex);
     // 服务线程进入 failed 前已经退出，可以重新开始；starting/ready 复用现有线程
     if (nkas_start_state == NkasAdbState::failed) nkas_start_state = NkasAdbState::idle;

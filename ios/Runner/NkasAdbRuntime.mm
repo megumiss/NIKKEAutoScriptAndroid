@@ -49,6 +49,7 @@ void adb_connect_status_updated(const char *serial, const char *status) {
     setenv("HOME", adbHome.fileSystemRepresentation, 1);
 
     // The embedded adb server uses the same loopback smart-socket API as desktop adb.
+    // adb 只接受空主机名或 localhost 作为监听地址，127.0.0.1 会被拒绝
     int probe = socket(AF_INET, SOCK_STREAM, 0);
     struct sockaddr_in address = {};
     address.sin_len = sizeof(address);
@@ -63,7 +64,7 @@ void adb_connect_status_updated(const char *serial, const char *status) {
     }
     NSInteger port = ntohs(address.sin_port);
     close(probe);
-    NSString *socketSpec = [NSString stringWithFormat:@"tcp:127.0.0.1:%ld", (long)port];
+    NSString *socketSpec = [NSString stringWithFormat:@"tcp:localhost:%ld", (long)port];
     int result = -1;
     NSString *failure;
     try {
