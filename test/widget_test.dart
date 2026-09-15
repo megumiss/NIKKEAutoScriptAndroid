@@ -75,7 +75,10 @@ Map<String, dynamic> _schemaFixture() => {
   },
 };
 
-ConnectionController _connectedController({_MemoryBackendSettings? settings}) {
+ConnectionController _connectedController({
+  _MemoryBackendSettings? settings,
+  bool updateBehind = false,
+}) {
   final client = MockClient((request) async {
     if (request.url.path.endsWith('/api/instances')) {
       return http.Response.bytes(
@@ -267,7 +270,9 @@ ConnectionController _connectedController({_MemoryBackendSettings? settings}) {
         jsonEncode({
           'state': 0,
           'error': null,
-          'local': ['abc123', 'tester', '2026-09-10 10:00:00 +0800', 'test'],
+          'local': updateBehind
+              ? ['def456', 'tester', '2026-09-08 09:30:00 +0800', 'test']
+              : ['abc123', 'tester', '2026-09-10 10:00:00 +0800', 'test'],
           'upstream': ['abc123', 'tester', '2026-09-10 10:00:00 +0800', 'test'],
           'history': [
             ['abc123', 'tester', '2026-09-10 10:00:00 +0800', '修复调度重启问题'],
@@ -350,8 +355,12 @@ ConnectionController _connectedController({_MemoryBackendSettings? settings}) {
 Future<ConnectionController> _pumpTestApp(
   WidgetTester tester, {
   _MemoryBackendSettings? settings,
+  bool updateBehind = false,
 }) async {
-  final controller = _connectedController(settings: settings);
+  final controller = _connectedController(
+    settings: settings,
+    updateBehind: updateBehind,
+  );
   addTearDown(controller.dispose);
   await tester.pumpWidget(
     NkasMobileApp(connectionController: controller, enableRealtime: false),
@@ -387,6 +396,20 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('关于'), findsOneWidget);
+  });
+
+  testWidgets('update behind marks settings nav and entry with a red dot', (
+    tester,
+  ) async {
+    await _pumpTestApp(tester, updateBehind: true);
+
+    await tester.tap(find.byTooltip('设置'));
+    await tester.pumpAndSettle();
+
+    // 后端状态陈旧（state 0）但本地提交落后于更新记录，识别为有更新
+    expect(find.text('当前 test · 有新版本'), findsOneWidget);
+    // 底部导航「设置」与「更新」行各一个红点
+    expect(find.byKey(const ValueKey('nkas-update-dot')), findsNWidgets(2));
   });
 
   testWidgets('update entry opens the update subpage with history', (

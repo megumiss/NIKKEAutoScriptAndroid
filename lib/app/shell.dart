@@ -503,6 +503,8 @@ class _NkasShellState extends State<NkasShell> {
                             child: _BottomNav(
                               page: page,
                               onSelect: _selectRootPage,
+                              updateAvailable:
+                                  widget.connectionController.updateAvailable,
                             ),
                           ),
                         ],
@@ -1009,9 +1011,14 @@ class _SubPageScaffold extends StatelessWidget {
 }
 
 class _BottomNav extends StatelessWidget {
-  const _BottomNav({required this.page, required this.onSelect});
+  const _BottomNav({
+    required this.page,
+    required this.onSelect,
+    this.updateAvailable = false,
+  });
   final NkasPage page;
   final ValueChanged<NkasPage> onSelect;
+  final bool updateAvailable;
 
   @override
   Widget build(BuildContext context) {
@@ -1073,6 +1080,7 @@ class _BottomNav extends StatelessWidget {
                     icon: LucideIcons.settings2,
                     label: '设置',
                     selected: page == NkasPage.settings,
+                    badge: updateAvailable,
                     onTap: () => onSelect(NkasPage.settings),
                   ),
                 ],
@@ -1091,11 +1099,13 @@ class _NavItem extends StatelessWidget {
     required this.label,
     required this.selected,
     required this.onTap,
+    this.badge = false,
   });
   final IconData icon;
   final String label;
   final bool selected;
   final VoidCallback onTap;
+  final bool badge;
 
   @override
   Widget build(BuildContext context) {
@@ -1132,6 +1142,20 @@ class _NavItem extends StatelessWidget {
                     height: 4,
                     decoration: BoxDecoration(
                       color: scheme.primary,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ),
+              if (badge)
+                Positioned(
+                  top: 5,
+                  right: 5,
+                  child: Container(
+                    key: const ValueKey('nkas-update-dot'),
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: scheme.destructive,
                       shape: BoxShape.circle,
                     ),
                   ),

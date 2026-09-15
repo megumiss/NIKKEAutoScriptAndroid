@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import 'package:nkas_mobile/core/api/update_info.dart';
 import 'package:nkas_mobile/core/widgets/icon_box.dart';
 import 'package:nkas_mobile/core/connection/connection_controller.dart';
 import 'package:nkas_mobile/core/platform/nkas_platform.dart';
@@ -253,9 +252,9 @@ class _UpdateSettingRow extends StatefulWidget {
 }
 
 class _UpdateSettingRowState extends State<_UpdateSettingRow> {
-  UpdateInfo? info;
   String? error;
   String? loadedBaseUrl;
+  bool _loading = false;
 
   @override
   void initState() {
@@ -280,29 +279,42 @@ class _UpdateSettingRowState extends State<_UpdateSettingRow> {
   }
 
   void _connectionChanged() {
+    if (!mounted) return;
+    setState(() {});
     final connection = widget.connectionController.state;
-    if (widget.enabled &&
-        connection.phase == ConnectionPhase.connected &&
-        loadedBaseUrl != connection.baseUrl) {
-      unawaited(_load());
+    if (!widget.enabled ||
+        connection.phase != ConnectionPhase.connected ||
+        loadedBaseUrl == connection.baseUrl ||
+        _loading) {
+      return;
     }
+    // 控制器连接成功后已预取更新状态，直接复用
+    final info = widget.connectionController.updateInfo;
+    if (info != null) {
+      loadedBaseUrl = connection.baseUrl;
+      error = info.error;
+      return;
+    }
+    unawaited(_load());
   }
 
   Future<void> _load() async {
     if (!widget.enabled) return;
+    _loading = true;
     final baseUrl = widget.connectionController.state.baseUrl;
     try {
-      final value = await widget.connectionController.fetchUpdateInfo();
+      await widget.connectionController.refreshUpdateInfo();
       if (!mounted || widget.connectionController.state.baseUrl != baseUrl) {
         return;
       }
       setState(() {
-        info = value;
-        error = value.error;
+        error = widget.connectionController.updateInfo?.error;
         loadedBaseUrl = baseUrl;
       });
     } catch (exception) {
       if (mounted) setState(() => error = exception.toString());
+    } finally {
+      _loading = false;
     }
   }
 
@@ -314,6 +326,7 @@ class _UpdateSettingRowState extends State<_UpdateSettingRow> {
       icon: LucideIcons.squareArrowUp,
       title: '更新',
       subtitle: _subtitle(connected),
+      badge: widget.connectionController.updateAvailable,
       enabled: widget.enabled && connected,
       onTap: widget.enabled && connected ? widget.onTap : null,
     );
@@ -323,7 +336,8 @@ class _UpdateSettingRowState extends State<_UpdateSettingRow> {
     if (!connected) return '连接后端后检查源码版本';
     if (error != null && error!.isNotEmpty) return error!;
     final current = widget.connectionController.state.status?.version;
-    final state = info?.stateLabel ?? '检查源码的新版本';
+    final state =
+        widget.connectionController.updateInfo?.stateLabel ?? '检查源码的新版本';
     return current == null ? state : '当前 $current · $state';
   }
 }
@@ -365,6 +379,7 @@ class _SettingRow extends StatelessWidget {
     this.customTrailing,
     this.onTap,
     this.enabled = true,
+    this.badge = false,
   });
   final IconData? icon;
   final Color? iconColor;
@@ -374,6 +389,7 @@ class _SettingRow extends StatelessWidget {
   final Widget? customTrailing;
   final VoidCallback? onTap;
   final bool enabled;
+  final bool badge;
 
   @override
   Widget build(BuildContext context) {
@@ -385,9 +401,28 @@ class _SettingRow extends StatelessWidget {
         child: Row(
           children: [
             if (icon != null) ...[
-              IconBox(
-                icon: icon!,
-                color: iconColor ?? theme.colorScheme.success,
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  IconBox(
+                    icon: icon!,
+                    color: iconColor ?? theme.colorScheme.success,
+                  ),
+                  if (badge)
+                    Positioned(
+                      top: -2,
+                      right: -2,
+                      child: Container(
+                        key: const ValueKey('nkas-update-dot'),
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.destructive,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    ),
+                ],
               ),
               const SizedBox(width: 11),
             ],

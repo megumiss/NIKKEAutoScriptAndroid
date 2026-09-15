@@ -52,11 +52,20 @@ class UpdateInfo {
       state == 'start' || state == 'wait' || state == 'run update';
   bool get available => state == 1 || state == '1';
 
+  /// 有更新：后端状态为 1；后端未检查或状态陈旧时用提交记录兜底，
+  /// 本地提交在记录中不是最新一条即视为落后，避免误显示已是最新
+  bool get updateAvailable {
+    if (available) return true;
+    final sha = localSha;
+    if (sha == null) return false;
+    return history.indexWhere((commit) => commit.sha == sha) > 0;
+  }
+
   String get stateLabel {
     if (checking) return '检查中';
     if (running) return '更新中';
-    if (available) return '有新版本';
     if (state == 'failed') return '更新失败';
+    if (updateAvailable) return '有新版本';
     return '已是最新';
   }
 

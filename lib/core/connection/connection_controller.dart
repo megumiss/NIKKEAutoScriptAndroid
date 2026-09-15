@@ -73,8 +73,14 @@ class ConnectionController extends ChangeNotifier {
   bool _disposed = false;
   Future<bool>? _recovery;
   BackendConnectionState _state;
+  UpdateInfo? _updateInfo;
 
   BackendConnectionState get state => _state;
+
+  /// 最近一次连接成功后端后获取的源码更新状态，
+  /// 设置入口与底部导航的更新红点共用
+  UpdateInfo? get updateInfo => _updateInfo;
+  bool get updateAvailable => _updateInfo?.updateAvailable ?? false;
   int get credentialRevision => _credentialRevision;
   bool get isLocalDeployment => _localDeployment;
   Map<String, String> headersFor(Uri uri) => _api.headersFor(uri);
@@ -181,6 +187,7 @@ class ConnectionController extends ChangeNotifier {
           message: status.version == null ? null : '后端版本 ${status.version}',
         ),
       );
+      unawaited(_preloadUpdateInfo());
       return true;
     } on TimeoutException {
       if (generation != _generation || _disposed) return false;
@@ -369,6 +376,32 @@ class ConnectionController extends ChangeNotifier {
     return _api.fetchUpdateInfo(_state.baseUrl);
   }
 
+  /// 获取并缓存源码更新状态，更新红点随通知刷新
+  Future<UpdateInfo> refreshUpdateInfo() async {
+    final value = await fetchUpdateInfo();
+    if (!_disposed && _state.phase == ConnectionPhase.connected) {
+      _updateInfo = value;
+      notifyListeners();
+    }
+    return value;
+  }
+
+  Future<void> _preloadUpdateInfo() async {
+    final generation = _generation;
+    try {
+      final value = await _api.fetchUpdateInfo(_state.baseUrl);
+      if (_disposed ||
+          generation != _generation ||
+          _state.phase != ConnectionPhase.connected) {
+        return;
+      }
+      _updateInfo = value;
+      notifyListeners();
+    } catch (_) {
+      /* 更新红点尽力而为，失败由更新页展示具体错误 */
+    }
+  }
+
   Future<void> checkForUpdate() {
     if (_state.phase != ConnectionPhase.connected) {
       return Future.error(const ApiException('后端未连接'));
@@ -472,6 +505,8 @@ class ConnectionController extends ChangeNotifier {
 
   void _setState(BackendConnectionState value) {
     if (_disposed) return;
+    // 离开已连接状态后更新状态属于旧后端，不再展示
+    if (value.phase != ConnectionPhase.connected) _updateInfo = null;
     _state = value;
     notifyListeners();
   }

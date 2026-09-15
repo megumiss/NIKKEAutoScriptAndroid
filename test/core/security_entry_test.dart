@@ -227,7 +227,8 @@ void main() {
               await responseReady.future;
               return json(entry(current));
             }
-            healthRequests++;
+            // 连接成功后会后台预取更新状态，不算健康检查
+            if (request.url.path.endsWith('/status')) healthRequests++;
             return status(
               authorized: request.headers['Authorization'] == 'Bearer $current',
             );

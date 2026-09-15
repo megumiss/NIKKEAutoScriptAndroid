@@ -69,7 +69,7 @@ class _UpdatePageState extends State<UpdatePage> {
     if (!widget.enabled) return;
     final baseUrl = widget.connectionController.state.baseUrl;
     try {
-      final value = await widget.connectionController.fetchUpdateInfo();
+      final value = await widget.connectionController.refreshUpdateInfo();
       if (!mounted || widget.connectionController.state.baseUrl != baseUrl) {
         return;
       }
@@ -150,7 +150,7 @@ class _UpdatePageState extends State<UpdatePage> {
     for (var round = 0; round < maxRounds && mounted; round++) {
       await Future<void>.delayed(const Duration(seconds: 2));
       try {
-        final value = await widget.connectionController.fetchUpdateInfo();
+        final value = await widget.connectionController.refreshUpdateInfo();
         if (!mounted) return;
         setState(() {
           info = value;
@@ -288,7 +288,7 @@ class _UpdatePageState extends State<UpdatePage> {
         onPressed: null,
       );
     }
-    final available = info?.available == true;
+    final available = info?.updateAvailable == true;
     final retry = info?.state == 'failed' && (info?.error?.isEmpty ?? true);
     if (available || retry) {
       return PrimaryButton(

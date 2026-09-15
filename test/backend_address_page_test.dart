@@ -49,7 +49,8 @@ void main() {
     final controller = ConnectionController(
       api: ApiClient(
         client: MockClient((request) {
-          requests++;
+          // 连接成功后会后台预取更新状态，不计入连接请求
+          if (!request.url.path.endsWith('/api/system/update')) requests++;
           return requests == 1
               ? pending.future
               : Future.value(statusResponse());
