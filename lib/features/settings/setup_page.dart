@@ -1324,13 +1324,13 @@ class _StepLogState extends State<_StepLog> {
             if (widget.error != null) ...[
               Text(
                 widget.error!,
-                textAlign: TextAlign.center,
+                textAlign: TextAlign.left,
                 style: logStyle.copyWith(color: scheme.destructive),
               ),
               if (widget.text.isNotEmpty) const SizedBox(height: 8),
             ],
             if (widget.text.isNotEmpty)
-              Text(widget.text, textAlign: TextAlign.center, style: logStyle),
+              Text(widget.text, textAlign: TextAlign.left, style: logStyle),
           ],
         ),
       ),
