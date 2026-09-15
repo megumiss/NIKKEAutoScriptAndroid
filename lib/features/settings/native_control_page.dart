@@ -301,7 +301,16 @@ class _NativeControlPageState extends State<NativeControlPage> {
                         return null;
                       },
                     ),
-                    const Divider(height: 18),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+              const GroupLabel('Tailscale'),
+              Surface(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                     GestureDetector(
                       behavior: HitTestBehavior.opaque,
                       onTap: busy
@@ -335,17 +344,8 @@ class _NativeControlPageState extends State<NativeControlPage> {
                         ],
                       ),
                     ),
-                  ],
-                ),
-              ),
-              if (tailscale) ...[
-                const SizedBox(height: 20),
-                const GroupLabel('Tailscale'),
-                Surface(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
+                    if (tailscale) ...[
+                      const Divider(height: 18),
                       NkasTextField(
                         label: 'Tailscale 节点名称',
                         controller: hostname,
@@ -440,9 +440,9 @@ class _NativeControlPageState extends State<NativeControlPage> {
                         ],
                       ),
                     ],
-                  ),
+                  ],
                 ),
-              ],
+              ),
             ] else
               Surface(
                 padding: const EdgeInsets.all(12),
