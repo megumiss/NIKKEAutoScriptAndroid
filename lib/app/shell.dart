@@ -551,7 +551,7 @@ class _NkasShellState extends State<NkasShell> {
     NkasPage.overview => '总览',
     NkasPage.instances => '实例',
     NkasPage.tasks => '任务',
-    NkasPage.screen => '画面',
+    NkasPage.screen => '控制',
     NkasPage.logs => '日志',
     NkasPage.settings => '设置',
   };
@@ -1059,7 +1059,7 @@ class _BottomNav extends StatelessWidget {
                   ),
                   _NavItem(
                     icon: LucideIcons.monitorPlay,
-                    label: '画面',
+                    label: '控制',
                     selected: page == NkasPage.screen,
                     onTap: () => onSelect(NkasPage.screen),
                   ),

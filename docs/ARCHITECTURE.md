@@ -29,8 +29,8 @@ flowchart LR
 
 | 路径 | 职责 |
 | --- | --- |
-| [lib/main.dart](../lib/main.dart)、[lib/app](../lib/app/) | 注册许可证、创建应用与连接控制器、导航、实例选择与全局订阅。壳层切换根页面（总览/实例/任务/画面/日志/设置），设置等子页面走真实路由 push，由系统转场提供 iOS 左边缘侧滑返回与 Android 返回 pop |
-| [lib/features](../lib/features/) | 总览、实例、任务、画面、日志、部署、初始化和设置页面 |
+| [lib/main.dart](../lib/main.dart)、[lib/app](../lib/app/) | 注册许可证、创建应用与连接控制器、导航、实例选择与全局订阅。壳层切换根页面（总览/实例/任务/控制/日志/设置），设置等子页面走真实路由 push，由系统转场提供 iOS 左边缘侧滑返回与 Android 返回 pop |
+| [lib/features](../lib/features/) | 总览、实例、任务、控制、日志、部署、初始化和设置页面 |
 | [lib/core/api](../lib/core/api/) | API 请求、入口凭据附加、响应解析与数据模型 |
 | [lib/core/connection](../lib/core/connection/) | 后端连接、授权恢复、状态/队列/日志 WebSocket |
 | [lib/core/settings](../lib/core/settings/) | 后端根地址与安全入口凭据存储 |
@@ -88,7 +88,7 @@ flowchart LR
 
 ```mermaid
 sequenceDiagram
-    participant UI as Flutter 画面页
+    participant UI as Flutter 控制页
     participant P as NkasPlatform / 原生会话
     participant A as 原生 ADB 客户端
     participant D as Android adbd / scrcpy server
@@ -154,7 +154,7 @@ iOS 的本地 ADB smart-socket 端口与 tsnet 转发端口是两个不同用途
 
 | 触发条件 | 行为 |
 | --- | --- |
-| 进入画面页 | 有访问权限时先获取后端截图，用户点击后才启动原生控制 |
+| 进入控制页 | 有访问权限时先获取后端截图，用户点击后才启动原生控制 |
 | 首帧到达 | 显示 Texture，停止两秒截图轮询 |
 | 停止、失败或等待恢复 | 清除旧 Texture，恢复截图请求；后端不可达时显示错误或空态 |
 | 主动断开、关闭承载控制的转发 | 清除连接意图，释放视频、输入、ADB 与相应转发，取消自动重连 |

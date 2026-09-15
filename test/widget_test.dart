@@ -448,7 +448,7 @@ void main() {
   ) async {
     await _pumpTestApp(tester);
 
-    for (final label in ['总览', '实例', '任务', '画面', '日志', '设置']) {
+    for (final label in ['总览', '实例', '任务', '控制', '日志', '设置']) {
       expect(find.byTooltip(label), findsOneWidget);
     }
 
@@ -569,7 +569,7 @@ void main() {
   ) async {
     await _pumpTestApp(tester);
 
-    await tester.tap(find.byTooltip('画面'));
+    await tester.tap(find.byTooltip('控制'));
     await tester.pumpAndSettle();
 
     expect(find.text('查看实例实时画面，每 2 秒自动刷新'), findsOneWidget);
@@ -589,7 +589,7 @@ void main() {
     for (final (page, next) in [
       ('实例', 'nkas2'),
       ('任务', 'nkas'),
-      ('画面', 'nkas2'),
+      ('控制', 'nkas2'),
     ]) {
       await tester.tap(find.byTooltip(page));
       await tester.pumpAndSettle();
@@ -764,7 +764,7 @@ void main() {
       testWidgets('screen page', (tester) async {
         await pumpAtSize(tester);
 
-        await tester.tap(find.byTooltip('画面'));
+        await tester.tap(find.byTooltip('控制'));
         await tester.pumpAndSettle();
 
         expect(find.text('未连接'), findsOneWidget);
