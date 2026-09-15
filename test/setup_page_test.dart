@@ -193,13 +193,11 @@ void main() {
 
           platform.status = _status(complete: true);
           await _emit(tester, events, const SetupStateEvent('ready', null));
-          expect(_action(tester).label, '打开 NKAS UI');
-          expect(_action(tester).enabled, isTrue);
+          expect(find.byType(NkasFloatingAction), findsNothing);
 
           // A delayed command timeout must not undo a confirmed completion.
           await _emit(tester, events, _timeout);
-          expect(_action(tester).label, '打开 NKAS UI');
-          expect(_action(tester).enabled, isTrue);
+          expect(find.byType(NkasFloatingAction), findsNothing);
           expect(tester.takeException(), isNull);
         } finally {
           await tester.pumpWidget(const SizedBox.shrink());
@@ -237,8 +235,7 @@ void main() {
             ),
           );
           await _emit(tester, events, const SetupStateEvent('ready', null));
-          final label = adbDeviceReady ? '打开 NKAS UI' : '等待 ADB 设备';
-          _expectStepState(tester, '容器服务', '完成');
+          _expectStepState(tester, '容器服务', '已完成');
           expect(
             find.descendant(
               of: find.ancestor(
@@ -249,15 +246,23 @@ void main() {
             ),
             findsOneWidget,
           );
-          expect(_action(tester).label, label);
-          expect(_action(tester).enabled, adbDeviceReady);
+          if (adbDeviceReady) {
+            expect(find.byType(NkasFloatingAction), findsNothing);
+          } else {
+            expect(_action(tester).label, '等待 ADB 设备');
+            expect(_action(tester).enabled, isFalse);
+          }
 
           // A buffered log from an earlier poll must not reopen the install.
           await _emit(tester, events, _log('starting-nkas', '延迟到达的启动日志'));
           await tester.pump(const Duration(seconds: 4));
-          _expectStepState(tester, '容器服务', '完成');
-          expect(_action(tester).label, label);
-          expect(_action(tester).enabled, adbDeviceReady);
+          _expectStepState(tester, '容器服务', '已完成');
+          if (adbDeviceReady) {
+            expect(find.byType(NkasFloatingAction), findsNothing);
+          } else {
+            expect(_action(tester).label, '等待 ADB 设备');
+            expect(_action(tester).enabled, isFalse);
+          }
           expect(platform.starts, 1);
           expect(tester.takeException(), isNull);
         } finally {
@@ -395,8 +400,7 @@ void main() {
           _expectStepState(tester, '容器服务', '执行中');
           platform.status = _status(complete: true);
           await _emit(tester, events, const SetupStateEvent('ready', null));
-          expect(_action(tester).label, '打开 NKAS UI');
-          expect(_action(tester).enabled, isTrue);
+          expect(find.byType(NkasFloatingAction), findsNothing);
 
           // A late duplicate result must not restart the completed UI.
           await _emit(
@@ -409,8 +413,7 @@ void main() {
             events,
             const SetupStateEvent('failed', _alreadyRunning),
           );
-          expect(_action(tester).label, '打开 NKAS UI');
-          expect(_action(tester).enabled, isTrue);
+          expect(find.byType(NkasFloatingAction), findsNothing);
           expect(tester.takeException(), isNull);
         } finally {
           await tester.pumpWidget(const SizedBox.shrink());

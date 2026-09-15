@@ -511,22 +511,6 @@ class _NkasSetupPageState extends State<NkasSetupPage>
             ),
           ),
         ],
-        for (final group in groups) ...[
-          const SizedBox(height: 19),
-          Text(group.$1, style: ShadTheme.of(context).textTheme.muted),
-          const SizedBox(height: 8),
-          Surface(
-            padding: EdgeInsets.zero,
-            child: Column(
-              children: [
-                for (var index = 0; index < group.$2.length; index++) ...[
-                  if (index > 0) const Divider(height: 1),
-                  _setupStepRow(group.$2[index], index + 1),
-                ],
-              ],
-            ),
-          ),
-        ],
         if (widget.onOpenInitConfig != null) ...[
           const SizedBox(height: 19),
           Text('下载与仓库', style: ShadTheme.of(context).textTheme.muted),
@@ -595,8 +579,26 @@ class _NkasSetupPageState extends State<NkasSetupPage>
             ),
           ),
         ],
+        for (final group in groups) ...[
+          const SizedBox(height: 19),
+          Text(group.$1, style: ShadTheme.of(context).textTheme.muted),
+          const SizedBox(height: 8),
+          Surface(
+            padding: EdgeInsets.zero,
+            child: Column(
+              children: [
+                for (var index = 0; index < group.$2.length; index++) ...[
+                  if (index > 0) const Divider(height: 1),
+                  _setupStepRow(group.$2[index], index + 1),
+                ],
+              ],
+            ),
+          ),
+        ],
       ],
     );
+    // 初始化全部完成后页面没有可执行操作，不再显示底部按钮
+    if (status.artifactsReady && !setupFailed) return content;
     return NkasKeyboardGuard(
       content: content,
       action: actionButton,
@@ -892,7 +894,7 @@ class _NkasSetupPageState extends State<NkasSetupPage>
     }
     if (running && stageStates[key] != null) return stageStates[key]!;
     if (status.artifacts[key] == true) {
-      return key == 'service' ? '完成' : '已检测';
+      return key == 'service' ? '已完成' : '已检测';
     }
     if (stageStates[key] != null) return stageStates[key]!;
     if (_projectEnvironmentBlocked &&
