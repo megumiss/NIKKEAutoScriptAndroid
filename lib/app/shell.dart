@@ -461,6 +461,8 @@ class _NkasShellState extends State<NkasShell> {
                       showBack: !_canPopSystemRoute && !_taskDetailOpen,
                       backTooltip: _isSettingsSubpage ? '返回设置' : '返回',
                       onBack: _handleBack,
+                      crumb: _taskDetailOpen ? _taskDetailName : null,
+                      onCrumbRootTap: _taskDetailOpen ? _handleBack : null,
                     ),
                     // 底部导航悬浮在内容之上（原型 .np-nav：bottom 14 + 阴影 + 毛玻璃），
                     // 各页面底部预留 88 避让区
@@ -530,8 +532,11 @@ class _NkasShellState extends State<NkasShell> {
   bool get _canPopSystemRoute =>
       page == NkasPage.overview && pageStack.length == 1;
 
-  /// 任务页展开任务详情时由面板自身的「返回任务列表」接管，隐藏壳层返回键
+  /// 任务页展开任务详情时由壳层面包屑（任务 / 任务名）接管返回，隐藏壳层返回键
   bool get _taskDetailOpen => page == NkasPage.tasks && taskKey != null;
+
+  /// 面包屑末级显示的任务名；schema 未加载时回退为任务 key
+  String get _taskDetailName => schema?.tasks[taskKey]?.name ?? taskKey ?? '';
 
   bool _handleBack() {
     _navDirection = -1;
@@ -842,12 +847,18 @@ class _AppHeader extends StatelessWidget {
     this.showBack = false,
     this.backTooltip = '返回',
     this.onBack,
+    this.crumb,
+    this.onCrumbRootTap,
   });
   final String title;
   final BackendConnectionState connection;
   final bool showBack;
   final String backTooltip;
   final VoidCallback? onBack;
+
+  /// 面包屑末级（如任务详情时的任务名）；存在时标题可点击返回上一级
+  final String? crumb;
+  final VoidCallback? onCrumbRootTap;
 
   @override
   Widget build(BuildContext context) {
@@ -859,6 +870,7 @@ class _AppHeader extends StatelessWidget {
       ConnectionPhase.disconnected => scheme.destructive,
       ConnectionPhase.incompatible => scheme.warning,
     };
+    final crumb = this.crumb;
     return SizedBox(
       height: 58,
       child: Padding(
@@ -878,7 +890,41 @@ class _AppHeader extends StatelessWidget {
               ),
               const SizedBox(width: 4),
             ],
-            Expanded(child: Text(title, style: theme.textTheme.h2)),
+            Expanded(
+              child: crumb == null
+                  ? Text(title, style: theme.textTheme.h2)
+                  : Row(
+                      children: [
+                        InkWell(
+                          onTap: onCrumbRootTap,
+                          borderRadius: BorderRadius.circular(6),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 2,
+                              vertical: 2,
+                            ),
+                            child: Text(title, style: theme.textTheme.h2),
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          child: Icon(
+                            LucideIcons.chevronRight,
+                            size: 16,
+                            color: scheme.mutedForeground,
+                          ),
+                        ),
+                        Expanded(
+                          child: Text(
+                            crumb,
+                            style: theme.textTheme.h2,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+            ),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
               decoration: BoxDecoration(

@@ -92,49 +92,15 @@ class _SchemaPanelState extends State<SchemaPanel> {
     final schema = widget.schema!;
     final task = taskKey == null ? null : schema.tasks[taskKey];
     if (task != null) {
-      const headerGap = 5.0;
+      // 详情标题由壳层面包屑（任务 / 任务名）接管，这里只保留帮助与字段分组
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              SizedBox(
-                width: kMinInteractiveDimension,
-                child: IconButton(
-                  onPressed: () {
-                    setState(() => taskKey = null);
-                    widget.onTaskKeyChanged(null);
-                  },
-                  icon: const Icon(LucideIcons.arrowLeft, size: 19),
-                  tooltip: '返回任务列表',
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints.tightFor(
-                    width: 40,
-                    height: 40,
-                  ),
-                ),
-              ),
-              const SizedBox(width: headerGap),
-              Expanded(
-                child: Text(
-                  task.name,
-                  style: const TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ],
-          ),
           if (task.help.isNotEmpty)
             Padding(
-              padding: const EdgeInsets.only(
-                left: kMinInteractiveDimension + headerGap,
-                top: 3,
-              ),
+              padding: const EdgeInsets.only(bottom: 12),
               child: Text(task.help, style: theme.textTheme.muted),
             ),
-          const SizedBox(height: 12),
           for (var index = 0; index < task.groups.length; index++) ...[
             if (index > 0) const SizedBox(height: 14),
             _SchemaGroup(

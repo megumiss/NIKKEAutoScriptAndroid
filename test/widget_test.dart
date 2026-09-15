@@ -486,8 +486,15 @@ void main() {
     expect(find.text('客户端设置'), findsOneWidget);
     expect(find.text('客户端平台'), findsOneWidget);
     expect(find.text('自动点击红圈'), findsOneWidget);
-    expect(find.byTooltip('返回任务列表'), findsOneWidget);
+    // 详情标题并入壳层面包屑（任务 / NKAS设置），面板内不再有独立标题
+    expect(find.byTooltip('返回任务列表'), findsNothing);
     expect(find.byTooltip('返回实例'), findsNothing);
+    expect(find.text('NKAS设置'), findsOneWidget);
+    // 点击面包屑根级「任务」返回任务列表
+    await tester.tap(find.text('任务'));
+    await tester.pumpAndSettle();
+    expect(find.text('NKAS设置'), findsOneWidget);
+    expect(find.text('客户端设置'), findsNothing);
   });
 
   testWidgets('renders real-time logs without prototype rows', (tester) async {
@@ -540,15 +547,15 @@ void main() {
     expect(find.text('任务配置'), findsOneWidget);
     expect(find.text('NKAS设置'), findsOneWidget);
 
-    // 进入任务设置详情：只显示面板的「返回任务列表」，壳层返回键隐藏
+    // 进入任务设置详情：壳层标题变为面包屑（任务 / NKAS设置），壳层返回键隐藏
     await tester.tap(find.text('NKAS设置'));
     await tester.pumpAndSettle();
     expect(find.text('客户端设置'), findsOneWidget);
-    expect(find.byTooltip('返回任务列表'), findsOneWidget);
+    expect(find.byTooltip('返回任务列表'), findsNothing);
     expect(find.byTooltip('返回'), findsNothing);
 
-    // 先退回任务列表，壳层返回键恢复，再退回实例页
-    await tester.tap(find.byTooltip('返回任务列表'));
+    // 点面包屑根级「任务」退回任务列表，壳层返回键恢复，再退回实例页
+    await tester.tap(find.text('任务'));
     await tester.pumpAndSettle();
     expect(find.byTooltip('返回'), findsOneWidget);
     await tester.tap(find.byTooltip('返回'));
