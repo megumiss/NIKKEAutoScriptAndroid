@@ -17,6 +17,7 @@ import 'package:nkas_mobile/core/connection/connection_controller.dart';
 import 'package:nkas_mobile/core/settings/backend_settings.dart';
 import 'package:nkas_mobile/core/widgets/instance_select.dart';
 import 'package:nkas_mobile/features/settings/about_page.dart';
+import 'package:nkas_mobile/features/settings/backend_address_page.dart';
 
 class _MemoryBackendSettings implements BackendSettings {
   String? value;
@@ -640,6 +641,27 @@ void main() {
     expect(settings.value, 'http://localhost:12271');
     expect(find.text('http://localhost:12271'), findsOneWidget);
     expect(find.text('已连接'), findsOneWidget);
+  });
+
+  testWidgets('settings subpages are real routes popped by system back', (
+    tester,
+  ) async {
+    await _pumpTestApp(tester);
+
+    await tester.tap(find.byTooltip('设置'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('后端地址'));
+    await tester.pumpAndSettle();
+    // 子页面是真实路由：可 pop 是 iOS 侧滑返回生效的前提
+    expect(
+      Navigator.of(tester.element(find.byType(BackendAddressPage))).canPop(),
+      isTrue,
+    );
+    // 系统返回（Android 返回键 / iOS 侧滑）直接 pop 路由回到设置页
+    Navigator.of(tester.element(find.byType(BackendAddressPage))).pop();
+    await tester.pumpAndSettle();
+    expect(find.byType(BackendAddressPage), findsNothing);
+    expect(find.text('验证与初始化'), findsOneWidget);
   });
 
   testWidgets('leaving backend address discards an unsubmitted draft', (

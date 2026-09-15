@@ -29,7 +29,7 @@ flowchart LR
 
 | 路径 | 职责 |
 | --- | --- |
-| [lib/main.dart](../lib/main.dart)、[lib/app](../lib/app/) | 注册许可证、创建应用与连接控制器、导航、实例选择与全局订阅 |
+| [lib/main.dart](../lib/main.dart)、[lib/app](../lib/app/) | 注册许可证、创建应用与连接控制器、导航、实例选择与全局订阅。壳层切换根页面（总览/实例/任务/画面/日志/设置），设置等子页面走真实路由 push，由系统转场提供 iOS 左边缘侧滑返回与 Android 返回 pop |
 | [lib/features](../lib/features/) | 总览、实例、任务、画面、日志、部署、初始化和设置页面 |
 | [lib/core/api](../lib/core/api/) | API 请求、入口凭据附加、响应解析与数据模型 |
 | [lib/core/connection](../lib/core/connection/) | 后端连接、授权恢复、状态/队列/日志 WebSocket |

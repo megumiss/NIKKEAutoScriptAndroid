@@ -24,7 +24,7 @@ class NativeControlPage extends StatefulWidget {
   const NativeControlPage({required this.platform, this.onClose, super.key});
   final NkasPlatform platform;
 
-  /// 保存成功后由 shell 返回上一页
+  /// 保存成功后返回上一页（路由 pop）
   final VoidCallback? onClose;
   @override
   State<NativeControlPage> createState() => _NativeControlPageState();

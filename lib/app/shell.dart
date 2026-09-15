@@ -32,21 +32,7 @@ import 'package:nkas_mobile/features/settings/about_page.dart';
 import 'package:nkas_mobile/features/settings/update_page.dart';
 import 'package:nkas_mobile/theme.dart';
 
-enum NkasPage {
-  overview,
-  instances,
-  tasks,
-  screen,
-  logs,
-  deploy,
-  settings,
-  starVerify,
-  setup,
-  update,
-  about,
-  nativeControl,
-  backendAddress,
-}
+enum NkasPage { overview, instances, tasks, screen, logs, settings }
 
 class NkasShell extends StatefulWidget {
   const NkasShell({
@@ -459,7 +445,7 @@ class _NkasShellState extends State<NkasShell> {
                       title: _pageTitle,
                       connection: widget.connectionController.state,
                       showBack: !_canPopSystemRoute && !_taskDetailOpen,
-                      backTooltip: _isSettingsSubpage ? '返回设置' : '返回',
+                      backTooltip: '返回',
                       onBack: _handleBack,
                       crumb: _taskDetailOpen ? _taskDetailName : null,
                       onCrumbRootTap: _taskDetailOpen ? _handleBack : null,
@@ -498,24 +484,26 @@ class _NkasShellState extends State<NkasShell> {
                           ),
                           // 未通过 STAR 验证时，设置以外的页面盖遮罩，
                           // 底部导航保持可用，可经遮罩按钮或导航前往验证页
-                          if (!_starAccessGranted &&
-                              page != NkasPage.settings &&
-                              !_isSettingsSubpage)
+                          if (!_starAccessGranted && page != NkasPage.settings)
                             Positioned.fill(
                               child: _StarGateOverlay(
-                                onVerify: () => _pushPage(NkasPage.starVerify),
+                                onVerify: () => _pushSubPage(
+                                  'STAR 验证',
+                                  StarVerifyPage(
+                                    onOpenSetup: () => unawaited(_openSetup()),
+                                  ),
+                                ),
                               ),
                             ),
-                          if (!_isSettingsSubpage)
-                            Positioned(
-                              left: 0,
-                              right: 0,
-                              bottom: 14,
-                              child: _BottomNav(
-                                page: page,
-                                onSelect: _selectRootPage,
-                              ),
+                          Positioned(
+                            left: 0,
+                            right: 0,
+                            bottom: 14,
+                            child: _BottomNav(
+                              page: page,
+                              onSelect: _selectRootPage,
                             ),
+                          ),
                         ],
                       ),
                     ),
@@ -564,24 +552,22 @@ class _NkasShellState extends State<NkasShell> {
     NkasPage.tasks => '任务',
     NkasPage.screen => '画面',
     NkasPage.logs => '日志',
-    NkasPage.deploy => '部署',
     NkasPage.settings => '设置',
-    NkasPage.starVerify => 'STAR 验证',
-    NkasPage.setup => '初始化',
-    NkasPage.update => '更新',
-    NkasPage.about => '关于',
-    NkasPage.nativeControl => '控制连接',
-    NkasPage.backendAddress => '后端地址',
   };
 
-  bool get _isSettingsSubpage =>
-      page == NkasPage.starVerify ||
-      page == NkasPage.setup ||
-      page == NkasPage.update ||
-      page == NkasPage.about ||
-      page == NkasPage.nativeControl ||
-      page == NkasPage.backendAddress ||
-      page == NkasPage.deploy;
+  /// 设置等子页面改为真实路由（见 _pushSubPage），iOS 由系统提供左边缘
+  /// 侧滑返回，Android 系统返回直接 pop 路由，不再占用壳层 pageStack
+  void _pushSubPage(String title, Widget child) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => _SubPageScaffold(
+          title: title,
+          connection: widget.connectionController,
+          child: child,
+        ),
+      ),
+    );
+  }
 
   Widget _pageBody() => switch (page) {
     NkasPage.overview => OverviewPage(
@@ -666,14 +652,16 @@ class _NkasShellState extends State<NkasShell> {
       loadScreenshot: () =>
           widget.connectionController.fetchScreenshot(instance),
       accessGranted: _starAccessGranted,
-      onOpenNativeControl: () => _pushPage(NkasPage.nativeControl),
+      onOpenNativeControl: () => _pushSubPage(
+        '控制连接',
+        NativeControlPage(
+          platform: NkasPlatform.instance,
+          onClose: () => Navigator.of(context).pop(),
+        ),
+      ),
     ),
     NkasPage.logs => LogsPage(
       connectionController: widget.connectionController,
-    ),
-    NkasPage.deploy => DeployPage(
-      connectionController: widget.connectionController,
-      accessGranted: _starAccessGranted,
     ),
     NkasPage.settings => SettingsPage(
       connectionController: widget.connectionController,
@@ -682,35 +670,43 @@ class _NkasShellState extends State<NkasShell> {
       notifications: notifications,
       onThemeModeChanged: widget.onThemeModeChanged,
       onNotificationsChanged: (value) => setState(() => notifications = value),
-      onOpenStarVerify: () => _pushPage(NkasPage.starVerify),
+      onOpenStarVerify: () => _pushSubPage(
+        'STAR 验证',
+        StarVerifyPage(onOpenSetup: () => unawaited(_openSetup())),
+      ),
       onOpenSetup: () => unawaited(_openSetup()),
-      onOpenUpdate: () => _pushPage(NkasPage.update),
-      onOpenAbout: () => _pushPage(NkasPage.about),
-      onOpenNativeControl: () => _pushPage(NkasPage.nativeControl),
-      onOpenDeploy: () => _pushPage(NkasPage.deploy),
-      onOpenBackendAddress: () => _pushPage(NkasPage.backendAddress),
-    ),
-    NkasPage.starVerify => StarVerifyPage(
-      onOpenSetup: () => unawaited(_openSetup()),
-    ),
-    NkasPage.setup => NkasSetupPage(
-      onOpenStar: () => _pushPage(NkasPage.starVerify),
-      onOpenUi: _openWebUi,
-    ),
-    NkasPage.update => UpdatePage(
-      connectionController: widget.connectionController,
-      enabled: _starAccessGranted,
-    ),
-    NkasPage.about => AboutPage(
-      connectionController: widget.connectionController,
-    ),
-    NkasPage.nativeControl => NativeControlPage(
-      platform: NkasPlatform.instance,
-      onClose: _handleBack,
-    ),
-    NkasPage.backendAddress => BackendAddressPage(
-      connectionController: widget.connectionController,
-      onClose: _handleBack,
+      onOpenUpdate: () => _pushSubPage(
+        '更新',
+        UpdatePage(
+          connectionController: widget.connectionController,
+          enabled: _starAccessGranted,
+        ),
+      ),
+      onOpenAbout: () => _pushSubPage(
+        '关于',
+        AboutPage(connectionController: widget.connectionController),
+      ),
+      onOpenNativeControl: () => _pushSubPage(
+        '控制连接',
+        NativeControlPage(
+          platform: NkasPlatform.instance,
+          onClose: () => Navigator.of(context).pop(),
+        ),
+      ),
+      onOpenDeploy: () => _pushSubPage(
+        '部署',
+        DeployPage(
+          connectionController: widget.connectionController,
+          accessGranted: _starAccessGranted,
+        ),
+      ),
+      onOpenBackendAddress: () => _pushSubPage(
+        '后端地址',
+        BackendAddressPage(
+          connectionController: widget.connectionController,
+          onClose: () => Navigator.of(context).pop(),
+        ),
+      ),
     ),
   };
 
@@ -776,14 +772,21 @@ class _NkasShellState extends State<NkasShell> {
   }
 
   Future<void> _openSetup() async {
+    Widget page() => NkasSetupPage(
+      onOpenStar: () => _pushSubPage(
+        'STAR 验证',
+        StarVerifyPage(onOpenSetup: () => unawaited(_openSetup())),
+      ),
+      onOpenUi: _openWebUi,
+    );
     if (!isAndroid && !isIOS) {
-      _pushPage(NkasPage.setup);
+      _pushSubPage('初始化', page());
       return;
     }
     final latest = await NkasPlatform.instance.starStatus();
     if (!mounted) return;
     _applyStarStatus(latest);
-    if (latest.authorized) _pushPage(NkasPage.setup);
+    if (latest.authorized) _pushSubPage('初始化', page());
   }
 
   Future<void> _openWebUi() async {
@@ -948,6 +951,53 @@ class _AppHeader extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 子页面的独立路由壳：与主壳层一致的头部、宽度约束与背景，
+/// 不含底部导航和 STAR 遮罩（路由覆盖整个主壳层）
+class _SubPageScaffold extends StatelessWidget {
+  const _SubPageScaffold({
+    required this.title,
+    required this.connection,
+    required this.child,
+  });
+
+  final String title;
+  final ConnectionController connection;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ShadTheme.of(context);
+    return Scaffold(
+      backgroundColor: theme.colorScheme.background,
+      body: Center(
+        child: LayoutBuilder(
+          builder: (context, constraints) => SizedBox(
+            width: constraints.maxWidth.clamp(0, 480),
+            height: constraints.maxHeight,
+            child: SafeArea(
+              child: Column(
+                children: [
+                  ListenableBuilder(
+                    listenable: connection,
+                    builder: (context, _) => _AppHeader(
+                      title: title,
+                      connection: connection.state,
+                      showBack: true,
+                      backTooltip: '返回设置',
+                      onBack: () => Navigator.of(context).maybePop(),
+                    ),
+                  ),
+                  Expanded(child: child),
+                ],
+              ),
+            ),
+          ),
         ),
       ),
     );
