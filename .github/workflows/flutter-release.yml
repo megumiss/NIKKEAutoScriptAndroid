@@ -329,12 +329,26 @@ jobs:
           sha256sum ./*.apk ./*.ipa > SHA256SUMS
       - name: Create or update release for this version
         run: |
+          PREV_TAG=$(git tag -l 'v*' --sort=-v:refname | grep -v -x "$RELEASE_TAG" | head -n1 || true)
           cat > release-notes.md <<EOF
           NKAS Mobile ${RELEASE_TAG}（构建标识：${PACKAGE_VERSION}）
 
           Android 提供 armeabi-v7a、arm64-v8a、x86_64 三种分包 APK。
           iOS IPA 文件名标明 signed / unsigned；unsigned 包需要自行签名后安装。
           SHA256SUMS 包含全部安装包的 SHA-256 校验值。
+          EOF
+          if [[ -n "$PREV_TAG" ]]; then
+            {
+              printf '\n自 %s 以来的提交：\n\n' "$PREV_TAG"
+              git log --no-merges --pretty='- %s (%h)' "$PREV_TAG..$GITHUB_SHA"
+            } >> release-notes.md
+          else
+            {
+              printf '\n全部提交（未找到上一个版本标签）：\n\n'
+              git log --no-merges --pretty='- %s (%h)' "$GITHUB_SHA"
+            } >> release-notes.md
+          fi
+          cat >> release-notes.md <<EOF
 
           源码提交：${GITHUB_SHA}
           构建记录：https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
