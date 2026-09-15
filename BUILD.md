@@ -103,6 +103,18 @@ python -X utf8 tool/verify_native.py --apk build/app/outputs/flutter-apk/app-rel
 
 `apksigner` 路径按已安装的 Build Tools 调整。输出为 `build/app/outputs/flutter-apk/app-release.apk`，每次构建会覆盖。Debug 和 Release 签名通常不同，不能直接互相覆盖安装。
 
+需要按架构分包时执行：
+
+```powershell
+flutter build apk --release --split-per-abi --target-platform android-arm,android-arm64,android-x64 --android-project-arg=force-version-code-ignoring-abi=true
+foreach ($abi in @('armeabi-v7a', 'arm64-v8a', 'x86_64')) {
+    python -X utf8 tool/verify_native.py --apk "build/app/outputs/flutter-apk/app-$abi-release.apk" --abi $abi
+    if ($LASTEXITCODE -ne 0) { throw "APK 校验失败：$abi" }
+}
+```
+
+分包命名为 `app-<ABI>-release.apk`。`--abi` 校验指定架构的原生库及资源；省略时要求完整的三个架构。`force-version-code-ignoring-abi=true` 让分包与通用包都使用 `pubspec.yaml` 中的构建号，避免 Flutter 默认的 ABI 版本号偏移影响后续覆盖安装。
+
 ## iOS 构建
 
 ### 框架、模拟器与 XCTest
@@ -148,11 +160,14 @@ python3 tool/verify_native.py --app build/ios/iphoneos/Runner.app
 
 [Flutter Release](.github/workflows/flutter-release.yml) 通过 `workflow_dispatch` 手动触发，流程为：
 
-1. 公共检查：Flutter analyze/test、Go race、原生工具测试、许可证和资源核查。
-2. Android：生成 AAR、执行 Kotlin 测试、构建签名 APK 并检查包内资源。
+1. 公共检查：核对显示版本和正整数构建号，执行 Flutter analyze/test、Go race、原生工具测试、许可证和资源核查。
+2. Android：生成 AAR、执行 Kotlin 测试，构建并逐个校验 armeabi-v7a、arm64-v8a、x86_64 分包和 universal 通用包，共四个签名 APK。
 3. iOS：生成 XCFramework、编译模拟器应用、执行 XCTest、生成 IPA 并检查包内资源。
+4. 完整双端构建成功后：下载本次运行的安装包，生成 `SHA256SUMS`，自动创建并发布与显示版本对应的 GitHub Release（例如 `v1.2.1`），标签指向本次构建提交。
 
-默认构建两端。`ios_only` 仅跳过 Android 任务，保留公共检查；`ios_signed` 选择带 Apple 签名的 IPA，默认生成未签名 IPA。工作流上传 Actions artifacts，不自动创建 GitHub Release，也不自动分配发布构建号。
+默认构建两端。`ios_only` 用于排障，跳过 Android 和 Release 发布，保留公共检查与 iOS artifacts；`ios_signed` 选择带 Apple 签名的 IPA，默认生成未签名 IPA。工作流保留 Actions artifacts，安装包使用 `nkas-mobile-<显示版本>-<构建号>-android-<ABI或universal>.apk`、`nkas-mobile-<显示版本>-<构建号>-ios-<signed或unsigned>.ipa` 命名。
+
+仅发布任务授予 `contents: write`，使用内置 `GITHUB_TOKEN` 创建 Release，无需额外发布令牌。新 Release 先创建草稿，全部附件上传成功后公开；同版本、同提交重试会复用 Release 并更新同名附件。已有版本标签若指向其他提交则拒绝发布，需要先升版。构建失败或取消不会进入发布任务。工作流不自动修改源码版本或分配构建号，发布前须按下节分配版本。
 
 | 用途 | Repository Secrets |
 | --- | --- |

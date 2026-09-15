@@ -16,6 +16,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: flutter-release-${{ github.ref }}
+  cancel-in-progress: false
+
 env:
   FLUTTER_VERSION: '3.47.2'
   GO_VERSION: '1.23.12'
@@ -26,8 +30,28 @@ jobs:
     name: Flutter and native checks
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      package_version: ${{ steps.version.outputs.package_version }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Read and check release version
+        id: version
+        run: |
+          python3 - <<'PY'
+          import os, re
+          from pathlib import Path
+          pubspec = Path('pubspec.yaml').read_text(encoding='utf-8')
+          match = re.search(r'^version: ([0-9]+\.[0-9]+\.[0-9]+)\+([1-9][0-9]*)$', pubspec, re.MULTILINE)
+          if not match:
+              raise SystemExit('pubspec.yaml must contain a version with a positive integer build number')
+          version, build = match.groups()
+          about = Path('lib/features/settings/about_page.dart').read_text(encoding='utf-8')
+          if f"const appVersion = '{version}';" not in about:
+              raise SystemExit('appVersion must match pubspec.yaml')
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
+              output.write(f'version={version}\npackage_version={version}-{build}\n')
+          PY
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
@@ -51,11 +75,13 @@ jobs:
           python3 tool/verify_native.py
 
   android:
-    name: Android APK
+    name: Android universal and split APKs
     if: ${{ inputs.ios_only != true }}
     needs: validate
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    env:
+      PACKAGE_VERSION: ${{ needs.validate.outputs.package_version }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
@@ -104,12 +130,25 @@ jobs:
           keyAlias=$ANDROID_KEY_ALIAS
           keyPassword=$ANDROID_KEY_PASSWORD
           EOF
-      - run: flutter build apk --release
-      - run: python3 tool/verify_native.py --apk build/app/outputs/flutter-apk/app-release.apk
+      - name: Build and verify APKs for each ABI
+        run: |
+          flutter build apk --release --split-per-abi --target-platform android-arm,android-arm64,android-x64 \
+            --android-project-arg=force-version-code-ignoring-abi=true
+          mkdir -p build/release/android
+          for ABI in armeabi-v7a arm64-v8a x86_64; do
+            APK="build/app/outputs/flutter-apk/app-${ABI}-release.apk"
+            python3 tool/verify_native.py --apk "$APK" --abi "$ABI"
+            cp "$APK" "build/release/android/nkas-mobile-${PACKAGE_VERSION}-android-${ABI}.apk"
+          done
+      - name: Build and verify universal APK
+        run: |
+          flutter build apk --release --target-platform android-arm,android-arm64,android-x64
+          python3 tool/verify_native.py --apk build/app/outputs/flutter-apk/app-release.apk
+          cp build/app/outputs/flutter-apk/app-release.apk "build/release/android/nkas-mobile-${PACKAGE_VERSION}-android-universal.apk"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: nkas-android-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
+          path: build/release/android/*.apk
           if-no-files-found: error
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
@@ -123,6 +162,8 @@ jobs:
     needs: validate
     runs-on: macos-15
     timeout-minutes: 120
+    env:
+      PACKAGE_VERSION: ${{ needs.validate.outputs.package_version }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
@@ -196,10 +237,9 @@ jobs:
         run: |
           flutter build ios --release --no-codesign
           python3 tool/verify_native.py --app build/ios/iphoneos/Runner.app
-          VERSION=$(awk '/^version:/{print $2}' pubspec.yaml | tr '+' '-')
           mkdir -p build/ios/iphoneos/Payload
           cp -R build/ios/iphoneos/Runner.app build/ios/iphoneos/Payload/
-          (cd build/ios/iphoneos && zip -qry "nkas-mobile-${VERSION}-unsigned.ipa" Payload)
+          (cd build/ios/iphoneos && zip -qry "nkas-mobile-${PACKAGE_VERSION}-unsigned.ipa" Payload)
       - name: Build signed IPA
         if: ${{ inputs.ios_signed == true }}
         env:
@@ -215,12 +255,24 @@ jobs:
           PY
           flutter build ipa --release --export-options-plist=ios/ExportOptions.plist
           python3 tool/verify_native.py --app build/ios/archive/Runner.xcarchive/Products/Applications/Runner.app
+      - name: Stage versioned IPA
+        env:
+          IOS_SIGNED: ${{ inputs.ios_signed }}
+        run: |
+          if [[ "$IOS_SIGNED" == 'true' ]]; then
+            IPAS=(build/ios/ipa/*.ipa)
+            SIGNING=signed
+          else
+            IPAS=(build/ios/iphoneos/*.ipa)
+            SIGNING=unsigned
+          fi
+          [[ ${#IPAS[@]} -eq 1 && -f "${IPAS[0]}" ]] || { echo 'Expected exactly one IPA'; exit 1; }
+          mkdir -p build/release/ios
+          cp "${IPAS[0]}" "build/release/ios/nkas-mobile-${PACKAGE_VERSION}-ios-${SIGNING}.ipa"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: nkas-ios-ipa
-          path: |
-            build/ios/iphoneos/*.ipa
-            build/ios/ipa/*.ipa
+          path: build/release/ios/*.ipa
           if-no-files-found: error
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
@@ -237,3 +289,68 @@ jobs:
           if test -f "$RUNNER_TEMP/nkas-build.keychain-db"; then
             security delete-keychain "$RUNNER_TEMP/nkas-build.keychain-db"
           fi
+
+  release:
+    name: Publish versioned GitHub Release
+    needs: [validate, android, ios]
+    if: ${{ inputs.ios_only != true }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      actions: read
+      contents: write
+    concurrency:
+      group: flutter-release-publish
+      cancel-in-progress: false
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      RELEASE_TAG: v${{ needs.validate.outputs.version }}
+      PACKAGE_VERSION: ${{ needs.validate.outputs.package_version }}
+      IOS_SIGNED: ${{ inputs.ios_signed }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+      - name: Check release tag points to this build
+        run: |
+          if git show-ref --verify --quiet "refs/tags/$RELEASE_TAG"; then
+            TAG_COMMIT=$(git rev-parse "$RELEASE_TAG^{commit}")
+            [[ "$TAG_COMMIT" == "$GITHUB_SHA" ]] || { echo "Tag $RELEASE_TAG belongs to another commit; bump the version before publishing"; exit 1; }
+          fi
+      - name: Download verified packages from this run
+        run: |
+          gh run download "$GITHUB_RUN_ID" --name nkas-android-apk --dir release-assets
+          gh run download "$GITHUB_RUN_ID" --name nkas-ios-ipa --dir release-assets
+      - name: Check complete release assets and write checksums
+        working-directory: release-assets
+        run: |
+          for ABI in armeabi-v7a arm64-v8a x86_64 universal; do
+            test -s "nkas-mobile-${PACKAGE_VERSION}-android-${ABI}.apk"
+          done
+          SIGNING=unsigned
+          if [[ "$IOS_SIGNED" == 'true' ]]; then SIGNING=signed; fi
+          test -s "nkas-mobile-${PACKAGE_VERSION}-ios-${SIGNING}.ipa"
+          sha256sum ./*.apk ./*.ipa > SHA256SUMS
+      - name: Create or update release for this version
+        run: |
+          cat > release-notes.md <<EOF
+          NKAS Mobile ${RELEASE_TAG}（构建标识：${PACKAGE_VERSION}）
+
+          Android 提供 armeabi-v7a、arm64-v8a、x86_64 和 universal 四种 APK。
+          iOS IPA 文件名标明 signed / unsigned；unsigned 包需要自行签名后安装。
+          SHA256SUMS 包含全部安装包的 SHA-256 校验值。
+
+          源码提交：${GITHUB_SHA}
+          构建记录：https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
+          EOF
+          if gh release view "$RELEASE_TAG" --json targetCommitish --jq .targetCommitish > release-target.txt 2>/dev/null; then
+            if ! git show-ref --verify --quiet "refs/tags/$RELEASE_TAG"; then
+              [[ "$(cat release-target.txt)" == "$GITHUB_SHA" ]] || { echo 'Existing release draft belongs to another commit'; exit 1; }
+            fi
+          else
+            gh release create "$RELEASE_TAG" --target "$GITHUB_SHA" --title "$RELEASE_TAG" \
+              --draft --generate-notes --notes-file release-notes.md
+          fi
+          gh release upload "$RELEASE_TAG" release-assets/*.apk release-assets/*.ipa release-assets/SHA256SUMS --clobber
+          gh release edit "$RELEASE_TAG" --draft=false

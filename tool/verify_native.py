@@ -84,16 +84,22 @@ def verify_ios():
     print('iOS frameworks verified: device arm64; simulator arm64 and x86_64')
 
 
-def verify_apk(path):
+def verify_apk(path, abi=None):
+    expected_abis = {abi} if abi else ANDROID_ABIS
     with zipfile.ZipFile(path) as archive:
         verify_server(archive.read('assets/bin/scrcpy-server-v4.1'), path)
-        abis = {name.split('/')[1] for name in archive.namelist() if name.startswith('lib/') and name.endswith('/libgojni.so')}
-        check(abis == ANDROID_ABIS, f'APK tsnet ABIs differ from AAR: {abis}')
+        libraries = [name for name in archive.namelist() if name.startswith('lib/') and name.endswith('.so')]
+        abis = {name.split('/')[1] for name in libraries}
+        check(abis == expected_abis, f'Unexpected APK ABIs: {sorted(abis)}; expected {sorted(expected_abis)}')
+        for library in ('libgojni.so', 'libflutter.so'):
+            library_abis = {name.split('/')[1] for name in libraries if name.endswith('/' + library)}
+            check(library_abis == expected_abis, f'APK {library} ABIs incomplete: {sorted(library_abis)}')
+        check(all(archive.getinfo(name).file_size > 0 for name in libraries), 'Empty APK native library')
         for group in ('go', 'ios', 'shared'):
             source = ROOT / 'assets/licenses' / (group + '.json')
             check(archive.read(f'assets/flutter_assets/assets/licenses/{group}.json') == source.read_bytes(),
                   f'APK is missing current native licenses: {group}')
-    print('APK native binaries, scrcpy resource and license assets verified')
+    print(f'APK native binaries ({", ".join(sorted(abis))}), scrcpy resource and license assets verified')
 
 
 def verify_app(path):
@@ -110,14 +116,17 @@ if __name__ == '__main__':
     parser.add_argument('--android', action='store_true')
     parser.add_argument('--ios', action='store_true')
     parser.add_argument('--apk', type=Path)
+    parser.add_argument('--abi', choices=sorted(ANDROID_ABIS), help='Expected ABI for a split APK; omit for a universal APK')
     parser.add_argument('--app', type=Path)
     args = parser.parse_args()
+    if args.abi and not args.apk:
+        parser.error('--abi requires --apk')
     verify_sources()
     if args.android:
         verify_android()
     if args.ios:
         verify_ios()
     if args.apk:
-        verify_apk(args.apk)
+        verify_apk(args.apk, args.abi)
     if args.app:
         verify_app(args.app)
