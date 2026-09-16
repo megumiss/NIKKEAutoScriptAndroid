@@ -24,17 +24,18 @@ class NativeControlSettings {
   final bool tailscaleEnabled;
   final String hostname;
 
-  /// 每个实例单独覆盖的控制地址（实例名 → 地址），优先于全局 endpoint
+  /// 每个实例单独覆盖的控制地址（实例名 → 地址），优先于后端 Serial
   final Map<String, String> endpoints;
   String get modeName => mode == NativeControlMode.remoteAdb
       ? 'remote_adb'
       : 'local_virtual_display';
 
-  /// 生效控制地址：实例覆盖 → 全局手填 → 后端 Serial；都为空返回空串
+  /// 生效控制地址：实例覆盖 → 后端 Serial；都为空返回空串。
+  /// 本机手填的固定地址（endpoint）不参与多实例解析，
+  /// 仅在后端实例列表不可用时由调用方兜底，避免多个实例共用同一地址
   String endpointFor(String instance, {String? backendSerial}) {
     final override = endpoints[instance]?.trim() ?? '';
     if (override.isNotEmpty) return override;
-    if (endpoint.trim().isNotEmpty) return endpoint.trim();
     return backendSerial?.trim() ?? '';
   }
 

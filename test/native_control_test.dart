@@ -316,8 +316,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // 后端 Serial 到达后行摘要展示来源；多实例时有全局默认地址框
-    expect(find.text('默认控制地址'), findsOneWidget);
+    // 后端 Serial 到达后行摘要展示来源；多实例时不再有全局共用地址框
+    expect(find.text('默认控制地址'), findsNothing);
     expect(find.text('跟随后端：10.0.0.1:5555'), findsOneWidget);
     expect(find.text('未配置'), findsOneWidget);
 

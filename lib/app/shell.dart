@@ -289,13 +289,17 @@ class _NkasShellState extends State<NkasShell> {
     }
   }
 
-  /// 实例的生效控制地址：实例覆盖 → 全局手填 → 后端 Serial
+  /// 实例的生效控制地址：实例覆盖 → 后端 Serial；
+  /// 后端实例列表不可用（未连接）时回退到本机手填的固定地址
   Future<String?> _resolveControlEndpoint(String name) async {
     try {
       final settings = await NkasPlatform.instance.nativeControlSettings();
-      final resolved = settings.endpointFor(name);
+      final serial = instances.isEmpty ? null : await _backendSerial(name);
+      final resolved = settings.endpointFor(name, backendSerial: serial);
       if (resolved.isNotEmpty) return resolved;
-      return await _backendSerial(name);
+      if (instances.isNotEmpty) return null;
+      final manual = settings.endpoint.trim();
+      return manual.isEmpty ? null : manual;
     } catch (_) {
       return null;
     }

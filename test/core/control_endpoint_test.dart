@@ -37,7 +37,7 @@ void main() {
   });
 
   group('endpointFor', () {
-    test('per-instance override wins over global and backend serial', () {
+    test('per-instance override wins over backend serial', () {
       const settings = NativeControlSettings(
         endpoint: 'global:5555',
         endpoints: {'nkas': 'override:5555'},
@@ -48,12 +48,14 @@ void main() {
       );
     });
 
-    test('global manual endpoint beats backend serial', () {
+    test('backend serial beats the stored manual endpoint', () {
       const settings = NativeControlSettings(endpoint: 'global:5555');
       expect(
         settings.endpointFor('nkas', backendSerial: 'backend:5555'),
-        'global:5555',
+        'backend:5555',
       );
+      // 手填的固定地址不参与实例解析，仅由调用方在无实例列表时兜底
+      expect(settings.endpointFor('nkas'), isEmpty);
     });
 
     test('backend serial is the default when nothing is overridden', () {
@@ -65,12 +67,16 @@ void main() {
       expect(settings.endpointFor('nkas'), isEmpty);
     });
 
-    test('blank override falls through to global endpoint', () {
+    test('blank override falls through to backend serial', () {
       const settings = NativeControlSettings(
         endpoint: 'global:5555',
         endpoints: {'nkas': '  '},
       );
-      expect(settings.endpointFor('nkas'), 'global:5555');
+      expect(
+        settings.endpointFor('nkas', backendSerial: 'backend:5555'),
+        'backend:5555',
+      );
+      expect(settings.endpointFor('nkas'), isEmpty);
     });
   });
 

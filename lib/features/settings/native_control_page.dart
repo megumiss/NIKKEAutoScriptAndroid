@@ -31,7 +31,7 @@ class NativeControlPage extends StatefulWidget {
   });
   final NkasPlatform platform;
 
-  /// 后端实例列表；多实例时可分别设置控制地址，为空时编辑全局默认地址
+  /// 后端实例列表；多实例时可分别设置控制地址，为空时编辑本机固定地址
   final List<InstanceInfo> instances;
 
   /// 读取实例后端配置的 ADB Serial（空或 auto 返回 null）
@@ -56,9 +56,8 @@ class _NativeControlPageState extends State<NativeControlPage> {
   String? message;
   TsnetStatus status = const TsnetStatus();
 
-  /// 每个实例的覆盖地址输入框；多实例时另有全局默认地址框
+  /// 每个实例的覆盖地址输入框，留空时使用该实例后端配置的 Serial
   final endpointControllers = <String, TextEditingController>{};
-  final defaultEndpoint = TextEditingController();
   final serials = <String, String?>{};
   String? expandedInstance;
   String savedEndpoint = '';
@@ -91,7 +90,6 @@ class _NativeControlPageState extends State<NativeControlPage> {
       setState(() {
         savedEndpoint = values.endpoint;
         endpoint.text = values.endpoint;
-        defaultEndpoint.text = values.endpoint;
         hostname.text = values.hostname;
         mode = values.mode;
         tailscale = values.tailscaleEnabled;
@@ -116,7 +114,6 @@ class _NativeControlPageState extends State<NativeControlPage> {
     endpoint.dispose();
     hostname.dispose();
     authKey.dispose();
-    defaultEndpoint.dispose();
     for (final controller in endpointControllers.values) {
       controller.dispose();
     }
@@ -125,11 +122,7 @@ class _NativeControlPageState extends State<NativeControlPage> {
 
   NativeControlSettings get values => NativeControlSettings(
     mode: mode,
-    endpoint: widget.instances.isEmpty
-        ? endpoint.text.trim()
-        : widget.instances.length > 1
-        ? defaultEndpoint.text.trim()
-        : savedEndpoint,
+    endpoint: widget.instances.isEmpty ? endpoint.text.trim() : savedEndpoint,
     hostname: hostname.text.trim(),
     tailscaleEnabled: tailscale,
     endpoints: {
@@ -341,19 +334,6 @@ class _NativeControlPageState extends State<NativeControlPage> {
                         validator: _endpointValidator,
                       )
                     else ...[
-                      if (widget.instances.length > 1) ...[
-                        NkasTextField(
-                          label: '默认控制地址',
-                          description: '所有实例共用的手动地址，留空时使用后端实例配置的 Serial',
-                          controller: defaultEndpoint,
-                          enabled: !busy,
-                          hintText: '设备地址:5555',
-                          keyboardType: TextInputType.url,
-                          autocorrect: false,
-                          validator: _optionalEndpointValidator,
-                        ),
-                        const Divider(height: 18),
-                      ],
                       for (var i = 0; i < widget.instances.length; i++) ...[
                         if (i > 0) const Divider(height: 18),
                         _instanceEndpointRow(widget.instances[i]),
@@ -625,8 +605,8 @@ class _NativeControlPageState extends State<NativeControlPage> {
             key: ValueKey('control-endpoint-$name'),
             label: multi ? '控制地址' : '$name 控制地址',
             description: serial == null
-                ? '该实例后端 Serial 为空或为 auto，需手动填写；留空使用默认控制地址'
-                : '留空使用后端 Serial；填写后优先于默认控制地址',
+                ? '该实例后端 Serial 为空或为 auto，需手动填写控制地址'
+                : '留空使用后端 Serial，填写后仅对该实例生效',
             controller: _controllerFor(name),
             enabled: !busy,
             hintText: serial != null ? '默认使用后端 Serial：$serial' : '设备地址:5555',
