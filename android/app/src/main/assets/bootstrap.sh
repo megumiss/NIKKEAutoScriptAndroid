@@ -172,8 +172,15 @@ container_ready() {
         proot-distro run -b "$REPO_DIR:/app/NIKKEAutoScript" nkas -- /usr/local/bin/python -c 'import uvicorn' >/dev/null 2>&1
 }
 
+# /api/system/status is served from memory and returns 200 even for a stale
+# service process whose working directory no longer resolves, which is how a
+# leftover container process survives a reinstall and then reports every
+# filesystem-backed endpoint as failed. /api/instances reads ./config through
+# the process working directory, so requiring it here makes the readiness
+# check fail for that stale process and forces a restart instead of reusing it.
 service_ready() {
-    curl -fsS --max-time 3 "${WEBUI_URL}/api/system/status" >/dev/null 2>&1
+    curl -fsS --max-time 3 "${WEBUI_URL}/api/system/status" >/dev/null 2>&1 || return 1
+    curl -fsS --max-time 5 "${WEBUI_URL}/api/instances" >/dev/null 2>&1
 }
 
 install_container() {
