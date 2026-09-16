@@ -37,6 +37,27 @@ final class NkasIosAdbClient {
   private var revision = 0
   private var interrupted = false
 
+  /// Timeout for one protocol round trip against the local ADB server.
+  ///
+  /// The default suits the loopback ADB server reached through tsnet on a
+  /// direct path. Routing that server over a Tailscale DERP relay adds a
+  /// tunnel on top of the VPN hop, which can push a single round trip past
+  /// 15s and surface as "ADB 本地服务请求超时". The control session raises
+  /// this before connecting when Tailscale is in use.
+  var requestTimeout: TimeInterval = 15
+
+  /// Timeout for the device-side half of `host:connect`, which waits for the
+  /// remote adbd handshake. Kept separate because the VPN hop alone does not
+  /// slow it down; only a relayed route does.
+  var deviceTimeout: TimeInterval = 30
+
+  /// Timeout for waiting until a pushed or opened stream is acknowledged.
+  ///
+  /// It covers the device-side work of opening a service, which is the
+  /// slowest single step of a control session and is noticeably slower over a
+  /// relayed route.
+  var streamTimeout: TimeInterval = 30
+
   func connect(endpoint value: String, isCancelled: () -> Bool = { false }) throws {
     let parsed = try NkasIosAdbEndpoint(value)
     close()
@@ -56,8 +77,8 @@ final class NkasIosAdbClient {
     lock.unlock()
     var response = ""
     do {
-      try socket.request("host:connect:\(parsed.serial)")
-      response = try socket.readProtocolString()
+      try socket.request("host:connect:\(parsed.serial)", timeout: requestTimeout)
+      response = try socket.readProtocolString(timeout: deviceTimeout)
       let probe = try transport()
       probe.close()
     } catch {
@@ -67,22 +88,22 @@ final class NkasIosAdbClient {
   }
 
   func shell(_ command: String) throws -> String {
-    let stream = try openShellStream(command)
+    let stream = try openShellStream(command, timeout: streamTimeout)
     defer { stream.close() }
     return String(decoding: try stream.readToClose(), as: UTF8.self)
   }
 
-  func openLocalAbstract(_ name: String) throws -> NkasIosAdbStream {
-    try open("localabstract:\(name)")
+  func openLocalAbstract(_ name: String, timeout: TimeInterval = 15) throws -> NkasIosAdbStream {
+    try open("localabstract:\(name)", timeout: timeout)
   }
 
-  func openShellStream(_ command: String) throws -> NkasIosAdbStream {
-    try open("shell:\(command)")
+  func openShellStream(_ command: String, timeout: TimeInterval = 15) throws -> NkasIosAdbStream {
+    try open("shell:\(command)", timeout: timeout)
   }
 
   func push(_ data: Data, remotePath: String, mode: UInt32 = 0o644) throws {
     try validatePath(remotePath)
-    let stream = try open("sync:")
+    let stream = try open("sync:", timeout: streamTimeout)
     defer { stream.close() }
     let path = Data("\(remotePath),\(mode)".utf8)
     try stream.write(syncHeader("SEND", UInt32(path.count)) + path)
@@ -93,7 +114,7 @@ final class NkasIosAdbClient {
       offset += count
     }
     try stream.write(syncHeader("DONE", UInt32(clamping: Int(Date().timeIntervalSince1970))))
-    let header = try stream.readExactly(8)
+    let header = try stream.readExactly(8, timeout: streamTimeout)
     let id = String(decoding: header.prefix(4), as: UTF8.self)
     let length = header.uint32LE(at: 4)
     if id == "FAIL" { throw try syncFailure(stream, length: length) }
@@ -102,13 +123,13 @@ final class NkasIosAdbClient {
 
   func pull(remotePath: String) throws -> Data {
     try validatePath(remotePath)
-    let stream = try open("sync:")
+    let stream = try open("sync:", timeout: streamTimeout)
     defer { stream.close() }
     let path = Data(remotePath.utf8)
     try stream.write(syncHeader("RECV", UInt32(path.count)) + path)
     var result = Data()
     while true {
-      let header = try stream.readExactly(8)
+      let header = try stream.readExactly(8, timeout: streamTimeout)
       let id = String(decoding: header.prefix(4), as: UTF8.self)
       let length = header.uint32LE(at: 4)
       switch id {
@@ -116,7 +137,7 @@ final class NkasIosAdbClient {
         guard length <= 64 * 1024, result.count + Int(length) <= 128 * 1024 * 1024 else {
           throw NkasIosAdbError.protocolError("ADB pull 数据超出限制")
         }
-        result.append(try stream.readExactly(Int(length)))
+        result.append(try stream.readExactly(Int(length), timeout: streamTimeout))
       case "DONE":
         return result
       case "FAIL":
@@ -157,7 +178,7 @@ final class NkasIosAdbClient {
     active.forEach { $0.close() }
   }
 
-  private func newSocket(port: Int, token: Int) throws -> NkasIosAdbSocket {
+  private func newSocket(port: Int, token: Int, connectTimeout: TimeInterval = 10) throws -> NkasIosAdbSocket {
     let socket = try NkasIosAdbSocket(port: port)
     let id = socket.id
     socket.onClose = { [weak self] in
@@ -173,7 +194,7 @@ final class NkasIosAdbClient {
     }
     sockets[id] = socket
     lock.unlock()
-    do { try socket.connect(); return socket }
+    do { try socket.connect(timeout: connectTimeout); return socket }
     catch { socket.close(); throw error }
   }
 
@@ -184,9 +205,9 @@ final class NkasIosAdbClient {
     let token = revision
     lock.unlock()
     guard let current else { throw NkasIosAdbError.notConnected }
-    let socket = try newSocket(port: serverPort, token: token)
+    let socket = try newSocket(port: serverPort, token: token, connectTimeout: requestTimeout)
     do {
-      try socket.request("host:transport:\(current.serial)")
+      try socket.request("host:transport:\(current.serial)", timeout: requestTimeout)
       return socket
     } catch {
       socket.close()
@@ -194,10 +215,10 @@ final class NkasIosAdbClient {
     }
   }
 
-  private func open(_ service: String) throws -> NkasIosAdbStream {
+  private func open(_ service: String, timeout: TimeInterval) throws -> NkasIosAdbStream {
     let socket = try transport()
     do {
-      try socket.request(service)
+      try socket.request(service, timeout: timeout)
       return NkasIosAdbStream(socket: socket, onClose: {})
     } catch {
       socket.close()
@@ -218,7 +239,7 @@ final class NkasIosAdbClient {
 
   private func syncFailure(_ stream: NkasIosAdbStream, length: UInt32) throws -> NkasIosAdbError {
     guard length <= 64 * 1024 else { return .protocolError("ADB 错误响应过大") }
-    return .remote(String(decoding: try stream.readExactly(Int(length)), as: UTF8.self))
+    return .remote(String(decoding: try stream.readExactly(Int(length), timeout: streamTimeout), as: UTF8.self))
   }
 }
 
@@ -233,9 +254,11 @@ final class NkasIosAdbStream {
     self.onClose = onClose
   }
 
-  func write(_ data: Data) throws { try socket.write(data) }
+  func write(_ data: Data) throws { try socket.write(data, timeout: streamTimeout) }
 
-  func readExactly(_ count: Int, timeout: TimeInterval? = 15) throws -> Data {
+  /// No default: a dropped protocol default here would silently reintroduce a
+  /// socket timeout that the Tailscale-tolerant configuration cannot reach.
+  func readExactly(_ count: Int, timeout: TimeInterval?) throws -> Data {
     try socket.readExactly(count, timeout: timeout)
   }
 

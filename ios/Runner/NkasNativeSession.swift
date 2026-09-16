@@ -94,7 +94,10 @@ final class NkasNativeSession {
         try owner.ensureCurrent(token); owner.stop(closeTsnet: false)
         do {
           let endpoint = try NkasIosAdbEndpoint(args["endpoint"] as? String ?? "")
-          let route = args["useTailscale"] as? Bool == true ? try owner.route(endpoint) : endpoint.serial
+          let tailscale = args["useTailscale"] as? Bool == true
+          // 与 nativeScrcpyStart 共用同一套传输超时，避免两条入口行为不一致
+          owner.configureTransportTimeouts(tailscale: tailscale)
+          let route = tailscale ? try owner.route(endpoint) : endpoint.serial
           try owner.ensureCurrent(token)
           try owner.adb.connect(endpoint: route, isCancelled: { !owner.isCurrent(token) })
           try owner.ensureCurrent(token)
@@ -217,6 +220,8 @@ final class NkasNativeSession {
     guard canStart(token) else { throw NkasIosAdbError.connection("等待前台网络恢复") }
     activeRequest = request
     videoEvent(request, "connecting")
+    // Tailscale 走 DERP 中继（VPN 下再穿一层隧道），全链路明显更慢，放宽超时
+    configureTransportTimeouts(tailscale: request.tailscale)
     let timeout = DispatchWorkItem { [weak self] in
       self?.fail(NkasIosAdbError.connection("等待视频首帧超时"), token: token)
     }
@@ -283,6 +288,18 @@ final class NkasNativeSession {
     }
     stateLock.lock(); activeForwardId = id; stateLock.unlock()
     return "127.0.0.1:\(port)"
+  }
+
+  /// Scales the ADB socket timeouts for the route of the current session.
+  ///
+  /// The client outlives individual sessions, so the values are reset for
+  /// every start instead of being fixed at construction. Relay values stay
+  /// well under the 90/180s first-frame budget: they only decide when a
+  /// single stalled round trip fails, and `fail` still retries the session.
+  private func configureTransportTimeouts(tailscale: Bool) {
+    adb.requestTimeout = tailscale ? 60 : 15
+    adb.deviceTimeout = tailscale ? 60 : 30
+    adb.streamTimeout = tailscale ? 60 : 30
   }
 
   private func stop(closeTsnet: Bool = true) {

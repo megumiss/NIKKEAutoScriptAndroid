@@ -51,13 +51,13 @@ final class NkasIosScrcpySession {
     let remotePath = "/data/local/tmp/nkas-scrcpy-\(String(scid, radix: 16)).jar"
     try adb.push(serverJar, remotePath: remotePath)
     let command = buildCommand(remotePath: remotePath, scid: scid, options: options)
-    let server = try adb.openShellStream(command)
+    let server = try adb.openShellStream(command, timeout: adb.streamTimeout)
     var sockets: [NkasIosAdbStream] = []
     do {
       let name = String(format: "scrcpy_%08x", scid)
       let first = try openWithRetry(adb: adb, name: name)
       sockets.append(first)
-      guard try first.readExactly(1) == Data([0]) else {
+      guard try first.readExactly(1, timeout: adb.streamTimeout) == Data([0]) else {
         throw NkasIosAdbError.protocolError("scrcpy socket 握手失败")
       }
       let video = options.video ? first : nil
@@ -68,9 +68,9 @@ final class NkasIosScrcpySession {
       } else {
         control = nil
       }
-      let rawName = try first.readExactly(64)
+      let rawName = try first.readExactly(64, timeout: adb.streamTimeout)
       let deviceName = String(decoding: rawName.prefix(while: { $0 != 0 }), as: UTF8.self)
-      let codecId = options.video ? UInt32(try first.readExactly(4).bigEndianInteger(at: 0, count: 4)) : 0
+      let codecId = options.video ? UInt32(try first.readExactly(4, timeout: adb.streamTimeout).bigEndianInteger(at: 0, count: 4)) : 0
       if options.video && codecId != 0x68323634 && codecId != 0x68323635 {
         throw NkasIosVideoError.unsupportedCodec
       }
@@ -125,7 +125,8 @@ final class NkasIosScrcpySession {
             waitingForKeyFrame = true
             onSize(width, height)
           case .packet(let length, let pts, let configuration, let keyFrame):
-            let payload = try videoStream.readExactly(length)
+            // 视频流按帧到达，帧间隔超过任一超时都是正常波动，不能设截止时间
+            let payload = try videoStream.readExactly(length, timeout: nil)
             guard width > 0, height > 0 else { throw NkasIosVideoError.invalidConfiguration }
             if configuration {
               try decoder.configure(payload, width: width, height: height)
@@ -166,11 +167,17 @@ final class NkasIosScrcpySession {
     return args.joined(separator: " ")
   }
 
+  /// Waits until the scrcpy server has published its abstract socket.
+  ///
+  /// The window governs how long the whole loop may take, not a single
+  /// attempt, so it must exceed one round trip on a relayed route; otherwise
+  /// the outer wait would cut off an attempt that is still in flight and
+  /// report "scrcpy 服务未就绪" while the server is merely slow to start.
   private static func openWithRetry(adb: NkasIosAdbClient, name: String) throws -> NkasIosAdbStream {
-    let deadline = Date().addingTimeInterval(10)
+    let deadline = Date().addingTimeInterval(max(10, adb.streamTimeout))
     var lastError: Error = NkasIosAdbError.remote("scrcpy 服务未就绪")
     repeat {
-      do { return try adb.openLocalAbstract(name) }
+      do { return try adb.openLocalAbstract(name, timeout: adb.streamTimeout) }
       catch NkasIosAdbError.remote(let message) { lastError = NkasIosAdbError.remote(message) }
       Thread.sleep(forTimeInterval: 0.1)
     } while Date() < deadline
