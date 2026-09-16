@@ -125,7 +125,10 @@ final class NkasTsnetClient {
     var value = (try? JSONSerialization.jsonObject(with: Data(client.status().utf8))) as? [String: Any] ?? [:]
     value["hostname"] = settings.hostname
     value["hasPersistedLogin"] = client.hasPersistedLogin(stateDirectory.path)
+    // Normalise the optional fields so Dart never has to tell "absent" from
+    // "empty": a missing key would silently hide MagicDNS in the UI.
     if value["addresses"] is NSNull { value["addresses"] = [String]() }
+    if value["magicDNS"] is NSNull || value["magicDNS"] == nil { value["magicDNS"] = "" }
     return value
   }
 }

@@ -56,6 +56,11 @@ class _NativeControlPageState extends State<NativeControlPage> {
   String? message;
   TsnetStatus status = const TsnetStatus();
 
+  /// Snapshot kept from the last successful connection. Tearing the forwarder
+  /// down wipes `status`, so the network details have to survive it to stay
+  /// on screen after the connection is closed.
+  TsnetStatus? connected;
+
   /// 每个实例的覆盖地址输入框，留空时使用该实例后端配置的 Serial
   final endpointControllers = <String, TextEditingController>{};
   final serials = <String, String?>{};
@@ -94,6 +99,9 @@ class _NativeControlPageState extends State<NativeControlPage> {
         mode = values.mode;
         tailscale = values.tailscaleEnabled;
         status = state;
+        // A forwarder that is still up at load time is the other source of
+        // network details; keep it as the snapshot too.
+        if (state.phase == 'connected') connected = state;
         for (final instance in widget.instances) {
           _controllerFor(instance.name).text =
               values.endpoints[instance.name] ?? '';
@@ -149,9 +157,12 @@ class _NativeControlPageState extends State<NativeControlPage> {
           await widget.platform.tsnetConfigure(key);
           status = await widget.platform.tsnetConnect();
         } finally {
+          // Closing the forwarder clears `phase`, `addresses` and `magicDNS`,
+          // so the connected snapshot must be captured before the teardown or
+          // the network-detail rows can never render.
+          if (status.phase == 'connected') connected = status;
           await widget.platform.tsnetClose();
         }
-        status = await widget.platform.tsnetStatus();
       }
       if (!mounted) return;
       // 验证结果由 Tailscale 区的「连接状态」展示，不再用底部小字
@@ -204,16 +215,20 @@ class _NativeControlPageState extends State<NativeControlPage> {
 
   /// 已连接时展示 Tailscale 网络详情，地址可长按复制（参考 scrcpy-mobile）
   List<Widget> _networkDetails(ShadThemeData theme) {
-    final ipv4 = status.addresses.firstWhere(
+    // Prefer the live status while connected; otherwise fall back to the last
+    // connected snapshot, which is all that remains once the forwarder closes.
+    final source = status.phase == 'connected' ? status : connected;
+    if (source == null) return const [];
+    final ipv4 = source.addresses.firstWhere(
       (address) => address.contains('.'),
       orElse: () => '',
     );
-    final ipv6 = status.addresses.firstWhere(
+    final ipv6 = source.addresses.firstWhere(
       (address) => address.contains(':'),
       orElse: () => '',
     );
     final entries = <(String, String)>[
-      if (status.magicDNS.isNotEmpty) ('MagicDNS', status.magicDNS),
+      if (source.magicDNS.isNotEmpty) ('MagicDNS', source.magicDNS),
       if (ipv4.isNotEmpty) ('Tailscale IPv4', ipv4),
       if (ipv6.isNotEmpty) ('Tailscale IPv6', ipv6),
     ];
@@ -275,6 +290,8 @@ class _NativeControlPageState extends State<NativeControlPage> {
       if (mounted) {
         setState(() {
           status = value;
+          // The identity is gone, so any remembered addresses are stale.
+          connected = null;
           message = '身份已清除';
         });
       }
@@ -493,8 +510,7 @@ class _NativeControlPageState extends State<NativeControlPage> {
                               : theme.textTheme.muted,
                         ),
                       ],
-                      if (status.phase == 'connected')
-                        ..._networkDetails(theme),
+                      ..._networkDetails(theme),
                       const SizedBox(height: 10),
                       Row(
                         children: [
