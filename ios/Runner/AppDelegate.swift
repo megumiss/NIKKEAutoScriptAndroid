@@ -58,8 +58,21 @@ final class NkasStarBridge: NSObject, FlutterStreamHandler {
     monitor.pathUpdateHandler = { [weak self] path in
       guard let self else { return }
       let state = path.status == .satisfied ? "connected" : "disconnected"
-      let interfaces = path.availableInterfaces.filter { path.usesInterfaceType($0.type) }.map { $0.index }.sorted()
-      let signature = "\(state):\(interfaces):\(path.isExpensive)"
+      // VPN（utun 等 .other 接口）会持续刷新 path（路由、DNS、isExpensive 抖动），
+      // 不能当作网络切换，否则每次刷新都会中断进行中的 Tailscale 连接；
+      // 只跟踪物理链路类型与可达性的真实变化
+      let links = Set(
+        path.availableInterfaces.filter { path.usesInterfaceType($0.type) }
+          .compactMap { interface -> String? in
+            switch interface.type {
+            case .wifi: return "wifi"
+            case .cellular: return "cellular"
+            case .wiredEthernet: return "wired"
+            default: return nil
+            }
+          }
+      ).sorted()
+      let signature = "\(state):\(links)"
       guard self.pathSignature != signature else { return }
       self.pathSignature = signature
       self.emit(["type": "nativeNetwork", "state": state])
