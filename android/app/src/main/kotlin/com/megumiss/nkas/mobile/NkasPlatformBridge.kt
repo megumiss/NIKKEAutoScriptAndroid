@@ -118,6 +118,8 @@ class NkasPlatformBridge(private val activity: FlutterActivity) :
             }
             "getNkasSerial" -> readNkasSerial(result)
             "restartNkasService" -> restartNkasService(result)
+            "startNkasService" -> startNkasService(result)
+            "stopNkasService" -> stopNkasService(result)
             "getLocalBackendEntry" -> readLocalBackendEntry(result)
             "setNkasSerial" -> writeNkasSerial(call, result)
             "getInitConfig" -> result.success(
@@ -345,6 +347,24 @@ class NkasPlatformBridge(private val activity: FlutterActivity) :
             main.post {
                 if (command.exitCode == 0) result.success(command.stdout.trim())
                 else result.error("restart_failed", command.stderr.ifBlank { command.stdout }.ifBlank { "重启 NKAS 服务失败" }, null)
+            }
+        }
+    }
+
+    private fun startNkasService(result: MethodChannel.Result) {
+        TermuxBridge(activity).startService { command ->
+            main.post {
+                if (command.exitCode == 0) result.success(command.stdout.trim())
+                else result.error("start_failed", command.stderr.ifBlank { command.stdout }.ifBlank { "启动 NKAS 服务失败" }, null)
+            }
+        }
+    }
+
+    private fun stopNkasService(result: MethodChannel.Result) {
+        TermuxBridge(activity).stopService { command ->
+            main.post {
+                if (command.exitCode == 0) result.success(command.stdout.trim())
+                else result.error("stop_failed", command.stderr.ifBlank { command.stdout }.ifBlank { "停止 NKAS 服务失败" }, null)
             }
         }
     }

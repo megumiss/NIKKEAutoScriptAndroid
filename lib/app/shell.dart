@@ -90,6 +90,8 @@ class _NkasShellState extends State<NkasShell> {
   String? calendarError;
   String? calendarBaseUrl;
   bool restartingService = false;
+  bool startingService = false;
+  bool stoppingService = false;
   SchemaInfo? schema;
   bool loadingSchema = false;
   String? schemaError;
@@ -617,6 +619,14 @@ class _NkasShellState extends State<NkasShell> {
       onRefreshStatus: () => widget.connectionController.connect(
         widget.connectionController.state.baseUrl,
       ),
+      onStartService: isAndroid && widget.connectionController.isLocalDeployment
+          ? _startLocalService
+          : null,
+      onStopService: isAndroid && widget.connectionController.isLocalDeployment
+          ? _stopLocalService
+          : null,
+      startingService: startingService,
+      stoppingService: stoppingService,
       onRestartService:
           isAndroid && widget.connectionController.isLocalDeployment
           ? _restartLocalService
@@ -874,6 +884,60 @@ class _NkasShellState extends State<NkasShell> {
       }
     } finally {
       if (mounted) setState(() => restartingService = false);
+    }
+  }
+
+  /// 启动 Termux 中的 NKAS 服务；启动需要几秒，等待后再重连后端，
+  /// 连上后「启动服务」会按 serviceRunning 自动切换成「停止服务」
+  Future<void> _startLocalService() async {
+    if (startingService) return;
+    setState(() => startingService = true);
+    try {
+      await NkasPlatform.instance.startNkasService();
+      await Future<void>.delayed(const Duration(seconds: 4));
+      if (!mounted) return;
+      await widget.connectionController.connect(
+        widget.connectionController.state.baseUrl,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('服务已启动')));
+    } catch (exception) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('启动服务失败：$exception')));
+      }
+    } finally {
+      if (mounted) setState(() => startingService = false);
+    }
+  }
+
+  /// 停止 Termux 中的 NKAS 服务：proot 不转发停止信号，原生侧已连带
+  /// 清理内层 python。停止是一次主动断开，重连必然失败，这里正是想借
+  /// 那次失败把连接状态翻成已断开，让按钮切回「启动服务」。
+  Future<void> _stopLocalService() async {
+    if (stoppingService) return;
+    setState(() => stoppingService = true);
+    try {
+      await NkasPlatform.instance.stopNkasService();
+      if (!mounted) return;
+      await widget.connectionController.connect(
+        widget.connectionController.state.baseUrl,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('服务已停止')));
+    } catch (exception) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('停止服务失败：$exception')));
+      }
+    } finally {
+      if (mounted) setState(() => stoppingService = false);
     }
   }
 

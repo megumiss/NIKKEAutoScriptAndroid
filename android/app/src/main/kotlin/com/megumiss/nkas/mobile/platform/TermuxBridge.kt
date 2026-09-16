@@ -117,8 +117,22 @@ class TermuxBridge(private val context: Context) {
     }
 
     fun restartService(onResult: (CommandResult) -> Unit) {
+        runServiceScript("restart", onResult)
+    }
+
+    fun startService(onResult: (CommandResult) -> Unit) {
+        runServiceScript("start", onResult)
+    }
+
+    fun stopService(onResult: (CommandResult) -> Unit) {
+        runServiceScript("stop", onResult)
+    }
+
+    /// nkas-service.sh 是唯一了解服务生命周期的实现，这里只负责把它写盘再
+    /// 转发子命令，避免在 Kotlin 侧重写启动/停止细节。
+    private fun runServiceScript(action: String, onResult: (CommandResult) -> Unit) {
         val service = Base64.encodeToString(readAssetScript("nkas-service.sh"), Base64.NO_WRAP)
-        val command = "mkdir -p \$HOME/.nkas; echo $service | base64 -d > \$HOME/.nkas/nkas-service.sh; chmod 700 \$HOME/.nkas/nkas-service.sh; \$HOME/.nkas/nkas-service.sh restart"
+        val command = "mkdir -p \$HOME/.nkas; echo $service | base64 -d > \$HOME/.nkas/nkas-service.sh; chmod 700 \$HOME/.nkas/nkas-service.sh; \$HOME/.nkas/nkas-service.sh $action"
         runCommand(command, onResult)
     }
 

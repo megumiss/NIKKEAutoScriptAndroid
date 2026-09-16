@@ -427,6 +427,22 @@ class NkasPlatform {
     return await _channel.invokeMethod<String>('restartNkasService') ?? '';
   }
 
+  /// 启动本机 Termux 中的 NKAS 服务，已在运行时原样返回
+  Future<String> startNkasService() async {
+    if (!_androidSupported) {
+      throw UnsupportedError('启动服务仅支持 Android 本机部署');
+    }
+    return await _channel.invokeMethod<String>('startNkasService') ?? '';
+  }
+
+  /// 停止本机 Termux 中的 NKAS 服务（proot 不转发停止信号，原生侧连带清理内层进程）
+  Future<String> stopNkasService() async {
+    if (!_androidSupported) {
+      throw UnsupportedError('停止服务仅支持 Android 本机部署');
+    }
+    return await _channel.invokeMethod<String>('stopNkasService') ?? '';
+  }
+
   Future<Map<Object?, Object?>> nativeAdbConnect(
     String endpoint, {
     bool useTailscale = false,

@@ -206,6 +206,50 @@ class StaleServiceGuardTest(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertEqual(result.stdout.strip(), 'stopped')
 
+    def test_stop_clears_the_pid_file_without_starting_an_instance(self):
+        """stop 只能停止，不能在后面悄悄把服务拉起来。
+
+        restart 是「先停后起」，很容易把启动那半段复制到 stop 里；一旦如此，
+        界面上的「停止服务」会看着成功而服务仍在监听。
+        """
+        box = self.sandbox(status=0, instances=0)
+        box.write_pid(box.spawn_holder())
+        self.addCleanup(box.release_holder)
+
+        result = box.run('stop')
+
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(result.stdout.strip(), 'stopped')
+        self.assertFalse(
+            (box.state / 'nkas.pid').exists(),
+            '停止后必须清掉 PID 文件',
+        )
+        self.assertFalse(box.launched(), '停止不应启动任何实例')
+
+    def test_stop_succeeds_when_no_service_is_running(self):
+        """幂等：界面可能在状态过期时发出停止请求，脚本不能因此报错。"""
+        box = self.sandbox(status=1, instances=1)
+
+        result = box.run('stop')
+
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(result.stdout.strip(), 'stopped')
+        self.assertFalse(box.launched())
+
+    def test_restart_stops_then_starts(self):
+        """restart 两个阶段都要在：先停再起，输出两行。"""
+        box = self.sandbox(status=1, instances=1)
+
+        result = box.run('restart')
+
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(
+            result.stdout.strip().splitlines(),
+            ['stopped', 'started'],
+            'restart 必须先停后起，两个阶段的输出都要在',
+        )
+        self.assertTrue(box.launched(), 'restart 必须重新启动实例')
+
 
 class ProbeTest(unittest.TestCase):
     """Both scripts must probe an endpoint that depends on the checkout."""

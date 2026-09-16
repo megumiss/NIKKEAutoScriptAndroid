@@ -31,6 +31,10 @@ class OverviewPage extends StatelessWidget {
     required this.calendarLoading,
     required this.calendarError,
     required this.onRefreshCalendar,
+    this.onStartService,
+    this.onStopService,
+    this.startingService = false,
+    this.stoppingService = false,
     this.onRestartService,
     this.restartingService = false,
     super.key,
@@ -54,11 +58,60 @@ class OverviewPage extends StatelessWidget {
   final Future<void> Function()? onRestartService;
   final bool restartingService;
 
+  /// 起停同一个服务，两个回调由 serviceRunning 决定实际生效的那个；
+  /// 为 null 时不显示启动/停止按钮
+  final Future<void> Function()? onStartService;
+  final Future<void> Function()? onStopService;
+  final bool startingService;
+  final bool stoppingService;
+
+  /// 按钮行要渲染的动作，顺序即显示顺序。起停共用一个位置：
+  /// 后端连上说明服务在跑，此时只能停。
+  List<Widget> get _serviceActions => [
+    SecondaryButton(
+      compact: true,
+      icon: LucideIcons.refreshCw,
+      label: '刷新状态',
+      onPressed: () => onRefreshStatus(),
+    ),
+    if (onStartService != null || onStopService != null)
+      if (serviceRunning)
+        SecondaryButton(
+          compact: true,
+          icon: LucideIcons.square,
+          label: '停止服务',
+          // 停止会中断正在运行的任务，与重启同样用警示色，
+          // 靠图标与文案区分这两件事
+          destructive: true,
+          loading: stoppingService,
+          onPressed: stoppingService ? null : () => onStopService?.call(),
+        )
+      else
+        SecondaryButton(
+          compact: true,
+          icon: LucideIcons.play,
+          label: '启动服务',
+          loading: startingService,
+          onPressed: startingService ? null : () => onStartService?.call(),
+        ),
+    if (onRestartService != null)
+      SecondaryButton(
+        compact: true,
+        icon: LucideIcons.rotateCcw,
+        label: '重启服务',
+        // 重启会中断正在运行的任务，用警示色与「刷新状态」区分开。
+        destructive: true,
+        loading: restartingService,
+        onPressed: restartingService ? null : () => onRestartService!(),
+      ),
+  ];
+
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
     final scheme = theme.colorScheme;
     final inset = nkasPageInset(context);
+    final actions = _serviceActions;
     return ListView(
       padding: EdgeInsets.fromLTRB(inset, 5, inset, 88),
       children: [
@@ -168,25 +221,12 @@ class OverviewPage extends StatelessWidget {
               const SizedBox(height: 17),
               Row(
                 children: [
-                  SecondaryButton(
-                    compact: true,
-                    icon: LucideIcons.refreshCw,
-                    label: '刷新状态',
-                    onPressed: () => onRefreshStatus(),
-                  ),
-                  if (onRestartService != null) ...[
-                    const SizedBox(width: 8),
-                    SecondaryButton(
-                      compact: true,
-                      icon: LucideIcons.rotateCcw,
-                      label: '重启服务',
-                      // 重启会中断正在运行的任务，用警示色与「刷新状态」区分开。
-                      destructive: true,
-                      loading: restartingService,
-                      onPressed: restartingService
-                          ? null
-                          : () => onRestartService!(),
-                    ),
+                  for (final (index, action) in actions.indexed) ...[
+                    if (index > 0) const SizedBox(width: 8),
+                    // 本机部署时这一行最多三个按钮，按内容宽度排会在 360 宽的
+                    // 机型上溢出 7px，所以均分可用宽度；只有一个按钮时保持
+                    // 按内容取宽，避免被拉成整行的长条。
+                    if (actions.length > 1) Expanded(child: action) else action,
                   ],
                 ],
               ),
