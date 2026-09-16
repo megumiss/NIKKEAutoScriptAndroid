@@ -37,6 +37,7 @@ git diff --check
 | Go 源码 | `native/tsnet/` | `go test ./...` |
 | Go 并发、取消和生命周期 | `native/tsnet/` | 另执行 `go test -race ./...`，需支持 cgo 的 C 工具链 |
 | 原生构建、版本工具 | 根目录 | `python -m unittest discover -s tool -p 'test_*.py'`；版本工具回归需要 PowerShell |
+| Swift 源码 | 根目录 | `python tool/check_swift_scope.py`；有 macOS 环境时执行 Runner XCTest 与模拟器构建 |
 | Android 平台桥、协议或生命周期 | `android/` | 准备 AAR 和 Flutter 配置后执行 `gradlew :app:testDebugUnitTest` |
 | iOS 平台桥、协议或生命周期 | 根目录（macOS） | 准备框架后执行 Runner XCTest |
 | 原生库、资源或平台构建配置 | 根目录 | `python tool/verify_native.py --android` / `--ios`，并完成相关平台构建 |

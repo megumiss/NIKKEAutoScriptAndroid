@@ -63,6 +63,7 @@
 | Go 源码 | `native/tsnet/` | `go test ./...` |
 | Go 并发、取消或生命周期 | `native/tsnet/` | 另执行 `go test -race ./...`，需要支持 cgo 的 C 工具链 |
 | 原生构建或版本工具 | 仓库根目录 | `python -m unittest discover -s tool -p 'test_*.py'`；版本工具回归需要 PowerShell |
+| Swift 源码 | 仓库根目录 | `python tool/check_swift_scope.py`；有 macOS 环境时执行 Runner XCTest 与模拟器构建 |
 | 原生库、资源或平台构建配置 | 仓库根目录 | `python tool/verify_native.py`（可用 `--android` / `--ios` 限定平台），并完成相关平台构建 |
 | Go 依赖或许可证清单 | 仓库根目录 | `python tool/collect_native_licenses.py go --check` |
 

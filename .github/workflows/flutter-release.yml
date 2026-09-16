@@ -69,10 +69,12 @@ jobs:
         run: go test -race ./...
       - name: Check native resources and license inventory
         run: |
-          python3 -m py_compile tool/build_tsnet.py tool/build_ios_adb.py tool/collect_native_licenses.py tool/verify_native.py
+          python3 -m py_compile tool/build_tsnet.py tool/build_ios_adb.py tool/collect_native_licenses.py tool/verify_native.py tool/check_swift_scope.py
           python3 -m unittest discover -s tool -p 'test_*.py'
           python3 tool/collect_native_licenses.py go --check
           python3 tool/verify_native.py
+      - name: Check Swift cross-type scope
+        run: python3 tool/check_swift_scope.py
 
   android:
     name: Android split APKs
@@ -170,6 +172,8 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
           cache-dependency-path: native/tsnet/go.sum
+      - name: Check Swift cross-type scope
+        run: python3 tool/check_swift_scope.py
       - name: Build and verify native XCFrameworks
         run: |
           xcodebuild -version

@@ -219,7 +219,7 @@ final class NkasIosAdbClient {
     let socket = try transport()
     do {
       try socket.request(service, timeout: timeout)
-      return NkasIosAdbStream(socket: socket, onClose: {})
+      return NkasIosAdbStream(socket: socket, writeTimeout: streamTimeout, onClose: {})
     } catch {
       socket.close()
       throw error
@@ -245,16 +245,18 @@ final class NkasIosAdbClient {
 
 final class NkasIosAdbStream {
   private let socket: NkasIosAdbSocket
+  private let writeTimeout: TimeInterval
   private let onClose: () -> Void
   private let lock = NSLock()
   private var closed = false
 
-  fileprivate init(socket: NkasIosAdbSocket, onClose: @escaping () -> Void) {
+  fileprivate init(socket: NkasIosAdbSocket, writeTimeout: TimeInterval, onClose: @escaping () -> Void) {
     self.socket = socket
+    self.writeTimeout = writeTimeout
     self.onClose = onClose
   }
 
-  func write(_ data: Data) throws { try socket.write(data, timeout: streamTimeout) }
+  func write(_ data: Data) throws { try socket.write(data, timeout: writeTimeout) }
 
   /// No default: a dropped protocol default here would silently reintroduce a
   /// socket timeout that the Tailscale-tolerant configuration cannot reach.
