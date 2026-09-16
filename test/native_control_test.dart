@@ -18,6 +18,27 @@ Widget host(Widget child) => ShadApp(
   home: Scaffold(body: child),
 );
 
+/// 拖动必须分多次 move：单次 move 只够让拖拽识别器越过 slop 并认领手势，
+/// 位移会被当成 drag start 丢掉，滚动量恒为 0，会让回归测试假通过。
+/// 返回拖动后的滚动偏移。
+Future<double> dragToScroll(
+  WidgetTester tester,
+  Offset start, {
+  int steps = 12,
+}) async {
+  final position = tester
+      .state<ScrollableState>(find.byType(Scrollable).first)
+      .position;
+  final gesture = await tester.startGesture(start);
+  for (var i = 0; i < steps; i++) {
+    await gesture.moveBy(const Offset(0, -20));
+    await tester.pump();
+  }
+  await gesture.up();
+  await tester.pump();
+  return position.pixels;
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -118,15 +139,26 @@ void main() {
       final position = tester
           .state<ScrollableState>(find.byType(Scrollable))
           .position;
-      final gesture = await tester.startGesture(
+      expect(position.maxScrollExtent, greaterThan(0));
+
+      // 对照：同样的拖动落在画面之外的空白处，页面必须真的滚起来；
+      // 否则「画面拖动不滚」只能说明拖动本身没生效
+      final onBlank = await dragToScroll(
+        tester,
+        tester.getCenter(find.byType(NativeVideoSurface)) + const Offset(0, 400),
+      );
+      expect(onBlank, greaterThan(0));
+      position.jumpTo(0);
+      await tester.pump();
+
+      final onVideo = await dragToScroll(
+        tester,
         tester.getCenter(find.byType(NativeVideoSurface)),
       );
-      await gesture.moveBy(const Offset(0, -120));
-      await tester.pump();
-      expect(position.pixels, 0);
-      await gesture.up();
-      await tester.pump();
-      expect(touches.map((e) => e.action), [0, 2, 1]);
+      expect(onVideo, 0);
+      expect(touches.first.action, 0);
+      expect(touches.any((e) => e.action == 2), isTrue);
+      expect(touches.last.action, 1);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox.shrink());
     },
@@ -774,6 +806,70 @@ void main() {
       await events.close();
     },
   );
+
+  testWidgets('dragging the live control surface does not scroll the page', (
+    tester,
+  ) async {
+    final events = StreamController<NkasPlatformEvent>.broadcast();
+    final platform = NkasPlatform.testing(events: events.stream);
+    final calls = <MethodCall>[];
+    _mockPlatform(calls);
+    await tester.pumpWidget(
+      host(
+        SingleChildScrollView(
+          child: ScreenPanel(
+            platform: platform,
+            accessGranted: true,
+            loadScreenshot: () async => null,
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.tap(find.byTooltip('连接设备'));
+    await tester.pump();
+    final id =
+        (calls.firstWhere((c) => c.method == 'nativeScrcpyStart').arguments
+                as Map)['requestId']
+            as String;
+    // 竖屏流让画面高度超出视口，页面本身可滚动，才可能暴露双滑
+    events.add(
+      ScrcpyVideoEvent(
+        state: 'started',
+        requestId: id,
+        textureId: 9,
+        width: 1080,
+        height: 2400,
+      ),
+    );
+    await tester.pump();
+    final position = tester
+        .state<ScrollableState>(find.byType(Scrollable))
+        .position;
+    expect(position.maxScrollExtent, greaterThan(0));
+
+    // 对照：落在卡片顶部的状态栏上拖动，页面必须滚起来
+    final onBar = await dragToScroll(
+      tester,
+      tester.getTopLeft(find.byType(ScreenPanel)) + const Offset(60, 20),
+    );
+    expect(onBar, greaterThan(0));
+    position.jumpTo(0);
+    await tester.pump();
+
+    // 画面可见区域内的拖动交给设备，页面不动
+    final video = tester.getRect(find.byType(Texture));
+    final viewport =
+        Offset.zero & tester.view.physicalSize / tester.view.devicePixelRatio;
+    final onVideo = await dragToScroll(
+      tester,
+      video.intersect(viewport).center,
+    );
+    expect(onVideo, 0);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await events.close();
+  });
 }
 
 void _mockPlatform(
