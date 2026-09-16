@@ -335,6 +335,9 @@ class _ScreenPanelState extends State<ScreenPanel> {
                 frame: live ? null : image,
                 onTouch: live ? (touch) => _sendTouch(id, touch) : null,
                 onError: live ? _nativeFailure : null,
+                onBack: live ? () => _key(4) : null,
+                onHome: live ? () => _key(3) : null,
+                onText: live ? _text : null,
               ),
             ),
           )
@@ -422,13 +425,15 @@ class _ScreenPanelState extends State<ScreenPanel> {
         nativeState == 'connecting' ||
         nativeState == 'reconnecting' ||
         nativeState == 'waiting';
-    final label = live
+    final status = live
         ? '实时控制'
         : connecting
         ? '正在连接设备…'
         : frame != null
         ? '截图预览 · 2s'
         : '未连接';
+    // 连接与控制过程中的提示与状态同栏展示，画面区域完整留给画面
+    final message = nativeError;
     const foreground = Color(0xFFD6E3EA);
     return Surface(
       padding: EdgeInsets.zero,
@@ -442,8 +447,15 @@ class _ScreenPanelState extends State<ScreenPanel> {
               children: [
                 Expanded(
                   child: Text(
-                    label,
-                    style: const TextStyle(color: foreground, fontSize: 12),
+                    message ?? status,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: message == null
+                          ? foreground
+                          : NkasColors.darkDanger,
+                      fontSize: 12,
+                    ),
                   ),
                 ),
                 IconButton(
@@ -535,20 +547,17 @@ class _ScreenPanelState extends State<ScreenPanel> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      // 提示统一由顶部状态栏呈现，空态只描述画面本身
                       Text(
-                        nativeError ??
-                            (error != null
-                                ? '画面加载失败'
-                                : loading
-                                ? '正在获取画面…'
-                                : '暂无画面'),
+                        error != null
+                            ? '画面加载失败'
+                            : loading
+                            ? '正在获取画面…'
+                            : '暂无画面',
                         textAlign: TextAlign.center,
                         style: const TextStyle(color: NkasColors.screenText),
                       ),
-                      if (platform.supported &&
-                          nativeError == null &&
-                          error == null &&
-                          !loading) ...[
+                      if (platform.supported && error == null && !loading) ...[
                         const SizedBox(height: 8),
                         const Text(
                           '点击右上角插头按钮连接设备，开始实时控制',
@@ -561,19 +570,6 @@ class _ScreenPanelState extends State<ScreenPanel> {
                       ],
                     ],
                   ),
-                ),
-              ),
-            ),
-          if (nativeError != null && (frame != null || live))
-            Padding(
-              padding: const EdgeInsets.all(10),
-              child: Text(
-                nativeError!,
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: NkasColors.screenText,
-                  fontSize: 12,
                 ),
               ),
             ),
@@ -637,6 +633,9 @@ class _FullscreenVideoPage extends StatefulWidget {
     required this.frame,
     required this.onTouch,
     required this.onError,
+    this.onBack,
+    this.onHome,
+    this.onText,
   });
 
   final int? textureId;
@@ -646,11 +645,18 @@ class _FullscreenVideoPage extends StatefulWidget {
   final Future<void> Function(NativeTouch touch)? onTouch;
   final void Function(Object error)? onError;
 
+  /// 控制中的系统操作，与内嵌画面共用同一套按键与文本转发
+  final VoidCallback? onBack;
+  final VoidCallback? onHome;
+  final VoidCallback? onText;
+
   @override
   State<_FullscreenVideoPage> createState() => _FullscreenVideoPageState();
 }
 
 class _FullscreenVideoPageState extends State<_FullscreenVideoPage> {
+  static const foreground = Color(0xFFD6E3EA);
+
   @override
   void initState() {
     super.initState();
@@ -674,25 +680,35 @@ class _FullscreenVideoPageState extends State<_FullscreenVideoPage> {
       body: Stack(
         children: [
           Positioned.fill(
-            child: Center(
-              child: textureId != null && widget.width > 0 && widget.height > 0
-                  ? AspectRatio(
-                      aspectRatio: widget.width / widget.height,
-                      child: NativeVideoSurface(
-                        textureId: textureId,
-                        width: widget.width,
-                        height: widget.height,
-                        onTouch: widget.onTouch ?? (_) async {},
-                        onError: widget.onError ?? (_) {},
-                      ),
-                    )
-                  : frame != null
-                  ? Image.memory(
-                      frame.bytes,
-                      fit: BoxFit.contain,
-                      gaplessPlayback: true,
-                    )
-                  : const SizedBox.shrink(),
+            child: Column(
+              children: [
+                Expanded(
+                  child: Center(
+                    child:
+                        textureId != null &&
+                            widget.width > 0 &&
+                            widget.height > 0
+                        ? AspectRatio(
+                            aspectRatio: widget.width / widget.height,
+                            child: NativeVideoSurface(
+                              textureId: textureId,
+                              width: widget.width,
+                              height: widget.height,
+                              onTouch: widget.onTouch ?? (_) async {},
+                              onError: widget.onError ?? (_) {},
+                            ),
+                          )
+                        : frame != null
+                        ? Image.memory(
+                            frame.bytes,
+                            fit: BoxFit.contain,
+                            gaplessPlayback: true,
+                          )
+                        : const SizedBox.shrink(),
+                  ),
+                ),
+                if (widget.onBack != null) _controlBar(),
+              ],
             ),
           ),
           Positioned(
@@ -702,7 +718,7 @@ class _FullscreenVideoPageState extends State<_FullscreenVideoPage> {
               tooltip: '退出全屏',
               style: IconButton.styleFrom(
                 backgroundColor: const Color(0x80101D25),
-                foregroundColor: const Color(0xFFD6E3EA),
+                foregroundColor: foreground,
               ),
               icon: const Icon(LucideIcons.minimize, size: 20),
               onPressed: () => Navigator.of(context).pop(),
@@ -712,6 +728,51 @@ class _FullscreenVideoPageState extends State<_FullscreenVideoPage> {
       ),
     );
   }
+
+  /// 控制栏随画面一起进入全屏，沉浸式下补足手势条安全区
+  Widget _controlBar() => Container(
+    color: const Color(0xE0101D25),
+    child: SafeArea(
+      top: false,
+      child: Row(
+        children: [
+          Expanded(
+            child: TextButton.icon(
+              onPressed: widget.onBack,
+              icon: const Icon(LucideIcons.cornerUpLeft, size: 18),
+              style: TextButton.styleFrom(
+                foregroundColor: foreground,
+                minimumSize: const Size(0, 48),
+              ),
+              label: const Text('返回'),
+            ),
+          ),
+          Expanded(
+            child: TextButton.icon(
+              onPressed: widget.onHome,
+              icon: const Icon(LucideIcons.house, size: 18),
+              style: TextButton.styleFrom(
+                foregroundColor: foreground,
+                minimumSize: const Size(0, 48),
+              ),
+              label: const Text('主页'),
+            ),
+          ),
+          Expanded(
+            child: TextButton.icon(
+              onPressed: widget.onText,
+              icon: const Icon(LucideIcons.keyboard, size: 18),
+              style: TextButton.styleFrom(
+                foregroundColor: foreground,
+                minimumSize: const Size(0, 48),
+              ),
+              label: const Text('文本'),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 class _NativeTextDialog extends StatefulWidget {
