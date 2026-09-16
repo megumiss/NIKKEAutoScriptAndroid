@@ -195,11 +195,11 @@ class _InitConfigPageState extends State<InitConfigPage> {
                 const SizedBox(height: 16),
                 NkasTextField(
                   label: 'Docker 镜像',
-                  description: '用于安装 NKAS 容器，默认使用毫秒镜像 docker.1ms.run',
+                  description: '用于安装 NKAS 容器，默认使用官方镜像源',
                   controller: docker,
                   enabled: !saving,
                   textInputAction: TextInputAction.done,
-                  hintText: 'docker.1ms.run/megumiss/nkas:latest',
+                  hintText: 'docker.io/megumiss/nkas:latest',
                   prefixIcon: const Icon(LucideIcons.container, size: 18),
                   onChanged: (_) => setState(() {
                     saved = false;

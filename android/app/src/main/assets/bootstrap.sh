@@ -10,7 +10,7 @@ if [ -f "$STATE_DIR/settings.env" ]; then
     . "$STATE_DIR/settings.env"
 fi
 APT_SOURCE="${NKAS_APT_SOURCE:-https://mirrors.tuna.tsinghua.edu.cn/termux/apt/termux-main}"
-DOCKER_IMAGE="${NKAS_DOCKER_IMAGE:-docker.1ms.run/megumiss/nkas:latest}"
+DOCKER_IMAGE="${NKAS_DOCKER_IMAGE:-docker.io/megumiss/nkas:latest}"
 WEBUI_URL="${NKAS_WEBUI_URL:-http://127.0.0.1:12271}"
 WEBUI_HOST="${NKAS_WEBUI_HOST:-127.0.0.1}"
 WEBUI_PORT="${NKAS_WEBUI_PORT:-12271}"

@@ -694,6 +694,43 @@ void main() {
   );
 
   testWidgets(
+    'container step explains the image source and network requirement',
+    (tester) async {
+      final events = StreamController<NkasPlatformEvent>.broadcast();
+      final platform = _SetupPlatform(events.stream);
+      try {
+        await _mountSetup(tester, platform);
+        // 容器是第一个未完成的步骤，会随状态刷新自动展开
+        await tester.scrollUntilVisible(
+          find.text('容器'),
+          150,
+          scrollable: find.byType(Scrollable).first,
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.textContaining('官方镜像源'), findsOneWidget);
+        expect(find.textContaining('网络畅通'), findsOneWidget);
+        expect(
+          find.textContaining('docker.1ms.run/megumiss/nkas:latest'),
+          findsOneWidget,
+        );
+
+        // 收起再展开仍应保留提示，说明它挂在步骤行内部而不是临时浮层
+        await tester.tap(find.text('容器'));
+        await tester.pumpAndSettle();
+        expect(find.textContaining('官方镜像源'), findsNothing);
+        await tester.tap(find.text('容器'));
+        await tester.pumpAndSettle();
+        expect(find.textContaining('官方镜像源'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      } finally {
+        await tester.pumpWidget(const SizedBox.shrink());
+        await events.close();
+      }
+    },
+  );
+
+  testWidgets(
     'status query errors appear above the queue and clear on refresh',
     (tester) async {
       final events = StreamController<NkasPlatformEvent>.broadcast();

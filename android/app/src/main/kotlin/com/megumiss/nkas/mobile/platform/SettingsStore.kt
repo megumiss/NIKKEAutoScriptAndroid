@@ -8,7 +8,7 @@ data class SourceChoice(val label: String, val value: String)
 object SettingsStore {
     const val PREFS_NAME = "nkas_settings"
     const val DEFAULT_APT_SOURCE = "https://mirrors.tuna.tsinghua.edu.cn/termux/apt/termux-main"
-    const val DEFAULT_DOCKER_IMAGE = "docker.1ms.run/megumiss/nkas:latest"
+    const val DEFAULT_DOCKER_IMAGE = "docker.io/megumiss/nkas:latest"
     const val DEFAULT_REPOSITORY = "https://git.megumiss.top/megumiss/NIKKEAutoScript"
     const val DEFAULT_WEBUI_URL = "http://127.0.0.1:12271"
     const val DEFAULT_WEBUI_PORT = 12271

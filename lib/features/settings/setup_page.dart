@@ -1111,6 +1111,14 @@ class _NkasSetupPageState extends State<NkasSetupPage>
             ],
           ),
         );
+      case 'container':
+        return const _ExtraPanel(
+          text:
+              '容器从「初始化配置」中的 Docker 镜像源拉取，默认使用官方镜像源 '
+              'docker.io/megumiss/nkas:latest。需要网络畅通；无法访问官方源时，'
+              '在初始化配置中改为可用的国内镜像源，例如 '
+              'docker.1ms.run/megumiss/nkas:latest，再重试安装。',
+        );
       default:
         return null;
     }

@@ -18,7 +18,7 @@ class _InitPlatform extends NkasPlatform {
     webUiUrl: 'http://127.0.0.1:12271',
     repository: 'cn',
     aptSource: 'tuna',
-    dockerImage: 'docker.1ms.run/megumiss/nkas:latest',
+    dockerImage: 'docker.io/megumiss/nkas:latest',
     repositorySources: [
       InitConfigSource(label: '国内镜像', value: 'cn'),
       InitConfigSource(label: 'GitHub', value: 'gh'),

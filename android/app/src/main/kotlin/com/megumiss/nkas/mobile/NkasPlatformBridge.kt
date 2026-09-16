@@ -188,7 +188,7 @@ class NkasPlatformBridge(private val activity: FlutterActivity) :
         }
         val docker = call.argument<String>("dockerImage")?.trim().orEmpty()
         if (!docker.matches(Regex("[A-Za-z0-9._/-]+:[A-Za-z0-9._-]+"))) {
-            result.error("invalid_docker", "Docker 镜像格式不正确，例如：docker.1ms.run/megumiss/nkas:latest", null)
+            result.error("invalid_docker", "Docker 镜像格式不正确，例如：docker.io/megumiss/nkas:latest", null)
             return
         }
         activity.getSharedPreferences(SettingsStore.PREFS_NAME, 0).edit()
