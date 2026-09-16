@@ -180,6 +180,8 @@ class OverviewPage extends StatelessWidget {
                       compact: true,
                       icon: LucideIcons.rotateCcw,
                       label: '重启服务',
+                      // 重启会中断正在运行的任务，用警示色与「刷新状态」区分开。
+                      destructive: true,
                       loading: restartingService,
                       onPressed: restartingService
                           ? null
