@@ -184,9 +184,10 @@ class NativeControlSession(
         val videoWidth = AtomicInteger()
         val videoHeight = AtomicInteger()
         // Also covers an ADB metadata read that never finishes.
+        // Tailscale 走 DERP 中继（VPN 下再穿一层隧道），全链路明显更慢，放宽首帧超时
         val timeout = Runnable { if (isCurrent(token) && !ready.get()) fail(IOException("等待视频首帧超时"), token) }
         startupTimeout = timeout
-        main.postDelayed(timeout, 90_000)
+        main.postDelayed(timeout, if (request.tailscale) 180_000 else 90_000)
         var surface: Surface? = null
         try {
             startService()
@@ -320,7 +321,8 @@ class NativeControlSession(
         queue.execute {
             if (!isCurrent(token + 1)) return@execute
             val request = desired
-            stop()
+            // 重试保留 tsnet 连接：VPN 下重新注册要几十秒，只重做 ADB/scrcpy 段
+            stop(closeTsnet = false)
             if (isCurrent(token + 1) && request != null) {
                 videoEvent(request, "failed", mapOf("error" to (error.message ?: "原生连接已断开")))
                 val attempt = retries.incrementAndGet()

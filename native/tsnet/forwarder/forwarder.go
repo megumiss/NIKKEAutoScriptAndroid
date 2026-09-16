@@ -31,6 +31,7 @@ type State struct {
 	Phase          string
 	Hostname       string
 	LocalAddresses []string
+	MagicDNS       string
 	ForwardCount   int
 	LastError      string
 }
@@ -63,6 +64,7 @@ type Forwarder struct {
 	phase         string
 	lastErr       string
 	addresses     []string
+	magicDNS      string
 	forwards      map[string]*forward
 	connectCancel context.CancelFunc
 	closing       int
@@ -176,7 +178,8 @@ func (f *Forwarder) Connect() (err error) {
 	if err := server.Start(); err != nil {
 		return fmt.Errorf("start tsnet: %w", err)
 	}
-	if _, err := server.Up(ctx); err != nil {
+	status, err := server.Up(ctx)
+	if err != nil {
 		return fmt.Errorf("bring tsnet up: %w", err)
 	}
 	if err := ctx.Err(); err != nil {
@@ -197,6 +200,10 @@ func (f *Forwarder) Connect() (err error) {
 	f.server = server
 	f.authKey = ""
 	f.addresses = addresses
+	f.magicDNS = ""
+	if status != nil && status.Self != nil {
+		f.magicDNS = strings.TrimSuffix(status.Self.DNSName, ".")
+	}
 	f.phase = "connected"
 	f.lastErr = ""
 	f.mu.Unlock()
@@ -417,6 +424,7 @@ func (f *Forwarder) Status() State {
 		ForwardCount:   forwardCount,
 		LastError:      f.lastErr,
 		LocalAddresses: append([]string(nil), f.addresses...),
+		MagicDNS:       f.magicDNS,
 	}
 	f.mu.RUnlock()
 	return state
@@ -491,6 +499,7 @@ func (f *Forwarder) close() {
 	server := f.server
 	f.server = nil
 	f.addresses = nil
+	f.magicDNS = ""
 	f.phase = "closed"
 	f.closing--
 	f.mu.Unlock()

@@ -221,7 +221,8 @@ final class NkasNativeSession {
       self?.fail(NkasIosAdbError.connection("等待视频首帧超时"), token: token)
     }
     startupTimeout = timeout
-    DispatchQueue.global().asyncAfter(deadline: .now() + 90, execute: timeout)
+    // Tailscale 走 DERP 中继（VPN 下再穿一层隧道），全链路明显更慢，放宽首帧超时
+    DispatchQueue.global().asyncAfter(deadline: .now() + (request.tailscale ? 180 : 90), execute: timeout)
     do {
       let endpoint = try NkasIosAdbEndpoint(request.endpoint)
       let route = request.tailscale ? try route(endpoint) : endpoint.serial
@@ -313,7 +314,8 @@ final class NkasNativeSession {
     queue.async { [self] in
       guard isCurrent(next) else { return }
       let request = activeRequest
-      stop()
+      // 重试保留 tsnet 连接：VPN 下重新注册要几十秒，只重做 ADB/scrcpy 段
+      stop(closeTsnet: false)
       if let request { videoEvent(request, "failed", ["error": error.localizedDescription]) }
       retries += 1
       if retries <= 3 { reconnect(token: next, delay: Double(1 << (retries - 1))) }
