@@ -114,8 +114,9 @@ class NkasFloatingAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 禁用态保持实心：透明的主色按钮叠在滚动内容上看起来像故障，
-    // 改用次要按钮配色 + 禁用时不降透明度
+    // 禁用态保持实心：次级按钮配色本身带 alpha（原型 .np-secondary 是卡片内的
+    // 行内按钮），直接用在悬浮按钮上会让下方滚动内容透出来，看起来像故障。
+    // 只合成背景；边框保持原样，透明度不会造成内容穿透。
     if (!enabled && !loading) {
       final scheme = ShadTheme.of(context).colorScheme;
       return SizedBox(
@@ -124,7 +125,7 @@ class NkasFloatingAction extends StatelessWidget {
           icon: icon,
           label: label,
           onPressed: null,
-          background: scheme.secondaryButtonBg,
+          background: _opaqueOnScaffold(context, scheme.secondaryButtonBg),
           foreground: scheme.secondaryButtonText,
           borderColor: scheme.secondaryButtonBorder,
           disabledOpacity: 1,
@@ -141,4 +142,15 @@ class NkasFloatingAction extends StatelessWidget {
       ),
     );
   }
+}
+
+/// 把半透明配色按页面底色合成为不透明色。
+///
+/// 悬浮按钮下方是滚动内容而不是固定色块，直接使用带 alpha 的次级按钮配色会让
+/// 内容透出来，看起来像按钮坏了。次级按钮原型（.np-secondary）本就是为卡片内
+/// 的行内按钮设计的半透明底，行内使用没有问题，只有底部悬浮按钮需要合成。
+Color _opaqueOnScaffold(BuildContext context, Color color) {
+  if (color.a >= 1) return color;
+  final scheme = ShadTheme.of(context).colorScheme;
+  return Color.alphaBlend(color, scheme.background);
 }

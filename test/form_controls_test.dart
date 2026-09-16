@@ -7,8 +7,10 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 
 import 'package:nkas_mobile/core/api/instance_info.dart';
 import 'package:nkas_mobile/core/api/schedule_info.dart';
+import 'package:nkas_mobile/core/widgets/buttons.dart';
 import 'package:nkas_mobile/core/widgets/config_input.dart';
 import 'package:nkas_mobile/core/widgets/field_select.dart';
+import 'package:nkas_mobile/core/widgets/floating_action.dart';
 import 'package:nkas_mobile/core/widgets/form_field.dart';
 import 'package:nkas_mobile/core/widgets/instance_select.dart';
 import 'package:nkas_mobile/core/widgets/multi_select.dart';
@@ -404,4 +406,33 @@ void main() {
     await tester.pumpAndSettle();
     expect(saved!.single['monthly_day'], '15');
   });
+
+  // 底部悬浮按钮压在滚动内容之上，半透明背景会让列表文字透出来，看起来像故障。
+  // 次级按钮配色（.np-secondary）本就是给卡片内行内按钮用的半透明底，这里必须
+  // 合成成不透明色，两个主题都要检查。
+  for (final brightness in [Brightness.light, Brightness.dark]) {
+    testWidgets('floating action is fully opaque in ${brightness.name} theme', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        host(
+          NkasFloatingAction(
+            label: '开始安装',
+            icon: LucideIcons.download,
+            enabled: false,
+            onPressed: () {},
+          ),
+          brightness: brightness,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final button = tester.widget<NkasButton>(find.byType(NkasButton));
+      expect(button.background.a, 1, reason: '禁用态悬浮按钮必须使用不透明背景');
+      // Ink 决定实际绘制出的底色，兜住「传了不透明色但渲染层又叠了透明度」
+      final ink = tester.widget<Ink>(find.byType(Ink).first);
+      final decoration = ink.decoration! as BoxDecoration;
+      expect(decoration.color!.a, 1, reason: '绘制出的背景必须不透明');
+    });
+  }
 }
