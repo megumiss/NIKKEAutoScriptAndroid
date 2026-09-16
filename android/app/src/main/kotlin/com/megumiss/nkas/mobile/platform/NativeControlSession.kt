@@ -2,7 +2,6 @@ package com.megumiss.nkas.mobile.platform
 
 import android.content.Context
 import android.net.ConnectivityManager
-import android.net.LinkProperties
 import android.net.Network
 import android.os.Handler
 import android.os.Looper
@@ -57,8 +56,10 @@ class NativeControlSession(
     )
 
     private val networkCallback = object : ConnectivityManager.NetworkCallback() {
-        override fun onLinkPropertiesChanged(network: Network, properties: LinkProperties) {
-            main.post { networkChanged("$network:${properties.interfaceName}:${properties.linkAddresses}", true) }
+        override fun onAvailable(network: Network) {
+            // VPN 活动时会频繁刷新路由、DNS 和地址（onLinkPropertiesChanged），
+            // 不能当作网络切换处理；只有默认网络本身更换才重建控制会话
+            main.post { networkChanged("$network", true) }
         }
         override fun onLost(network: Network) {
             main.post { if (this@NativeControlSession.network?.activeNetwork == null) networkChanged(null, false) }
