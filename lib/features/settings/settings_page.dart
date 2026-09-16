@@ -401,28 +401,9 @@ class _SettingRow extends StatelessWidget {
         child: Row(
           children: [
             if (icon != null) ...[
-              Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  IconBox(
-                    icon: icon!,
-                    color: iconColor ?? theme.colorScheme.success,
-                  ),
-                  if (badge)
-                    Positioned(
-                      top: -2,
-                      right: -2,
-                      child: Container(
-                        key: const ValueKey('nkas-update-dot'),
-                        width: 8,
-                        height: 8,
-                        decoration: BoxDecoration(
-                          color: theme.colorScheme.destructive,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                    ),
-                ],
+              IconBox(
+                icon: icon!,
+                color: iconColor ?? theme.colorScheme.success,
               ),
               const SizedBox(width: 11),
             ],
@@ -449,6 +430,18 @@ class _SettingRow extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 8),
+            if (badge) ...[
+              Container(
+                key: const ValueKey('nkas-update-dot'),
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.destructive,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 8),
+            ],
             customTrailing ??
                 Icon(
                   trailing ?? LucideIcons.chevronRight,
