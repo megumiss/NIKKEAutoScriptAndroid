@@ -28,6 +28,9 @@ class _NkasKeyboardGuardState extends State<NkasKeyboardGuard>
     with WidgetsBindingObserver {
   bool _keyboardOpen = false;
 
+  /// 跨布局分支复用 content 的 Element，避免键盘切换时重建输入框
+  final GlobalKey _contentKey = GlobalKey();
+
   @override
   void initState() {
     super.initState();
@@ -61,10 +64,15 @@ class _NkasKeyboardGuardState extends State<NkasKeyboardGuard>
 
   @override
   Widget build(BuildContext context) {
+    // content 必须跨两个分支保持同一个 Element：父链在 Stack 与 Column
+    // 之间切换时，框架会按「父级 + 位置」重新匹配，列表里正在编辑的
+    // 输入框随之重建、FocusNode 丢失，键盘会立刻收起。固定 key 让框架
+    // 复用同一个 Element（见测试 'keyboard open keeps the editing field'）
+    final content = KeyedSubtree(key: _contentKey, child: widget.content);
     if (_keyboardOpen) {
       return Column(
         children: [
-          Expanded(child: widget.content),
+          Expanded(child: content),
           Padding(
             padding: EdgeInsets.fromLTRB(widget.inset, 8, widget.inset, 12),
             child: widget.action,
@@ -74,7 +82,7 @@ class _NkasKeyboardGuardState extends State<NkasKeyboardGuard>
     }
     return Stack(
       children: [
-        Positioned.fill(child: widget.content),
+        Positioned.fill(child: content),
         Positioned(
           left: widget.inset,
           right: widget.inset,

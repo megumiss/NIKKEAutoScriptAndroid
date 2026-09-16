@@ -50,6 +50,9 @@ app.*.map.json
 # Widget Preview related
 .widget_preview/
 
+# Local agent session state
+.workbuddy/
+
 # Local Android build state and signing credentials
 .gradle/
 .kotlin/
