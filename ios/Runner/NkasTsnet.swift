@@ -65,7 +65,35 @@ final class NkasTsnetClient {
   func connect() throws {
     let phase = status()["phase"] as? String ?? "new"
     if !["configured", "connecting", "connected", "error"].contains(phase) { try configure("") }
-    try client.connect()
+    reasonLock.lock()
+    lastCancelReason = ""
+    reasonLock.unlock()
+    do {
+      try client.connect()
+    } catch {
+      throw withCancelReason(error)
+    }
+  }
+
+  /// 最近一次取消待建立连接的来源；context canceled 报错附带它便于诊断
+  private let reasonLock = NSLock()
+  private var lastCancelReason = ""
+
+  func interrupt(_ reason: String) {
+    if !reason.isEmpty {
+      reasonLock.lock()
+      lastCancelReason = reason
+      reasonLock.unlock()
+    }
+    client.interrupt()
+  }
+
+  private func withCancelReason(_ error: Error) -> Error {
+    reasonLock.lock()
+    let reason = lastCancelReason
+    reasonLock.unlock()
+    guard !reason.isEmpty, error.localizedDescription.contains("context canceled") else { return error }
+    return NkasIosAdbError.connection("\(error.localizedDescription)（取消来源：\(reason)）")
   }
 
   func startForward(_ endpoint: NkasIosAdbEndpoint, localPort: Int = 0) throws -> [String: Any] {
@@ -83,7 +111,6 @@ final class NkasTsnetClient {
   func stopForward(_ id: String) throws { try client.stopForward(id) }
   func stopAll() { client.stopAll() }
   func close() { client.close() }
-  func interrupt() { client.interrupt() }
 
   func clearState() throws {
     client.close()

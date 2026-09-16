@@ -43,7 +43,7 @@ final class NkasNativeSession {
     switch call.method {
     case "getNativeControlSettings": result(settings.snapshot())
     case "saveNativeControlSettings", "tsnetConfigure", "tsnetClearState":
-      let token = begin(nil)
+      let token = begin(nil, reason: "配置变更")
       execute(call.method, result) { owner in
         try owner.ensureCurrent(token)
         owner.stop()
@@ -69,7 +69,7 @@ final class NkasNativeSession {
       stateLock.lock()
       let controlsVideo = id == activeForwardId
       stateLock.unlock()
-      let token = controlsVideo ? begin(nil) : nil
+      let token = controlsVideo ? begin(nil, reason: "停止视频转发") : nil
       execute(call.method, result) { owner in
         if let token, owner.isCurrent(token) { owner.stop(closeTsnet: false) }
         try owner.tsnet.stopForward(id)
@@ -80,7 +80,7 @@ final class NkasNativeSession {
       let expected = desired?.id
       stateLock.unlock()
       if let id = args["requestId"] as? String, id != expected { result(true); return true }
-      let token = begin(nil)
+      let token = begin(nil, reason: "停止连接")
       execute(call.method, result) { owner in
         if owner.isCurrent(token) {
           owner.stop(closeTsnet: call.method != "tsnetStopAll")
@@ -89,7 +89,7 @@ final class NkasNativeSession {
         return true
       }
     case "nativeAdbConnect":
-      let token = begin(nil)
+      let token = begin(nil, reason: "新的 ADB 连接")
       execute(call.method, result) { owner in
         try owner.ensureCurrent(token); owner.stop(closeTsnet: false)
         do {
@@ -134,7 +134,7 @@ final class NkasNativeSession {
       let request = Request(id: args["requestId"] as? String ?? UUID().uuidString,
                             endpoint: endpoint.isEmpty ? settings.endpoint : endpoint,
                             tailscale: args["useTailscale"] as? Bool ?? settings.tailscaleEnabled, options: options)
-      let token = begin(request)
+      let token = begin(request, reason: "新的控制会话")
       execute(call.method, result) { owner in owner.retries = 0; return try owner.start(request, token: token) }
     case "nativeScrcpyBack", "nativeScrcpyText", "nativeScrcpyKeycode", "nativeScrcpyTouch":
       input(call, args: args, result: result)
@@ -186,7 +186,7 @@ final class NkasNativeSession {
     let token = generation
     stateLock.unlock()
     guard request != nil else { return }
-    adb.interrupt(); tsnet.interrupt()
+    adb.interrupt(); tsnet.interrupt("网络变化")
     queue.async { [self] in
       guard isCurrent(token) else { return }
       stop()
@@ -202,7 +202,7 @@ final class NkasNativeSession {
     generation &+= 1
     let token = generation
     stateLock.unlock()
-    adb.interrupt(); tsnet.interrupt()
+    adb.interrupt(); tsnet.interrupt(active ? "回到前台" : "进入后台")
     queue.async { [self] in
       guard isCurrent(token) else { return }
       stop()
@@ -309,7 +309,7 @@ final class NkasNativeSession {
     generation &+= 1
     let next = generation
     stateLock.unlock()
-    adb.interrupt(); tsnet.interrupt()
+    adb.interrupt(); tsnet.interrupt("会话失败重连")
     queue.async { [self] in
       guard isCurrent(next) else { return }
       let request = activeRequest
@@ -348,12 +348,12 @@ final class NkasNativeSession {
       catch { DispatchQueue.main.async { result(FlutterError(code: code, message: error.localizedDescription, details: nil)) } }
     }
   }
-  private func begin(_ request: Request?) -> Int {
+  private func begin(_ request: Request?, reason: String) -> Int {
     stateLock.lock()
     generation &+= 1; desired = request
     let token = generation
     stateLock.unlock()
-    adb.interrupt(); tsnet.interrupt()
+    adb.interrupt(); tsnet.interrupt(reason)
     return token
   }
   private func currentGeneration() -> Int { stateLock.lock(); defer { stateLock.unlock() }; return generation }

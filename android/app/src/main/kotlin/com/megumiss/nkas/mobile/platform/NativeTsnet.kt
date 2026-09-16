@@ -8,6 +8,7 @@ import go.Seq
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.io.IOException
 import java.net.NetworkInterface
 
 /** Called on the session worker, except interrupt which only cancels a pending connect. */
@@ -25,7 +26,27 @@ class NativeTsnet(context: Context, private val settings: NativeControlSettings)
         val phase = JSONObject(client.status()).optString("phase")
         if (phase !in setOf("configured", "connecting", "connected", "error")) configure("")
         refreshNetworkInterfaces()
-        client.connect()
+        lastCancelReason = ""
+        try {
+            client.connect()
+        } catch (error: Exception) {
+            throw withCancelReason(error)
+        }
+    }
+
+    /** 最近一次取消待建立连接的来源；context canceled 报错附带它便于诊断 */
+    @Volatile private var lastCancelReason = ""
+
+    fun interrupt(reason: String) {
+        if (reason.isNotEmpty()) lastCancelReason = reason
+        client.interrupt()
+    }
+
+    private fun withCancelReason(error: Exception): Exception {
+        val reason = lastCancelReason
+        val message = error.message ?: return error
+        if (reason.isEmpty() || !message.contains("context canceled")) return error
+        return IOException("$message（取消来源：$reason）")
     }
 
     fun startForward(endpoint: AdbEndpoint, localPort: Int = 0): Map<String, Any> {
@@ -38,7 +59,6 @@ class NativeTsnet(context: Context, private val settings: NativeControlSettings)
     fun stopForward(id: String) = client.stopForward(id)
     fun stopAll() = client.stopAll()
     fun close() = client.close()
-    fun interrupt() = client.interrupt()
 
     fun clearState() {
         // Configure may never have run in this process, but a previous node can exist on disk.

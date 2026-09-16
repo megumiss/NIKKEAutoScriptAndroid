@@ -76,7 +76,7 @@ class NativeControlSession(
                 "getNativeControlSettings" -> result.success(settings.snapshot())
                 "saveNativeControlSettings", "tsnetConfigure", "tsnetClearState" -> {
                     desired = null
-                    val token = interrupt()
+                    val token = interrupt("配置变更")
                     execute(call.method, result) {
                         ensureCurrent(token)
                         stop()
@@ -97,7 +97,7 @@ class NativeControlSession(
                 }
                 "tsnetStopForward" -> {
                     val id = call.argument<String>("id").orEmpty()
-                    val token = if (id == activeForwardId) { desired = null; interrupt() } else null
+                    val token = if (id == activeForwardId) { desired = null; interrupt("停止视频转发") } else null
                     execute(call.method, result) {
                         if (token != null && isCurrent(token)) stop(closeTsnet = false)
                         tsnet.stopForward(id); stopServiceIfIdle(); tsnetStatus()
@@ -107,7 +107,7 @@ class NativeControlSession(
                     val requestId = call.argument<String>("requestId")
                     if (requestId != null && requestId != desired?.id) { result.success(true); return true }
                     desired = null
-                    val token = interrupt()
+                    val token = interrupt("停止连接")
                     execute(call.method, result) {
                         if (isCurrent(token)) {
                             stop(closeTsnet = call.method != "tsnetStopAll")
@@ -120,7 +120,7 @@ class NativeControlSession(
                 }
                 "nativeAdbConnect" -> {
                     desired = null
-                    val token = interrupt()
+                    val token = interrupt("新的 ADB 连接")
                     execute(call.method, result) {
                         ensureCurrent(token); stop(closeTsnet = false)
                         try {
@@ -160,7 +160,7 @@ class NativeControlSession(
                         control = call.argument<Boolean>("control") ?: true, maxSize = call.argument<Int>("maxSize") ?: 0,
                         videoBitRate = call.argument<Int>("videoBitRate") ?: 0,
                         videoCodec = call.argument<String>("videoCodec") ?: "h264", newDisplay = mode == "local_virtual_display")
-                    val token = interrupt()
+                    val token = interrupt("新的控制会话")
                     val request = Request(call.argument<String>("requestId") ?: token.toString(), endpoint, mode,
                         mode == "remote_adb" && (call.argument<Boolean>("useTailscale") ?: settings.tailscaleEnabled), options)
                     desired = request
@@ -316,7 +316,7 @@ class NativeControlSession(
 
     private fun fail(error: Throwable, token: Long) {
         if (disposed || !generation.compareAndSet(token, token + 1)) return
-        adb.interrupt(); tsnet.interrupt()
+        adb.interrupt(); tsnet.interrupt("连接失败重连")
         queue.execute {
             if (!isCurrent(token + 1)) return@execute
             val request = desired
@@ -335,7 +335,7 @@ class NativeControlSession(
         emit(mapOf("type" to "nativeNetwork", "state" to if (available) "connected" else "disconnected"))
         val request = desired ?: return
         if (request.mode == "local_virtual_display") return
-        val token = interrupt()
+        val token = interrupt("网络变化")
         queue.execute {
             if (!isCurrent(token)) return@execute
             stop()
@@ -367,16 +367,16 @@ class NativeControlSession(
         if (disposed) return
         disposed = true
         desired = null
-        interrupt()
+        interrupt("会话关闭")
         network?.unregisterNetworkCallback(networkCallback)
         inputQueue.shutdown()
         queue.execute { stop() }
         queue.shutdown()
     }
 
-    private fun interrupt(): Long {
+    private fun interrupt(reason: String): Long {
         val token = generation.incrementAndGet()
-        adb.interrupt(); tsnet.interrupt()
+        adb.interrupt(); tsnet.interrupt(reason)
         return token
     }
     private fun isCurrent(token: Long) = !disposed && generation.get() == token
