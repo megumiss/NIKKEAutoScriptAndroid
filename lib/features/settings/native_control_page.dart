@@ -202,6 +202,47 @@ class _NativeControlPageState extends State<NativeControlPage> {
     return '';
   }
 
+  /// 已连接时展示 Tailscale 网络详情，地址可长按复制（参考 scrcpy-mobile）
+  List<Widget> _networkDetails(ShadThemeData theme) {
+    final ipv4 = status.addresses.firstWhere(
+      (address) => address.contains('.'),
+      orElse: () => '',
+    );
+    final ipv6 = status.addresses.firstWhere(
+      (address) => address.contains(':'),
+      orElse: () => '',
+    );
+    final entries = <(String, String)>[
+      if (status.magicDNS.isNotEmpty) ('MagicDNS', status.magicDNS),
+      if (ipv4.isNotEmpty) ('Tailscale IPv4', ipv4),
+      if (ipv6.isNotEmpty) ('Tailscale IPv6', ipv6),
+    ];
+    if (entries.isEmpty) return const [];
+    return [
+      const SizedBox(height: 8),
+      for (final (label, value) in entries) ...[
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label, style: theme.textTheme.muted),
+            const SizedBox(width: 12),
+            Expanded(
+              child: SelectableText(
+                value,
+                textAlign: TextAlign.right,
+                style: const TextStyle(
+                  fontFamily: kDefaultFontFamilyMono,
+                  fontSize: 12,
+                ),
+              ),
+            ),
+          ],
+        ),
+        if ((label, value) != entries.last) const SizedBox(height: 4),
+      ],
+    ];
+  }
+
   Future<void> _clearState() async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -452,6 +493,8 @@ class _NativeControlPageState extends State<NativeControlPage> {
                               : theme.textTheme.muted,
                         ),
                       ],
+                      if (status.phase == 'connected')
+                        ..._networkDetails(theme),
                       const SizedBox(height: 10),
                       Row(
                         children: [
