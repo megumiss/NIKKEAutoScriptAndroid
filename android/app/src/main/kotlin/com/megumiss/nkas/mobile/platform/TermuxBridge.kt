@@ -143,11 +143,17 @@ class TermuxBridge(private val context: Context) {
     fun checkArtifacts(onResult: (CommandResult) -> Unit) {
         val expectedImage = SettingsStore.dockerImage(context).replace("'", "")
         val serviceUrl = SettingsStore.webUiApiUrl(context, "/api/system/status")
+        // The wireless-debug port is reassigned by adbd on every boot, so
+        // $HOME/.nkas/settings.env keeps whatever was current when the bootstrap
+        // last ran. SettingsStore is the value the UI reads, which mDNS refreshes
+        // at runtime, so the serial must come from there rather than from the env
+        // file. Assigned after the source below so settings.env cannot shadow it.
+        val configuredSerial = SettingsStore.serial(context).replace("'", "")
         val script = """
             termux_home="${'$'}{HOME:-/data/data/com.termux/files/home}"
             termux_prefix="${'$'}{PREFIX:-/data/data/com.termux/files/usr}"
             if [ -f "${'$'}termux_home/.nkas/settings.env" ]; then . "${'$'}termux_home/.nkas/settings.env"; fi
-            configured_serial="${'$'}{NKAS_SERIAL:-}"
+            configured_serial='$configuredSerial'
             connect_result=""
             if [ -n "${'$'}configured_serial" ]; then connect_result="${'$'}(adb connect "${'$'}configured_serial" 2>&1 | head -n1)"; fi
             printf 'adb_serial=%s\n' "${'$'}configured_serial"
