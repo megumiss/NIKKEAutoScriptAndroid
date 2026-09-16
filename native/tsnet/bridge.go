@@ -43,6 +43,7 @@ func (c *Client) Status() string {
 	state := c.core.Status()
 	value, _ := json.Marshal(map[string]any{
 		"phase": state.Phase, "hostname": state.Hostname, "addresses": state.LocalAddresses,
+		"magicDNS": state.MagicDNS,
 		"forwardCount": state.ForwardCount, "error": state.LastError,
 	})
 	return string(value)

@@ -68,6 +68,7 @@ class TsnetStatus {
     this.phase = 'new',
     this.hostname = '',
     this.addresses = const [],
+    this.magicDNS = '',
     this.forwardCount = 0,
     this.hasPersistedLogin = false,
     this.error = '',
@@ -75,6 +76,7 @@ class TsnetStatus {
   final String phase;
   final String hostname;
   final List<String> addresses;
+  final String magicDNS;
   final int forwardCount;
   final bool hasPersistedLogin;
   final String error;
@@ -84,6 +86,7 @@ class TsnetStatus {
     hostname: value['hostname'] as String? ?? '',
     addresses:
         (value['addresses'] as List?)?.whereType<String>().toList() ?? const [],
+    magicDNS: value['magicDNS'] as String? ?? '',
     forwardCount: (value['forwardCount'] as num?)?.toInt() ?? 0,
     hasPersistedLogin: value['hasPersistedLogin'] == true,
     error: value['error'] as String? ?? '',

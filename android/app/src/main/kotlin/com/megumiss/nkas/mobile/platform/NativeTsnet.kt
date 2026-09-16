@@ -78,6 +78,7 @@ class NativeTsnet(context: Context, private val settings: NativeControlSettings)
         val addresses = value.optJSONArray("addresses") ?: JSONArray()
         return mapOf("phase" to value.optString("phase"), "hostname" to settings.hostname,
             "addresses" to (0 until addresses.length()).map { addresses.getString(it) },
+			"magicDNS" to value.optString("magicDNS"),
             "forwardCount" to value.optInt("forwardCount"), "error" to value.optString("error"),
             "hasPersistedLogin" to client.hasPersistedLogin(stateDir.absolutePath))
     }
