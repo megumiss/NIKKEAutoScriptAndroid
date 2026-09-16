@@ -157,13 +157,25 @@ class _NativeVideoSurfaceState extends State<NativeVideoSurface>
     label: '设备实时画面',
     hint: '支持点击、滑动和长按',
     child: LayoutBuilder(
-      builder: (context, constraints) => Listener(
+      builder: (context, constraints) => RawGestureDetector(
+        // 画面是控制区域：手指按下即认领手势（EagerGestureRecognizer），
+        // 外层 ListView 失去竞争不会再响应滑动，避免页面与远端设备同时滚动
+        gestures: {
+          EagerGestureRecognizer:
+              GestureRecognizerFactoryWithHandlers<EagerGestureRecognizer>(
+                EagerGestureRecognizer.new,
+                (instance) {},
+              ),
+        },
         behavior: HitTestBehavior.opaque,
-        onPointerDown: (event) => _touch(0, event, constraints.biggest),
-        onPointerMove: (event) => _touch(2, event, constraints.biggest),
-        onPointerUp: (event) => _touch(1, event, constraints.biggest),
-        onPointerCancel: (_) => _cancel(),
-        child: Texture(textureId: widget.textureId),
+        child: Listener(
+          behavior: HitTestBehavior.opaque,
+          onPointerDown: (event) => _touch(0, event, constraints.biggest),
+          onPointerMove: (event) => _touch(2, event, constraints.biggest),
+          onPointerUp: (event) => _touch(1, event, constraints.biggest),
+          onPointerCancel: (_) => _cancel(),
+          child: Texture(textureId: widget.textureId),
+        ),
       ),
     ),
   );

@@ -92,6 +92,46 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
+  testWidgets(
+    'dragging the video claims the gesture so the page does not scroll',
+    (tester) async {
+      final touches = <NativeTouch>[];
+      await tester.pumpWidget(
+        host(
+          ListView(
+            children: [
+              SizedBox(
+                height: 300,
+                child: NativeVideoSurface(
+                  textureId: 1,
+                  width: 100,
+                  height: 100,
+                  onTouch: (value) async => touches.add(value),
+                  onError: (error) => fail('$error'),
+                ),
+              ),
+              const SizedBox(height: 1200),
+            ],
+          ),
+        ),
+      );
+      final position = tester
+          .state<ScrollableState>(find.byType(Scrollable))
+          .position;
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.byType(NativeVideoSurface)),
+      );
+      await gesture.moveBy(const Offset(0, -120));
+      await tester.pump();
+      expect(position.pixels, 0);
+      await gesture.up();
+      await tester.pump();
+      expect(touches.map((e) => e.action), [0, 2, 1]);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
+
   testWidgets('video fills the card width for a portrait stream', (
     tester,
   ) async {
