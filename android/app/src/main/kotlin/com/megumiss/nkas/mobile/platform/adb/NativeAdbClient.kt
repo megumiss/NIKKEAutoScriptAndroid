@@ -221,9 +221,11 @@ class NativeAdbClient(
                             if (stream == null) send(CLSE, message.arg1, message.arg0, ByteArray(0))
                             else stream.onData(message.payload)
                         }
-                        CLSE -> streams.remove(message.arg1)?.let {
-                            it.forceClose()
+                        CLSE -> streams[message.arg1]?.let {
+                            // 先回 CLSE 再关闭流：等待中的调用方一旦解除阻塞就可能关闭整个客户端
                             send(CLSE, message.arg1, message.arg0, ByteArray(0))
+                            streams.remove(message.arg1)
+                            it.forceClose()
                         }
                         else -> Log.w(TAG, "Ignoring ADB command ${commandName(message.command)}")
                     }
