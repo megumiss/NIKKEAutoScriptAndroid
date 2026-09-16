@@ -11,7 +11,7 @@ import zipfile
 
 
 ROOT = Path(__file__).resolve().parents[1]
-GO_VERSION = 'go1.23.12'
+GO_VERSION = 'go1.24.13'
 MOBILE_VERSION = 'v0.0.0-20240806205939-81131f6468ab'
 NDK_VERSION = '28.2.13676358'
 ANDROID_ABIS = {'armeabi-v7a', 'arm64-v8a', 'x86_64'}
@@ -26,7 +26,7 @@ def build(target):
     env['GOTOOLCHAIN'] = GO_VERSION
     go = shutil.which('go')
     if not go:
-        raise SystemExit(f'Install Go 1.23.12 and add its bin directory to PATH.')
+        raise SystemExit(f'Install Go 1.24.13 and add its bin directory to PATH.')
     version = subprocess.check_output([go, 'version'], env=env, text=True)
     if version.split()[2] != GO_VERSION:
         raise SystemExit(f'Expected {GO_VERSION}, found {version.strip()}')

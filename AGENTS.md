@@ -48,7 +48,7 @@
 
 ## 工具链与构建
 
-版本以构建配置、锁文件和 CI 为准。当前 Flutter 工作流使用 Flutter **3.47.2**、Go **1.23.12**、JDK **17**、Android NDK **28.2.13676358**；gomobile 与 Tailscale 版本已固定。Flutter Android 最低 API **26**，iOS 最低 **15.0**。
+版本以构建配置、锁文件和 CI 为准。当前 Flutter 工作流使用 Flutter **3.47.2**、Go **1.24.13**、JDK **17**、Android NDK **28.2.13676358**；gomobile 与 Tailscale 版本已固定。Flutter Android 最低 API **26**，iOS 最低 **15.0**。
 
 以下 Windows 示例使用 PowerShell。Android 构建需要配置 Android SDK；`ANDROID_HOME` 指向 SDK，Go 的 `PATH` 与 `GOROOT` 应匹配。iOS 构建与 XCTest 需要 macOS、Xcode 和相应 SDK。
 

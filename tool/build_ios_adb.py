@@ -193,7 +193,7 @@ def framework(library, destination, sdk):
 def build(prepare_only=False):
     if not prepare_only:
         if sys.platform != 'darwin':
-            raise SystemExit('iOS native compilation requires macOS, Xcode, CMake and Go 1.23.12.')
+            raise SystemExit('iOS native compilation requires macOS, Xcode, CMake and Go 1.24.13.')
         for command in ('git', 'cmake', 'xcrun', 'xcodebuild', 'go'):
             if not shutil.which(command):
                 raise SystemExit(f'Missing build tool: {command}')

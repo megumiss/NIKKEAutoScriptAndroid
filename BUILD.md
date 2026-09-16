@@ -9,7 +9,7 @@
 | 工具或平台 | 配置 |
 | --- | --- |
 | Flutter | 3.47.2，使用 SDK 自带的 Dart |
-| Go | 1.23.12，`PATH` 与 `GOROOT` 指向同一套安装 |
+| Go | 1.24.13，`PATH` 与 `GOROOT` 指向同一套安装 |
 | Python / Git | Python 3、可用的 Git 命令行 |
 | Android | JDK 17、Android SDK / Command-line Tools / Platform Tools、NDK 28.2.13676358 |
 | Android API | 最低 26；compileSdk / targetSdk 跟随所用 Flutter SDK |
